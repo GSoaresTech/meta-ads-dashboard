@@ -48,6 +48,10 @@ Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o
 - `npm test`: roda os testes do painel com o Vitest.
 - `npm run test:coverage`: roda os testes medindo a cobertura do módulo de formatação (`lib/formatacao*`) e falha abaixo de 80% (RNF-19).
 
+Varredura de segredos (exige o gitleaks na versão de `VERSAO_GITLEAKS`, em `.github/workflows/ci.yml`), na raiz do repositório, com as regras de `.gitleaks.toml` (RNF-16):
+- `gitleaks git --config .gitleaks.toml --redact --no-banner --verbose --log-opts="--full-history --diff-filter=tuxdb --diff-merges=first-parent HEAD"`: varre o histórico do commit atual.
+- `gitleaks dir web/.next/static --config .gitleaks.toml --redact --no-banner --verbose`, e o mesmo com `web/.next/server/app`: varre o build do cliente, depois do `npm run build`.
+
 Não invente comandos; registre-os aqui quando existirem.
 
 ## 3. Arquitetura de dados
