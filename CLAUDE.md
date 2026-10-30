@@ -35,6 +35,7 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/python -m pip install -e . --group dev`: instala a ETL e as ferramentas fixadas no `pyproject.toml` (exige pip 25.1 ou mais novo, por causa de `--group`).
 - `.venv/bin/ruff check`: lint, com limite de complexidade (RNF-21) e type hints obrigatórios.
 - `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
+- `.venv/bin/python -m pytest`: roda os testes de `tests/`.
 
 Ainda não há comandos do painel. Não invente comandos; registre-os aqui quando existirem.
 
