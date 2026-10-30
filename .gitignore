@@ -36,6 +36,8 @@ next-env.d.ts
 # Supabase CLI (estado local)
 supabase/.branches/
 supabase/.temp/
+# Consultas salvas pelo Studio local podem conter dados do banco
+supabase/snippets/
 
 # Claude Code (configuração local de cada pessoa)
 .claude/

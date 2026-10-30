@@ -25,7 +25,12 @@ Decidida no ADR-0001:
 - Fonte de dados: Meta Marketing API (Insights), lida por um System User da BM do operador. A versão da API fica numa única constante.
 - Testes: `pytest` na ETL, pgTAP com `supabase test db` no banco e testes do painel definidos no esqueleto.
 
-Ainda não há comandos de instalação, build, teste ou lint. Não invente comandos; registre-os aqui quando existirem.
+Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
+- `supabase start`: sobe o Supabase local com `supabase/config.toml`.
+- `supabase test db`: roda os testes pgTAP de `supabase/tests/` contra o banco local.
+- `supabase stop`: para o Supabase local.
+
+Ainda não há comandos da ETL nem do painel. Não invente comandos; registre-os aqui quando existirem.
 
 ## 3. Arquitetura de dados
 
