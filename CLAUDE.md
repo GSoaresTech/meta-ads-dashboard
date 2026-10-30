@@ -46,6 +46,7 @@ Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o
 - `npm run format:check`: confere a formatação com Prettier; `npm run format` formata.
 - `npm run build`: build de produção, que também faz a checagem de tipos.
 - `npm test`: roda os testes do painel com o Vitest.
+- `npm run test:coverage`: roda os testes medindo a cobertura do módulo de formatação (`lib/formatacao*`) e falha abaixo de 80% (RNF-19).
 
 Não invente comandos; registre-os aqui quando existirem.
 
