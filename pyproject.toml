@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools==84.2.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meta-ads-dashboard-etl"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "psycopg[binary]==3.3.6",
+    "requests==2.34.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+[tool.setuptools]
+packages = ["etl"]
+
+[tool.ruff.lint]
+# C90: complexidade ciclomática (RNF-21). ANN: type hints (CLAUDE.md §8).
+extend-select = ["C90", "ANN"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.pytest]
+testpaths = ["tests"]

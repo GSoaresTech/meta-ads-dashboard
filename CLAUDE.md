@@ -30,7 +30,13 @@ Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
 - `supabase test db`: roda os testes pgTAP de `supabase/tests/` contra o banco local.
 - `supabase stop`: para o Supabase local.
 
-Ainda não há comandos da ETL nem do painel. Não invente comandos; registre-os aqui quando existirem.
+ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
+- `python3 -m venv .venv`: cria o ambiente virtual, fora do Git.
+- `.venv/bin/python -m pip install -e . --group dev`: instala a ETL e as ferramentas fixadas no `pyproject.toml` (exige pip 25.1 ou mais novo, por causa de `--group`).
+- `.venv/bin/ruff check`: lint, com limite de complexidade (RNF-21) e type hints obrigatórios.
+- `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
+
+Ainda não há comandos do painel. Não invente comandos; registre-os aqui quando existirem.
 
 ## 3. Arquitetura de dados
 
