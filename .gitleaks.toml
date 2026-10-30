@@ -1,0 +1,50 @@
+# Regras da varredura de segredos (RNF-16), usadas pela CI no histórico do
+# Git e no build do cliente. Somamos às regras padrão do gitleaks os segredos
+# deste sistema que elas não reconhecem.
+
+[extend]
+useDefault = true
+
+# A regra padrão de token da Meta só aceita os prefixos EAAM e EAAC; tokens
+# de System User também começam por outras letras depois de EAA. O token
+# termina em qualquer caractere fora do alfabeto base64, como o < de uma
+# página pré-renderizada, para não casar com um trecho de base64 embutido.
+[[rules]]
+id = "token-meta"
+description = "Token de acesso da Meta, como o do System User"
+regex = '''\b(EAA[A-Za-z0-9]{100,})(?:[^A-Za-z0-9+/=_-]|$)'''
+keywords = ["eaa"]
+
+# A regra padrão de JWT acusa qualquer token. Esta aponta a chave service_role
+# legada: um JWT cujo payload contém "role":"service_role", procurado nos três
+# alinhamentos possíveis do base64url.
+[[rules]]
+id = "chave-service-role-supabase"
+description = "Chave service_role legada do Supabase"
+regex = '''\b(ey[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]*(?:InJvbGUiOiJzZXJ2aWNlX3JvbGUi|Jyb2xlIjoic2VydmljZV9yb2xlI|icm9sZSI6InNlcnZpY2Vfcm9sZS)[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+)'''
+keywords = ["injvbguioijzzxj2awnlx3jvbgui", "jyb2xlijoic2vydmljzv9yb2xli", "icm9szsi6innlcnzpy2vfcm9szs"]
+
+[[rules]]
+id = "chave-secreta-supabase"
+description = "Chave secreta do Supabase no formato sb_secret_"
+regex = '''\b(sb_secret_[A-Za-z0-9_-]{20,})'''
+keywords = ["sb_secret_"]
+
+# O segredo reportado é só a senha (grupo 2): a allowlist global padrão
+# descarta segredos que contêm "false", e a URL inteira o conteria num
+# parâmetro como ?prepare=false. O host para em delimitadores de lista,
+# tabela e HTML, para que uma URL vizinha não entre no mesmo achado.
+[[rules]]
+id = "string-conexao-postgres"
+description = "String de conexão do Postgres com senha"
+regex = '''\bpostgres(?:ql)?(?:\+\w+)?://[^\s:/@'"\x60]+:([^\s@'"\x60]+)@[^\s'"\x60<>,;|]+'''
+secretGroup = 1
+keywords = ["postgres"]
+
+# Os exemplos e testes usam o banco local e domínios .invalid (RFC 2606). A
+# âncora prende o teste ao host da própria URL, e o host precisa terminar ali:
+# localhost.exemplo.com continua sendo acusado.
+[[rules.allowlists]]
+description = "Banco local e domínios reservados para exemplo"
+regexTarget = "match"
+regexes = ['''^postgres(?:ql)?(?:\+\w+)?://[^@\s]+@(?:127\.0\.0\.1|localhost|[\w.-]+\.invalid)(?:[^\w.-]|$)''']

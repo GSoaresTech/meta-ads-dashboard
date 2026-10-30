@@ -36,6 +36,8 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/ruff check`: lint, com limite de complexidade (RNF-21) e type hints obrigatórios.
 - `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
 - `.venv/bin/python -m pytest`: roda os testes de `tests/`.
+- `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
+- `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
 
 Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
 - `npm ci`: instala as dependências exatamente como fixadas no `package-lock.json`.
@@ -44,6 +46,11 @@ Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o
 - `npm run format:check`: confere a formatação com Prettier; `npm run format` formata.
 - `npm run build`: build de produção, que também faz a checagem de tipos.
 - `npm test`: roda os testes do painel com o Vitest.
+- `npm run test:coverage`: roda os testes medindo a cobertura do módulo de formatação (`lib/formatacao*`) e falha abaixo de 80% (RNF-19).
+
+Varredura de segredos (exige o gitleaks na versão de `VERSAO_GITLEAKS`, em `.github/workflows/ci.yml`), na raiz do repositório, com as regras de `.gitleaks.toml` (RNF-16):
+- `gitleaks git --config .gitleaks.toml --redact --no-banner --verbose --log-opts="--full-history --diff-filter=tuxdb --diff-merges=first-parent HEAD"`: varre o histórico do commit atual.
+- `gitleaks dir web/.next/static --config .gitleaks.toml --redact --no-banner --verbose`, e o mesmo com `web/.next/server/app`: varre o build do cliente, depois do `npm run build`.
 
 Não invente comandos; registre-os aqui quando existirem.
 
