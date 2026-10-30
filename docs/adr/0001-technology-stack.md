@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 29/10/2026
+- Atualizado em: 30/10/2026, com o executor de testes do painel
 
 ## Contexto
 
@@ -10,7 +11,8 @@ O produto é um painel de análise de Meta Ads para pessoas de negócio, multiem
 - Onde roda a ETL e em que linguagem;
 - O framework do painel;
 - O plano de hospedagem;
-- A nomenclatura no código.
+- A nomenclatura no código;
+- O executor de testes do painel.
 
 Requisitos que pesam na decisão:
 - Atualização de hora em hora (RF-06);
@@ -44,12 +46,23 @@ Requisitos que pesam na decisão:
 | snake_case em tudo | Uniforme | Contraria o lint e o ecossistema TS/React |
 | Nomes da Meta até `analitico` | Menos mapeamento | Mistura idiomas no modelo; contraria a regra de código em português |
 
+### Executor de testes do painel
+
+O painel precisa de testes de unidade, como os da formatação pt-BR com a cobertura do RNF-19, e de componente. A documentação do Next.js traz guias para Vitest e Jest nesse papel, e os dois têm a mesma limitação: não executam Server Components `async`, para os quais ela recomenda testes de ponta a ponta.
+
+| Opção | Prós | Contras |
+|---|---|---|
+| **Vitest**, com Testing Library e jsdom | TypeScript, JSX e ESM sem configuração de transpilação, porque o Vite já os transforma. Os aliases do `tsconfig.json` são resolvidos pelo próprio Vite (`resolve.tsconfigPaths`). A API é compatível com a do Jest, e a cobertura vem de um pacote oficial do próprio Vitest | O Vite entra só para os testes, ao lado do Turbopack do build. O jsdom 30 exige Node 22.22.2, 24.15 ou 26 em diante |
+| Jest, com `next/jest`, Testing Library e jsdom | Transforma com o compilador do Next e carrega o `next.config` e os `.env` | O suporte a ESM ainda é experimental. Exige pacotes e configuração a mais (`jest-environment-jsdom`, `ts-node`, `@types/jest`), além de repetir os aliases no `moduleNameMapper` |
+| Playwright | Testa o painel rodando, inclusive Server Components `async` e cabeçalhos HTTP | É ponta a ponta: exige navegador e servidor, e não substitui os testes de unidade |
+
 ## Decisão
 
 - **ETL**: Python no GitHub Actions, em workflows agendados. Conexão por `psycopg` ao pooler de sessão do Supabase.
 - **Banco**: Supabase (Postgres). O schema é versionado por migrations do Supabase CLI e testado com pgTAP (`supabase test db`).
 - **Painel**: Next.js com TypeScript `strict`, gráficos com Recharts e acesso ao banco só no servidor.
 - **Hospedagem**: Vercel Hobby.
+- **Testes do painel**: Vitest com Testing Library e jsdom, para testes de unidade e de componente. Os testes de ponta a ponta ficam fora desta decisão.
 - **Nomenclatura**: português no padrão de cada linguagem. O mapa de tradução dos campos da Meta é único e versionado.
 - **Autenticação**: nenhuma; o acesso funciona como descrito no ADR-0004.
 
@@ -57,6 +70,7 @@ Requisitos que pesam na decisão:
 
 - Duas cadeias de ferramentas, Python e TypeScript, cada uma com lint, formatação e testes próprios na CI.
 - **Risco (Q-01)**: pelos termos, o que define o uso comercial no Vercel Hobby é haver ganho financeiro de quem desenvolve ou opera o projeto, não de quem é a conta. Gatilho de revisão: primeiro cliente pagante ou qualquer remuneração ligada ao projeto. A saída é migrar para o Pro, sem mudança de código.
+- Server Components `async` não rodam no Vitest. Eles só são cobertos por testes de ponta a ponta, cuja ferramenta ainda não foi decidida.
 
 ## Referências
 
@@ -68,3 +82,10 @@ Consultadas em 29/10/2026; detalhes em `docs/REQUIREMENTS.md` §4.1 e §9.
 - https://vercel.com/docs/functions/limitations
 - https://docs.github.com/en/actions/reference/limits
 - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows
+
+Executor de testes do painel, consultadas em 30/10/2026:
+- https://nextjs.org/docs/app/guides/testing
+- https://nextjs.org/docs/app/guides/testing/vitest
+- https://nextjs.org/docs/app/guides/testing/jest
+- https://jestjs.io/docs/ecmascript-modules
+- https://vite.dev/config/shared-options

@@ -23,7 +23,7 @@ Decidida no ADR-0001:
 - ETL: Python, executado por workflows agendados do GitHub Actions. Conecta ao Postgres pelo pooler de sessão do Supabase (IPv4, porta 5432) com `psycopg`.
 - Painel: Next.js com TypeScript (modo `strict`), hospedado na Vercel (Hobby), com gráficos em Recharts. O banco é acessado só no servidor.
 - Fonte de dados: Meta Marketing API (Insights), lida por um System User da BM do operador. A versão da API fica numa única constante.
-- Testes: `pytest` na ETL, pgTAP com `supabase test db` no banco e testes do painel definidos no esqueleto.
+- Testes: `pytest` na ETL, pgTAP com `supabase test db` no banco e Vitest com Testing Library no painel.
 
 Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
 - `supabase start`: sobe o Supabase local com `supabase/config.toml`.
@@ -43,6 +43,7 @@ Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o
 - `npm run lint`: lint com ESLint, com limite de complexidade (RNF-21).
 - `npm run format:check`: confere a formatação com Prettier; `npm run format` formata.
 - `npm run build`: build de produção, que também faz a checagem de tipos.
+- `npm test`: roda os testes do painel com o Vitest.
 
 Não invente comandos; registre-os aqui quando existirem.
 
