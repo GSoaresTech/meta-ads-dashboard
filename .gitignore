@@ -37,8 +37,8 @@ next-env.d.ts
 supabase/.branches/
 supabase/.temp/
 
-# Claude Code (configuração pessoal)
-.claude/settings.local.json
+# Claude Code (configuração local de cada pessoa)
+.claude/
 
 # Editores e sistema
 .vscode/
