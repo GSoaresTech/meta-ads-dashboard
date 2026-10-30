@@ -37,7 +37,14 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
 - `.venv/bin/python -m pytest`: roda os testes de `tests/`.
 
-Ainda não há comandos do painel. Não invente comandos; registre-os aqui quando existirem.
+Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
+- `npm ci`: instala as dependências exatamente como fixadas no `package-lock.json`.
+- `npm run dev`: sobe o painel local em `http://localhost:3000`.
+- `npm run lint`: lint com ESLint, com limite de complexidade (RNF-21).
+- `npm run format:check`: confere a formatação com Prettier; `npm run format` formata.
+- `npm run build`: build de produção, que também faz a checagem de tipos.
+
+Não invente comandos; registre-os aqui quando existirem.
 
 ## 3. Arquitetura de dados
 
