@@ -1,0 +1,126 @@
+# CI obrigatória em todo PR (CLAUDE.md §9). O nome de cada job é um status
+# check exigido pela proteção da main: renomear um job exige atualizar a
+# proteção junto.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Binário oficial conferido por SHA-256, no lugar da gitleaks-action, para
+  # rodar a mesma ferramenta na CI e localmente e não publicar relatório em
+  # artefato, que é visível num repositório público (ADR-0008).
+  VERSAO_GITLEAKS: 8.30.1
+  SHA256_GITLEAKS: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  etl:
+    name: etl
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          # --group exige pip 25.1 ou mais novo.
+          pip-version: "26.2.2"
+      - name: Instalar dependências
+        run: python -m pip install -e . --group dev
+      - name: Lint
+        run: ruff check
+      - name: Formatação
+        run: ruff format --check
+      - name: Testes com cobertura
+        run: python -m coverage run -m pytest
+      - name: Gate de cobertura
+        run: python -m coverage report
+
+  painel:
+    name: painel
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Instalar dependências
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Formatação
+        run: npm run format:check
+      - name: Testes com gate de cobertura
+        run: npm run test:coverage
+      # Sem valores nas variáveis de servidor, a busca no build só acharia
+      # segredo escrito no código, que a varredura do histórico já pega. Com
+      # valores fictícios no formato real, um código que leve uma delas ao
+      # navegador deixa o valor no build. São gerados aqui, e não escritos,
+      # para que a varredura do histórico não acuse este arquivo.
+      - name: Variáveis de servidor fictícias
+        run: |
+          echo "TOKEN_SISTEMA_META=EAA$(openssl rand -hex 60)" >> "$GITHUB_ENV"
+          echo "URL_BANCO=postgresql://ficticio:$(openssl rand -hex 16)@db.ficticio.test:5432/postgres" >> "$GITHUB_ENV"
+      - name: Build
+        run: npm run build
+      - &instalar-gitleaks
+        name: Instalar gitleaks
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSAO_GITLEAKS}/gitleaks_${VERSAO_GITLEAKS}_linux_x64.tar.gz"
+          echo "${SHA256_GITLEAKS}  gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf gitleaks.tar.gz gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # O build do cliente é o que chega ao navegador (RNF-16): o JS e o CSS
+      # de .next/static e as páginas pré-renderizadas (HTML e RSC) de
+      # .next/server/app.
+      - name: Segredos no JS e no CSS do cliente
+        run: gitleaks dir .next/static --config ../.gitleaks.toml --redact --no-banner --verbose
+      - name: Segredos nas páginas pré-renderizadas
+        run: gitleaks dir .next/server/app --config ../.gitleaks.toml --redact --no-banner --verbose
+
+  banco:
+    name: banco
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.122.0
+      # Os testes pgTAP só precisam do Postgres; a pilha inteira do Supabase
+      # custaria minutos de download de imagens sem mudar o resultado.
+      - name: Subir o Postgres local
+        run: supabase db start
+      - name: Testes pgTAP
+        run: supabase test db
+
+  segredos:
+    name: segredos
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - *instalar-gitleaks
+      # São as opções padrão do gitleaks com HEAD no lugar de --all: num PR,
+      # HEAD é o merge de teste com a main e o histórico dele contém todos os
+      # commits do PR, sem herdar achados de outras branches. O git log não
+      # mostra o diff de merges; --diff-merges=first-parent cobre o que entra
+      # só num merge, como a resolução de um conflito.
+      - name: Segredos no histórico do Git
+        run: gitleaks git --config .gitleaks.toml --redact --no-banner --verbose --log-opts="--full-history --diff-filter=tuxdb --diff-merges=first-parent HEAD"
