@@ -36,6 +36,8 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/ruff check`: lint, com limite de complexidade (RNF-21) e type hints obrigatórios.
 - `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
 - `.venv/bin/python -m pytest`: roda os testes de `tests/`.
+- `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
+- `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
 
 Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
 - `npm ci`: instala as dependências exatamente como fixadas no `package-lock.json`.

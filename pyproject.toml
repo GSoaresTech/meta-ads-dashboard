@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "coverage==7.17.0",
     "pytest==9.2.0",
     "ruff==0.17.3",
 ]
@@ -29,3 +30,14 @@ max-complexity = 10
 
 [tool.pytest]
 testpaths = ["tests"]
+
+# RNF-19 exige 80% nos módulos de transformação. Medimos o pacote inteiro
+# porque um filtro por caminho falha sem dados enquanto o módulo não existe
+# e deixaria de valer em silêncio se ele ganhasse outro nome. Um módulo de
+# I/O difícil de cobrir sai da conta por `omit` explícito, na issue que o
+# trouxer.
+[tool.coverage.run]
+source = ["etl"]
+
+[tool.coverage.report]
+fail_under = 80
