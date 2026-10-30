@@ -1,0 +1,47 @@
+# Segredos e variáveis de ambiente
+.env*
+!.env.example
+
+# Dumps e backups (nunca versionar dados)
+*.dump
+*.backup
+*.sql.gz
+*.sql.age
+*.sql.gpg
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node e Next.js
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel/
+
+# Supabase CLI (estado local)
+supabase/.branches/
+supabase/.temp/
+
+# Claude Code (configuração pessoal)
+.claude/settings.local.json
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
+*.log
