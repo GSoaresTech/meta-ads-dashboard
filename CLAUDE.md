@@ -30,6 +30,12 @@ Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
 - `supabase test db`: roda os testes pgTAP de `supabase/tests/` contra o banco local.
 - `supabase stop`: para o Supabase local.
 
+Banco de produção (ADR-0010), na raiz do repositório, a partir da `main` atualizada depois do merge do PR que traz a migration. Exige o Supabase CLI autenticado com `supabase login` e o projeto ligado com `supabase link --project-ref <ref>`, que pede a senha do banco no prompt.
+- `supabase projects list`: confere que o projeto marcado como ligado é o deste painel, e não o outro projeto da organização.
+- `supabase migration list --linked`: compara as migrations locais com as já aplicadas em produção.
+- `supabase db push --linked --dry-run`: lista as migrations que seriam aplicadas, sem aplicá-las.
+- `supabase db push --linked`: aplica as migrations pendentes, sem o seed, que fica só no banco local. Mudança do painel que dependa da migration entra num PR posterior, depois deste passo, porque a Vercel publica a `main` logo após o merge.
+
 ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `python3 -m venv .venv`: cria o ambiente virtual, fora do Git.
 - `.venv/bin/python -m pip install -e . --group dev`: instala a ETL e as ferramentas fixadas no `pyproject.toml` (exige pip 25.1 ou mais novo, por causa de `--group`).
