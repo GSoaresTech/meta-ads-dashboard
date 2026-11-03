@@ -85,17 +85,13 @@ SELECT has_index(
   'resposta_api tem índice (data_referencia), para a retenção'
 );
 
--- Dados de teste: uma conta e uma campanha por empresa, e uma execução de
--- cada empresa com id fixo, a A terminando em a e a B em b.
+-- Dados de teste: uma conta por empresa e, logo abaixo, uma execução de cada
+-- empresa com id fixo, a da A terminando em a e a da B em b.
 INSERT INTO normalizado.empresa (nome) VALUES ('Empresa Teste A'), ('Empresa Teste B');
 INSERT INTO normalizado.conta_anuncio (empresa_id, id_meta)
 SELECT id, CASE nome WHEN 'Empresa Teste A' THEN '111111111111111' ELSE '222222222222222' END
 FROM normalizado.empresa
 WHERE nome IN ('Empresa Teste A', 'Empresa Teste B');
-INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status)
-SELECT empresa_id, id, CASE id_meta WHEN '111111111111111' THEN '120000000000000101' ELSE '120000000000000102' END, 'OUTCOME_SALES', 'ACTIVE'
-FROM normalizado.conta_anuncio
-WHERE id_meta IN ('111111111111111', '222222222222222');
 
 -- Execução
 SELECT lives_ok(
@@ -119,6 +115,15 @@ SELECT results_eq(
   $$VALUES ('em_andamento', true, true, true)$$,
   'a execução nasce em andamento, com início, sem fim e sem erro'
 );
+-- Uma campanha por empresa, gravada pela execução da própria empresa.
+INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status, execucao_id)
+SELECT c.empresa_id, c.id, v.id_meta, 'OUTCOME_SALES', 'ACTIVE', v.execucao_id::uuid
+FROM normalizado.conta_anuncio AS c
+JOIN (
+  VALUES
+    ('111111111111111', '120000000000000101', '00000000-0000-4000-8000-00000000000a'),
+    ('222222222222222', '120000000000000102', '00000000-0000-4000-8000-00000000000b')
+) AS v (conta, id_meta, execucao_id) ON v.conta = c.id_meta;
 SELECT lives_ok(
   format(
     $$

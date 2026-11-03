@@ -186,8 +186,8 @@ SELECT is(
       AND has_column_privilege('etl_carga', a.attrelid, a.attnum, 'UPDATE')
     ORDER BY a.attname
   ),
-  ARRAY['atualizado_em', 'fuso_horario', 'moeda', 'nome'],
-  'etl_carga atualiza só nome, fuso_horario, moeda e atualizado_em de conta_anuncio'
+  ARRAY['atualizado_em', 'execucao_id', 'fuso_horario', 'moeda', 'nome'],
+  'etl_carga atualiza só nome, fuso_horario, moeda, execucao_id e atualizado_em de conta_anuncio'
 );
 SELECT policies_are('normalizado', 'empresa', ARRAY['etl_carga_acessa'], 'empresa tem só a política da etl_carga');
 SELECT policies_are('normalizado', 'conta_anuncio', ARRAY['etl_carga_acessa'], 'conta_anuncio tem só a política da etl_carga');
