@@ -153,7 +153,8 @@ Detalhes que a tabela não comporta:
 Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `empresa_id`.
 
 - **`calendario`**: uma linha por data.
-  - PK `data`. Colunas `dia_semana_iso`, `semana_iso`, `ano_iso`, `inicio_semana`, `mes`, `ano`, `inicio_mes` e `nome_mes` (pt-BR), com `CHECK` de faixa em cada uma.
+  - PK `data`. Colunas `dia_semana_iso`, `semana_iso`, `ano_iso`, `inicio_semana`, `mes`, `ano`, `inicio_mes` e `nome_mes` (pt-BR).
+  - Um `CHECK` em cada coluna a amarra à `data`, com `extract` e `make_date`. Assim, uma linha incoerente é recusada mesmo numa migration que estenda o intervalo. `nome_mes` é coluna gerada a partir de `mes`, por mapeamento fixo, sem depender do locale do servidor.
   - O intervalo vai de 01/01/2023 a 31/12/2035 e é gerado pela própria migration. Ele cobre os 37 meses de histórico (R-19) de qualquer conta cadastrada até o fim do intervalo.
 - **`metrica`**: uma linha por métrica do catálogo (`docs/REQUIREMENTS.md` §7.1).
   - PK `codigo`. `UNIQUE (codigo, unidade)`, alvo da FK composta de `meta_desempenho`.
