@@ -27,6 +27,7 @@ Decidida no ADR-0001:
 
 Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
 - `supabase start`: sobe o Supabase local com `supabase/config.toml`.
+- `supabase db reset`: recria o banco local e aplica todas as migrations de `supabase/migrations/`, e depois o seed, se houver.
 - `supabase test db`: roda os testes pgTAP de `supabase/tests/` contra o banco local.
 - `supabase stop`: para o Supabase local.
 
