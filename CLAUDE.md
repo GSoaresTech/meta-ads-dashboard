@@ -42,7 +42,8 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/python -m pip install -e . --group dev`: instala a ETL e as ferramentas fixadas no `pyproject.toml` (exige pip 25.1 ou mais novo, por causa de `--group`).
 - `.venv/bin/ruff check`: lint, com limite de complexidade (RNF-21) e type hints obrigatórios.
 - `.venv/bin/ruff format --check`: confere a formatação; sem `--check`, formata.
-- `.venv/bin/python -m pytest`: roda os testes de `tests/`.
+- `.venv/bin/python -m pytest`: roda os testes de `tests/`, sem os de integração.
+- `.venv/bin/python -m pytest -m integracao`: roda só os testes de integração, que exigem o banco local de pé (`supabase start`).
 - `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
 - `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
 

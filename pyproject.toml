@@ -30,6 +30,10 @@ max-complexity = 10
 
 [tool.pytest]
 testpaths = ["tests"]
+# Os testes de integração exigem o banco local de pé e ficam fora da suíte
+# padrão. Rodam com `-m integracao`, que substitui este filtro.
+addopts = ["-m", "not integracao"]
+markers = ["integracao: exige o banco local do Supabase"]
 
 # RNF-19 exige 80% nos módulos de transformação. Medimos o pacote inteiro
 # porque um filtro por caminho falha sem dados enquanto o módulo não existe

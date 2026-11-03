@@ -107,6 +107,18 @@ jobs:
         run: supabase db start
       - name: Testes pgTAP
         run: supabase test db
+      # As provas que exigem transações confirmadas em separado, como o
+      # registro de início que persiste após o rollback da carga (RF-20), não
+      # cabem num arquivo pgTAP, que roda inteiro numa transação.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          # --group exige pip 25.1 ou mais novo.
+          pip-version: "26.2.2"
+      - name: Instalar dependências da ETL
+        run: python -m pip install -e . --group dev
+      - name: Testes de integração com o banco
+        run: python -m pytest -m integracao
 
   segredos:
     name: segredos
