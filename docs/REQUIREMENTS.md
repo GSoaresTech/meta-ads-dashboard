@@ -86,7 +86,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas em 29/10/2026 nas fontes da §9. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto a R-28, consultada em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
 
 | ID | Restrição | Fonte |
 |---|---|---|
@@ -117,6 +117,7 @@ Todas foram consultadas em 29/10/2026 nas fontes da §9. Restrições que depend
 | R-25 | Meta: a prévia de anúncio é um iframe válido por 24 h, e as prévias de uma conta só são visíveis para quem tem função nela | [M10], [M11] |
 | R-26 | Meta: o `thumbnail_url` do AdCreative aceita `thumbnail_width`/`thumbnail_height` (padrão de 64 px). *A confirmar*: se a URL expira | [M12] |
 | R-27 | Meta: o post da Página tem `permalink_url` e a mídia do Instagram tem `permalink`. *A confirmar*: as permissões necessárias (`pages_read_engagement`, `instagram_basic`) para o System User | [M13], [M14] |
+| R-28 | Supabase Pro: o disco de 8 GB é cotado por projeto e cobrado pelo tamanho provisionado. Storage (100 GB), egress (250 GB) e egress em cache (250 GB, cota separada) são cotados pela organização. Com o spend cap ligado, o excedente não é cobrado, mas leva a restrições que "em geral" valem para todos os projetos da organização. O spend cap não cobre computação | [S1], [S7], [S8] |
 
 ### 4.2 Estimativa de volume
 
@@ -232,7 +233,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 |---|---|---|---|---|
 | RF-50 | O sistema deve notificar o operador quando uma execução falhar para qualquer empresa. | Must | Uma falha simulada de uma empresa faz o workflow terminar com código diferente de zero, o que dispara a notificação do GitHub. A falha aparece na área do operador. | Decisão de produto |
 | RF-51 | A área do operador deve listar as execuções recentes por empresa, com status, duração, linhas afetadas e erro. | Should | As últimas 48 h de execuções aparecem com filtro por empresa e status. | Decisão de produto |
-| RF-52 | O sistema deve registrar diariamente o uso de banco, Storage e egress e alertar o operador ao ultrapassar 70% das cotas incluídas no plano. | Must | Com o uso acima de 70% de uma cota (constantes `COTA_*` de configuração), a execução diária registra um aviso, e a área do operador o destaca. | RNF-23 |
+| RF-52 | O sistema deve registrar diariamente o uso de banco, Storage e egress e alertar o operador ao ultrapassar 70% das cotas incluídas no plano: o disco do projeto inteiro e, em Storage e egress, que são da organização, a parcela reservada a este projeto. | Must | Com o uso acima de 70% de uma cota (constantes `COTA_*` e `PARCELA_COTA_ORGANIZACAO` de configuração), a execução diária registra um aviso, e a área do operador o destaca. | RNF-23; R-28; ADR-0010 |
 | RF-53 | O repositório deve conter um runbook para cadastrar e desativar empresa, gerar e revogar link, rotacionar o token da Meta, restaurar o banco a partir do backup e reconstruí-lo por reextração. | Should | Uma pessoa que não participou do desenvolvimento cadastra uma empresa fictícia seguindo só o runbook. | RNF-22 |
 
 ---
@@ -377,7 +378,7 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026.
+Todas consultadas em 29/10/2026, exceto [S7] e [S8], consultadas em 03/11/2026.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
@@ -403,6 +404,8 @@ Todas consultadas em 29/10/2026.
 - [S4] Edge Functions limits: https://supabase.com/docs/guides/functions/limits
 - [S5] Testing (pgTAP, `supabase test db`): https://supabase.com/docs/guides/local-development/testing/overview
 - [S6] Database migrations: https://supabase.com/docs/guides/deployment/database-migrations
+- [S7] Cost control (spend cap): https://supabase.com/docs/guides/platform/cost-control
+- [S8] Billing FAQ: https://supabase.com/docs/guides/platform/billing-faq
 
 **Vercel**
 - [VC1] Fair use guidelines: https://vercel.com/docs/limits/fair-use-guidelines
