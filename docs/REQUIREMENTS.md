@@ -86,7 +86,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto a R-28, consultada em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-35, consultadas em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
 
 | ID | Restrição | Fonte |
 |---|---|---|
@@ -118,6 +118,13 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto a R-28, consulta
 | R-26 | Meta: o `thumbnail_url` do AdCreative aceita `thumbnail_width`/`thumbnail_height` (padrão de 64 px). *A confirmar*: se a URL expira | [M12] |
 | R-27 | Meta: o post da Página tem `permalink_url` e a mídia do Instagram tem `permalink`. *A confirmar*: as permissões necessárias (`pages_read_engagement`, `instagram_basic`) para o System User | [M13], [M14] |
 | R-28 | Supabase Pro: o disco de 8 GB é cotado por projeto e cobrado pelo tamanho provisionado. Storage (100 GB), egress (250 GB) e egress em cache (250 GB, cota separada) são cotados pela organização. Com o spend cap ligado, o excedente não é cobrado, mas leva a restrições que "em geral" valem para todos os projetos da organização. O spend cap não cobre computação | [S1], [S7], [S8] |
+| R-29 | Supabase: um esquema próprio só é servido pela Data API depois de incluído em "Exposed schemas", e os objetos dele não recebem privilégios padrão para `anon`, `authenticated` e `service_role`. Em `public`, tabelas novas deixaram de recebê-los automaticamente em todos os projetos a partir de 30/10/2026 | [S9], [S10], [S11] |
+| R-30 | Supabase: `postgres` e `service_role` têm o atributo `bypassrls`; o `postgres` não é superusuário e tem `createrole` (verificado no banco local). Um papel próprio fica sujeito ao RLS nas tabelas de que não é dono e herda tudo o que é concedido a `PUBLIC`, inclusive a leitura das filas do `pg_net` quando a extensão está instalada. A documentação pede para nunca distribuir a credencial de login de um papel com `bypassrls` | [S12], [S13], [S16], [P6] |
+| R-31 | Postgres: toda função nova recebe `EXECUTE` para `PUBLIC`, e um `REVOKE` limitado a um esquema não remove esse padrão global. Uma função `SECURITY DEFINER` roda com os privilégios do dono, exige `search_path` fixo e não deve ficar num esquema exposto pela Data API | [S12], [S14], [P1], [P2] |
+| R-32 | Supabase: um papel próprio conecta pelo pooler compartilhado com o usuário `[ROLE].[PROJECT-REF]` | [S3] |
+| R-33 | Postgres: um papel criado sem senha tem senha nula e nunca autentica por senha. `ALTER ROLE ... PASSWORD` envia a senha em texto puro, que pode ir para o histórico do cliente e para o log do servidor; o `\password` do `psql` calcula o hash no cliente. O Supabase mascara no log a senha entre aspas simples, mas não a entre cifrões nem a de um comando que falha | [S15], [P3], [P4], [P5] |
+| R-34 | Postgres 16 ou mais novo: quem cria um papel com `createrole`, sem ser superusuário, não ganha `SET ROLE` nem herança sobre ele (`createrole_self_grant` vem vazio). `GRANT <papel> TO <membro> WITH INHERIT FALSE, SET TRUE` dá só o `SET ROLE` (verificado no banco local) | [P7], [P8] |
+| R-35 | Meta: os IDs de campanha, conjunto, anúncio e criativo e o `account_id` da conta são "numeric string"; o `id` da conta é `act_` seguido do `account_id`. O `status` de campanha, conjunto e anúncio é `ACTIVE`, `PAUSED`, `DELETED` ou `ARCHIVED`. O `objective` da campanha é `string`. O `attribution_spec` do conjunto é uma lista de `event_type` e `window_days`. O `object_story_id` do criativo é um token "Post ID", não um número | [M12], [M16], [M17], [M18], [M19] |
 
 ### 4.2 Estimativa de volume
 
@@ -234,7 +241,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 | RF-50 | O sistema deve notificar o operador quando uma execução falhar para qualquer empresa. | Must | Uma falha simulada de uma empresa faz o workflow terminar com código diferente de zero, o que dispara a notificação do GitHub. A falha aparece na área do operador. | Decisão de produto |
 | RF-51 | A área do operador deve listar as execuções recentes por empresa, com status, duração, linhas afetadas e erro. | Should | As últimas 48 h de execuções aparecem com filtro por empresa e status. | Decisão de produto |
 | RF-52 | O sistema deve registrar diariamente o uso de banco, Storage e egress e alertar o operador ao ultrapassar 70% das cotas incluídas no plano: o disco do projeto inteiro e, em Storage e egress, que são da organização, a parcela reservada a este projeto. | Must | Com o uso acima de 70% de uma cota (constantes `COTA_*` e `PARCELA_COTA_ORGANIZACAO` de configuração), a execução diária registra um aviso, e a área do operador o destaca. | RNF-23; R-28; ADR-0010 |
-| RF-53 | O repositório deve conter um runbook para cadastrar e desativar empresa, gerar e revogar link, rotacionar o token da Meta, restaurar o banco a partir do backup e reconstruí-lo por reextração. | Should | Uma pessoa que não participou do desenvolvimento cadastra uma empresa fictícia seguindo só o runbook. | RNF-22 |
+| RF-53 | O repositório deve conter um runbook para cadastrar e desativar empresa, gerar e revogar link, rotacionar o token da Meta, definir e rotacionar as senhas dos papéis de banco, restaurar o banco a partir do backup e reconstruí-lo por reextração. | Should | Uma pessoa que não participou do desenvolvimento cadastra uma empresa fictícia seguindo só o runbook. | RNF-22 |
 
 ---
 
@@ -373,12 +380,15 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 | Q-09 | O volume real por empresa confirma a estimativa da §4.2? | Custo de armazenamento acima do previsto e consultas mais lentas. |
 | Q-10 | Quais são os valores exatos dos enums de objetivos legados e de metas de otimização (§7.2)? | Campanhas mal classificadas. |
 | Q-11 | O GitHub avisa antes de desativar o workflow agendado por 60 dias sem atividade (R-08)? | Carga parada sem aviso, visível só pelo RF-28 e pelo RNF-13. |
+| Q-12 | A extensão `pg_net` está instalada no projeto de produção (R-30)? | Se estiver e a remoção falhar, os papéis próprios leem a fila de requisições dela, que pode conter chaves de API (ADR-0009). |
+| Q-13 | Com que papel o `supabase db push` aplica as migrations no projeto remoto? | Se não for o `postgres`, os objetos ficam com outro dono, e as funções `SECURITY DEFINER` passam a rodar com os privilégios dele (ADR-0009). |
+| Q-14 | O ID da Página do Facebook é "numeric string", como os das entidades de anúncio (R-35)? | Se não for, o `CHECK` numérico do `id_meta` recusa as Páginas e falha a carga do cadastro. |
 
 ---
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026, exceto [S7] e [S8], consultadas em 03/11/2026.
+Todas consultadas em 29/10/2026, exceto [M16] a [M19], [S7] a [S17] e [P1] a [P8], consultadas em 03/11/2026.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
@@ -396,6 +406,10 @@ Todas consultadas em 29/10/2026, exceto [S7] e [S8], consultadas em 03/11/2026.
 - [M13] Page Post: https://developers.facebook.com/docs/graph-api/reference/page-post/
 - [M14] Instagram Media: https://developers.facebook.com/docs/instagram-platform/reference/instagram-media/
 - [M15] Facebook Login for Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
+- [M16] Campaign (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/
+- [M17] Ad Set (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/
+- [M18] Ad (referência): https://developers.facebook.com/docs/marketing-api/reference/adgroup/
+- [M19] Ad Account (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-account/
 
 **Supabase**
 - [S1] Pricing: https://supabase.com/pricing
@@ -406,6 +420,25 @@ Todas consultadas em 29/10/2026, exceto [S7] e [S8], consultadas em 03/11/2026.
 - [S6] Database migrations: https://supabase.com/docs/guides/deployment/database-migrations
 - [S7] Cost control (spend cap): https://supabase.com/docs/guides/platform/cost-control
 - [S8] Billing FAQ: https://supabase.com/docs/guides/platform/billing-faq
+- [S9] Using custom schemas: https://supabase.com/docs/guides/api/using-custom-schemas
+- [S10] Securing your API: https://supabase.com/docs/guides/api/securing-your-api
+- [S11] Anúncio "Tables not exposed to Data and GraphQL API automatically": https://github.com/orgs/supabase/discussions/45329
+- [S12] Row Level Security: https://supabase.com/docs/guides/database/postgres/row-level-security
+- [S13] Custom role inherits privileges that were not explicitly granted: https://supabase.com/kb/troubleshooting/custom-role-inherits-privileges-that-were-not-explicitly-granted
+- [S14] Database functions: https://supabase.com/docs/guides/database/functions
+- [S15] Provisioning role credentials without exposing them in logs: https://supabase.com/kb/troubleshooting/provisioning-credentials-without-log-exposure
+- [S16] Postgres roles: https://supabase.com/docs/guides/database/postgres/roles
+- [S17] CLI `supabase test db` e `supabase db push`: https://supabase.com/docs/reference/cli/supabase-test-db, https://supabase.com/docs/reference/cli/supabase-db-push
+
+**PostgreSQL 17**
+- [P1] CREATE FUNCTION (`SECURITY DEFINER`): https://www.postgresql.org/docs/17/sql-createfunction.html
+- [P2] Privileges: https://www.postgresql.org/docs/17/ddl-priv.html
+- [P3] CREATE ROLE: https://www.postgresql.org/docs/17/sql-createrole.html
+- [P4] ALTER ROLE: https://www.postgresql.org/docs/17/sql-alterrole.html
+- [P5] psql (`\password`): https://www.postgresql.org/docs/17/app-psql.html
+- [P6] Row security policies: https://www.postgresql.org/docs/17/ddl-rowsecurity.html
+- [P7] `createrole_self_grant`: https://www.postgresql.org/docs/17/runtime-config-client.html
+- [P8] GRANT: https://www.postgresql.org/docs/17/sql-grant.html
 
 **Vercel**
 - [VC1] Fair use guidelines: https://vercel.com/docs/limits/fair-use-guidelines
