@@ -16,15 +16,30 @@ SELECT id, '90000000000000002', 'Conta Exemplo EUA', 'America/New_York', 'USD' F
 UNION ALL
 SELECT id, '900000000000000003', 'Conta Exemplo 2', 'America/Sao_Paulo', 'BRL' FROM empresa_exemplo_2;
 
+-- Uma carga diária concluída por empresa, que gravou as contas e as
+-- entidades abaixo (ADR-0009 §1, Rastreio).
+INSERT INTO normalizado.execucao_carga (empresa_id, tipo, status, terminado_em)
+SELECT id, 'diaria', 'sucesso', now() FROM normalizado.empresa;
+
+UPDATE normalizado.conta_anuncio AS c
+SET execucao_id = x.id
+FROM normalizado.execucao_carga AS x
+WHERE x.empresa_id = c.empresa_id;
+
 -- Uma hierarquia por conta, com objetivos diferentes, e um criativo
 -- reutilizado por dois anúncios (N:1). Página, campanhas e textos fictícios.
-INSERT INTO normalizado.pagina (empresa_id, id_meta, nome)
-SELECT id, '910000000000001', 'Página Exemplo' FROM normalizado.empresa WHERE nome = 'Empresa Exemplo'
-UNION ALL
-SELECT id, '910000000000002', 'Página Exemplo 2' FROM normalizado.empresa WHERE nome = 'Empresa Exemplo 2';
+INSERT INTO normalizado.pagina (empresa_id, id_meta, nome, execucao_id)
+SELECT x.empresa_id, v.id_meta, v.nome, x.id
+FROM normalizado.execucao_carga AS x
+JOIN normalizado.empresa AS e ON e.id = x.empresa_id
+JOIN (
+  VALUES
+    ('Empresa Exemplo', '910000000000001', 'Página Exemplo'),
+    ('Empresa Exemplo 2', '910000000000002', 'Página Exemplo 2')
+) AS v (empresa, id_meta, nome) ON v.empresa = e.nome;
 
-INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status)
-SELECT c.empresa_id, c.id, v.id_meta, v.nome, v.objetivo, v.status
+INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status, execucao_id)
+SELECT c.empresa_id, c.id, v.id_meta, v.nome, v.objetivo, v.status, c.execucao_id
 FROM normalizado.conta_anuncio AS c
 JOIN (
   VALUES
@@ -33,8 +48,8 @@ JOIN (
     ('900000000000000003', '920000000000000003', 'Campanha Exemplo Tráfego', 'OUTCOME_TRAFFIC', 'ACTIVE')
 ) AS v (conta, id_meta, nome, objetivo, status) ON v.conta = c.id_meta;
 
-INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, nome, meta_otimizacao, status)
-SELECT c.empresa_id, c.id, v.id_meta, v.nome, v.meta_otimizacao, c.status
+INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, nome, meta_otimizacao, status, execucao_id)
+SELECT c.empresa_id, c.id, v.id_meta, v.nome, v.meta_otimizacao, c.status, c.execucao_id
 FROM normalizado.campanha AS c
 JOIN (
   VALUES
@@ -43,13 +58,13 @@ JOIN (
     ('920000000000000003', '930000000000000003', 'Conjunto Exemplo Tráfego', 'LINK_CLICKS')
 ) AS v (campanha, id_meta, nome, meta_otimizacao) ON v.campanha = c.id_meta;
 
-INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-SELECT empresa_id, id, j.tipo_evento, j.janela_dias
+INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+SELECT empresa_id, id, j.tipo_evento, j.janela_dias, execucao_id
 FROM normalizado.conjunto_anuncio
 CROSS JOIN (VALUES ('CLICK_THROUGH', 7), ('VIEW_THROUGH', 1)) AS j (tipo_evento, janela_dias);
 
-INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, pagina_id, id_meta, titulo, texto, chamada_acao)
-SELECT c.empresa_id, c.id, p.id, v.id_meta, v.titulo, v.texto, v.chamada_acao
+INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, pagina_id, id_meta, titulo, texto, chamada_acao, execucao_id)
+SELECT c.empresa_id, c.id, p.id, v.id_meta, v.titulo, v.texto, v.chamada_acao, c.execucao_id
 FROM normalizado.conta_anuncio AS c
 JOIN normalizado.pagina AS p ON p.empresa_id = c.empresa_id
 JOIN (
@@ -59,8 +74,8 @@ JOIN (
     ('900000000000000003', '940000000000000003', 'Site Exemplo', 'Texto de anúncio fictício para tráfego.', 'LEARN_MORE')
 ) AS v (conta, id_meta, titulo, texto, chamada_acao) ON v.conta = c.id_meta;
 
-INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, nome, status)
-SELECT j.empresa_id, j.id, k.id, v.id_meta, v.nome, j.status
+INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, nome, status, execucao_id)
+SELECT j.empresa_id, j.id, k.id, v.id_meta, v.nome, j.status, j.execucao_id
 FROM (
   VALUES
     ('930000000000000001', '940000000000000001', '950000000000000001', 'Anúncio Exemplo Vendas A'),

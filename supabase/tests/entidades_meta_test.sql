@@ -46,43 +46,56 @@ SELECT col_is_null('normalizado', 'criativo', 'pagina_id', 'criativo.pagina_id �
 
 -- Uma inclusão válida por tabela, com o id_meta (%1$L), a empresa (%2$L) e o
 -- status (%3$L) como parâmetros. Cada empresa tem um só pai de cada tipo até
--- o fim dos testes que usam estes modelos.
+-- o fim dos testes que usam estes modelos, e uma só execução.
 CREATE TEMPORARY TABLE modelo_insercao (tabela text PRIMARY KEY, sql text NOT NULL);
 INSERT INTO modelo_insercao VALUES
   ('pagina', $$
-    INSERT INTO normalizado.pagina (empresa_id, id_meta, nome)
-    SELECT e.id, %1$L, 'Página Teste' FROM normalizado.empresa AS e WHERE e.nome = %2$L
+    INSERT INTO normalizado.pagina (empresa_id, id_meta, nome, execucao_id)
+    SELECT e.id, %1$L, 'Página Teste', x.id
+    FROM normalizado.empresa AS e JOIN normalizado.execucao_carga AS x ON x.empresa_id = e.id
+    WHERE e.nome = %2$L
   $$),
   ('campanha', $$
-    INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status)
-    SELECT p.empresa_id, p.id, %1$L, 'Campanha Teste', 'OUTCOME_SALES', %3$L
+    INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status, execucao_id)
+    SELECT p.empresa_id, p.id, %1$L, 'Campanha Teste', 'OUTCOME_SALES', %3$L, x.id
     FROM normalizado.conta_anuncio AS p JOIN normalizado.empresa AS e ON e.id = p.empresa_id
+    JOIN normalizado.execucao_carga AS x ON x.empresa_id = e.id
     WHERE e.nome = %2$L
   $$),
   ('conjunto_anuncio', $$
-    INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, nome, status)
-    SELECT p.empresa_id, p.id, %1$L, 'Conjunto Teste', %3$L
+    INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, nome, status, execucao_id)
+    SELECT p.empresa_id, p.id, %1$L, 'Conjunto Teste', %3$L, x.id
     FROM normalizado.campanha AS p JOIN normalizado.empresa AS e ON e.id = p.empresa_id
+    JOIN normalizado.execucao_carga AS x ON x.empresa_id = e.id
     WHERE e.nome = %2$L
   $$),
   ('criativo', $$
-    INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, id_meta)
-    SELECT p.empresa_id, p.id, %1$L
+    INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, id_meta, execucao_id)
+    SELECT p.empresa_id, p.id, %1$L, x.id
     FROM normalizado.conta_anuncio AS p JOIN normalizado.empresa AS e ON e.id = p.empresa_id
+    JOIN normalizado.execucao_carga AS x ON x.empresa_id = e.id
     WHERE e.nome = %2$L
   $$),
   ('anuncio', $$
-    INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, nome, status)
-    SELECT p.empresa_id, p.id, k.id, %1$L, 'Anúncio Teste', %3$L
+    INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, nome, status, execucao_id)
+    SELECT p.empresa_id, p.id, k.id, %1$L, 'Anúncio Teste', %3$L, x.id
     FROM normalizado.conjunto_anuncio AS p
     JOIN normalizado.criativo AS k ON k.empresa_id = p.empresa_id
     JOIN normalizado.empresa AS e ON e.id = p.empresa_id
+    JOIN normalizado.execucao_carga AS x ON x.empresa_id = e.id
     WHERE e.nome = %2$L
   $$);
 
 INSERT INTO normalizado.empresa (nome) VALUES ('Empresa Teste A'), ('Empresa Teste B');
 INSERT INTO normalizado.conta_anuncio (empresa_id, id_meta)
 SELECT id, CASE nome WHEN 'Empresa Teste A' THEN '111111111111111' ELSE '222222222222222' END
+FROM normalizado.empresa
+WHERE nome IN ('Empresa Teste A', 'Empresa Teste B');
+-- A execução que grava as entidades de cada empresa, com id fixo: a da A
+-- termina em a, e a da B, em b (ADR-0009 §1, Rastreio).
+INSERT INTO normalizado.execucao_carga (id, empresa_id, tipo)
+SELECT CASE nome WHEN 'Empresa Teste A' THEN '00000000-0000-4000-8000-00000000000a' ELSE '00000000-0000-4000-8000-00000000000b' END::uuid,
+  id, 'diaria'
 FROM normalizado.empresa
 WHERE nome IN ('Empresa Teste A', 'Empresa Teste B');
 
@@ -135,8 +148,8 @@ JOIN (
 -- (ADR-0009 §1).
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status)
-  SELECT e.id, p.id, '120000000000000199', 'OUTCOME_SALES', 'ACTIVE'
+  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status, execucao_id)
+  SELECT e.id, p.id, '120000000000000199', 'OUTCOME_SALES', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.conta_anuncio AS p
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '222222222222222'
   $$,
@@ -146,8 +159,8 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, status)
-  SELECT e.id, p.id, '120000000000000299', 'ACTIVE'
+  INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, status, execucao_id)
+  SELECT e.id, p.id, '120000000000000299', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.campanha AS p
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '120000000000000102'
   $$,
@@ -167,8 +180,8 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-  SELECT e.id, p.id, 'CLICK_THROUGH', 7
+  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+  SELECT e.id, p.id, 'CLICK_THROUGH', 7, '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.conjunto_anuncio AS p
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '120000000000000202'
   $$,
@@ -178,8 +191,8 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, id_meta)
-  SELECT e.id, p.id, '120000000000000399'
+  INSERT INTO normalizado.criativo (empresa_id, conta_anuncio_id, id_meta, execucao_id)
+  SELECT e.id, p.id, '120000000000000399', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.conta_anuncio AS p
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '222222222222222'
   $$,
@@ -215,8 +228,8 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status)
-  SELECT e.id, p.id, k.id, '120000000000000499', 'ACTIVE'
+  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status, execucao_id)
+  SELECT e.id, p.id, k.id, '120000000000000499', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.conjunto_anuncio AS p, normalizado.criativo AS k
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '120000000000000202' AND k.id_meta = '120000000000000301'
   $$,
@@ -226,8 +239,8 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status)
-  SELECT e.id, p.id, k.id, '120000000000000499', 'ACTIVE'
+  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status, execucao_id)
+  SELECT e.id, p.id, k.id, '120000000000000499', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.empresa AS e, normalizado.conjunto_anuncio AS p, normalizado.criativo AS k
   WHERE e.nome = 'Empresa Teste A' AND p.id_meta = '120000000000000201' AND k.id_meta = '120000000000000302'
   $$,
@@ -318,8 +331,8 @@ CROSS JOIN unnest(ARRAY['PAUSED', 'DELETED', 'ARCHIVED']) AS status;
 -- Domínio aberto (ADR-0009 §1): só o formato dos enums da Meta.
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, status)
-  SELECT empresa_id, id, '120000000000000999', 'ACTIVE'
+  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, status, execucao_id)
+  SELECT empresa_id, id, '120000000000000999', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conta_anuncio WHERE id_meta = '111111111111111'
   $$,
   '23502', NULL, 'campanha sem objetivo é recusada'
@@ -401,8 +414,8 @@ SELECT lives_ok(
 -- Criativo reutilizável (N:1): dois anúncios apontam para o mesmo criativo.
 SELECT lives_ok(
   $$
-  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status)
-  SELECT p.empresa_id, p.id, k.id, '120000000000000403', 'ACTIVE'
+  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, criativo_id, id_meta, status, execucao_id)
+  SELECT p.empresa_id, p.id, k.id, '120000000000000403', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conjunto_anuncio AS p, normalizado.criativo AS k
   WHERE p.id_meta = '120000000000000201' AND k.id_meta = '120000000000000301'
   $$,
@@ -415,8 +428,8 @@ SELECT is(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, id_meta, status)
-  SELECT empresa_id, id, '120000000000000499', 'ACTIVE'
+  INSERT INTO normalizado.anuncio (empresa_id, conjunto_anuncio_id, id_meta, status, execucao_id)
+  SELECT empresa_id, id, '120000000000000499', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conjunto_anuncio WHERE id_meta = '120000000000000201'
   $$,
   '23502', NULL, 'anúncio sem criativo é recusado (RF-01)'
@@ -425,8 +438,8 @@ SELECT throws_ok(
 -- Janela de atribuição: a tabela longa de attribution_spec (R-35).
 SELECT lives_ok(
   $$
-  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-  SELECT empresa_id, id, tipo_evento, janela_dias
+  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+  SELECT empresa_id, id, tipo_evento, janela_dias, '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conjunto_anuncio,
     (VALUES ('CLICK_THROUGH', 7), ('VIEW_THROUGH', 1)) AS j (tipo_evento, janela_dias)
   WHERE id_meta = '120000000000000201'
@@ -435,8 +448,8 @@ SELECT lives_ok(
 );
 SELECT throws_ok(
   $$
-  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-  SELECT empresa_id, id, 'CLICK_THROUGH', 1
+  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+  SELECT empresa_id, id, 'CLICK_THROUGH', 1, '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conjunto_anuncio WHERE id_meta = '120000000000000201'
   $$,
   '23505', NULL, 'segunda janela do mesmo tipo de evento no conjunto é recusada'
@@ -444,8 +457,8 @@ SELECT throws_ok(
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-    SELECT empresa_id, id, %L, %s
+    INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+    SELECT empresa_id, id, %L, %s, '00000000-0000-4000-8000-00000000000a'
     FROM normalizado.conjunto_anuncio WHERE id_meta = '120000000000000201'
     $$,
     tipo_evento, janela_dias
@@ -494,8 +507,8 @@ FROM unnest(ARRAY['pagina', 'campanha', 'conjunto_anuncio', 'janela_atribuicao_c
 SET LOCAL ROLE etl_carga;
 DO $$
 BEGIN
-  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status)
-  SELECT empresa_id, id, '120000000000000103', 'OUTCOME_LEADS', 'ACTIVE'
+  INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, objetivo, status, execucao_id)
+  SELECT empresa_id, id, '120000000000000103', 'OUTCOME_LEADS', 'ACTIVE', '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conta_anuncio WHERE id_meta = '111111111111111';
   UPDATE normalizado.campanha SET status = 'PAUSED' WHERE id_meta = '120000000000000103';
   UPDATE normalizado.pagina SET nome = 'Página ETL' WHERE id_meta = '300000000000002';
@@ -504,8 +517,8 @@ BEGIN
   UPDATE normalizado.anuncio SET nome = 'Anúncio ETL' WHERE id_meta = '120000000000000402';
   DELETE FROM normalizado.janela_atribuicao_conjunto
   WHERE conjunto_anuncio_id = (SELECT id FROM normalizado.conjunto_anuncio WHERE id_meta = '120000000000000201');
-  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias)
-  SELECT empresa_id, id, 'CLICK_THROUGH', 28
+  INSERT INTO normalizado.janela_atribuicao_conjunto (empresa_id, conjunto_anuncio_id, tipo_evento, janela_dias, execucao_id)
+  SELECT empresa_id, id, 'CLICK_THROUGH', 28, '00000000-0000-4000-8000-00000000000a'
   FROM normalizado.conjunto_anuncio WHERE id_meta = '120000000000000201';
   PERFORM set_config('entidades_meta_test.etl', 'aceito', true);
 EXCEPTION WHEN OTHERS THEN
