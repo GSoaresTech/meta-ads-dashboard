@@ -1,16 +1,29 @@
 """Configuração da ETL: constantes de negócio e variáveis de ambiente.
 
 É a única fonte das constantes de negócio (CLAUDE.md §8); cada uma entra
-junto com o código que a usa.
+junto com o código que a usa. As cotas do plano são a exceção: entram com o
+provisionamento, que as fixa (ADR-0010).
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from urllib.parse import urlsplit
 
 PREFIXOS_URL_BANCO = ("postgresql://", "postgres://")
 MENSAGEM_URL_BANCO_INVALIDA = "não é uma URL postgresql:// com host e porta válidos"
 MENSAGEM_COM_ESPACO = "contém espaço, quebra de linha ou caractere de controle"
+
+# Cotas do plano Pro do Supabase, consultadas em 03/11/2026 em
+# https://supabase.com/pricing (R-28). O disco é cotado por projeto e cobrado
+# pelo tamanho provisionado. Storage e egress são cotados pela organização,
+# que dividimos com outro projeto: o alerta do RF-52 compara o uso deste
+# projeto com a parcela reservada a ele (ADR-0010).
+COTA_DISCO_PROJETO_GB = 8
+COTA_STORAGE_ORGANIZACAO_GB = 100
+COTA_EGRESS_ORGANIZACAO_GB = 250
+COTA_EGRESS_CACHE_ORGANIZACAO_GB = 250
+PARCELA_COTA_ORGANIZACAO = Decimal("0.3")
 
 
 class ErroConfiguracao(Exception):
