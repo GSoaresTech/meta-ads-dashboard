@@ -14,13 +14,14 @@ O `CLAUDE.md` (§3 a §6) e os ADRs 0002, 0004, 0005, 0006 e 0007 fixam as regra
 - A substituição da janela reprocessada;
 - A revisão de dados pessoais exigida pelo RNF-24.
 
-As restrições de plataforma que pesam aqui estão no `docs/REQUIREMENTS.md`, de R-29 a R-35. Em resumo:
+As restrições de plataforma que pesam aqui estão no `docs/REQUIREMENTS.md`, de R-29 a R-36. Em resumo:
 - Esquemas próprios ficam fora da Data API e não recebem privilégios padrão (R-29).
 - `postgres` e `service_role` ignoram o RLS, e um papel próprio fica sujeito a ele (R-30).
 - Toda função nasce executável por `PUBLIC` (R-31).
 - Um papel próprio conecta pelo pooler como `[ROLE].[PROJECT-REF]` (R-32).
 - Uma senha definida por SQL pode ir para logs (R-33).
 - O `postgres` não consegue `SET ROLE` para o papel que cria (R-34).
+- O `supabase db push` aplica as migrations com o `postgres` como papel efetivo (R-36).
 
 ## Opções consideradas
 
@@ -111,13 +112,13 @@ O grão é "uma linha por". Colunas de auditoria (`criado_em`, `atualizado_em`) 
 
 Todas têm `UNIQUE (id_meta)` (ou `UNIQUE (empresa_id, id_meta)`, em `pagina`), `UNIQUE (empresa_id, id)`, `status` com `CHECK (status IN ('ACTIVE', 'PAUSED', 'DELETED', 'ARCHIVED'))` (R-35), quando a entidade tem status, e FK composta para o pai. A ETL não apaga entidades: uma entidade excluída na Meta fica com `status = 'DELETED'`, e só o estado atual é guardado (`docs/REQUIREMENTS.md` §1.2).
 
-- **`pagina`**: uma linha por Página do Facebook usada em criativos. Colunas `id_meta`, `nome`, para a prévia (RF-40). O formato "numeric string" do ID da Página é *a confirmar* (Q-14); até lá, vale o `CHECK` numérico dos demais IDs.
+- **`pagina`**: uma linha por Página do Facebook usada em criativos. Colunas `id_meta`, `nome`, para a prévia (RF-40). O ID da Página também é "numeric string" (R-35) e tem o mesmo `CHECK` numérico.
 - **`campanha`**: uma linha por campanha. Pai: `conta_anuncio`. Colunas `nome`, `objetivo` (`NOT NULL`, domínio aberto), `status`.
 - **`conjunto_anuncio`**: uma linha por conjunto de anúncios. Pai: `campanha`. Colunas `nome`, `meta_otimizacao` (domínio aberto), `status`.
 - **`janela_atribuicao_conjunto`**: uma linha por conjunto × tipo de evento. A tabela longa de `attribution_spec` (R-35).
   - PK `(empresa_id, conjunto_anuncio_id, tipo_evento)`. Coluna `janela_dias integer`, com `CHECK (janela_dias > 0)`.
   - A ETL substitui as linhas do conjunto a cada atualização dele.
-- **`criativo`**: uma linha por criativo, reutilizável por vários anúncios (N:1). Pais: `conta_anuncio` e, opcionalmente, `pagina`.
+- **`criativo`**: uma linha por criativo, reutilizável por vários anúncios (N:1). Pais: `conta_anuncio` e, opcionalmente, `pagina`, identificada pelo `actor_id` do criativo (R-35).
   - Colunas `titulo`, `texto`, `chamada_acao` (domínio aberto), `id_publicacao_facebook`, `link_publicacao_facebook`, `id_midia_instagram`, `link_publicacao_instagram`, `caminho_miniatura`.
   - `id_publicacao_facebook` é texto sem `CHECK` numérico, porque a Meta o declara como token "Post ID" (R-35).
   - Os campos de origem dos links e do ID da mídia do Instagram são *a confirmar* (Q-06).
@@ -243,7 +244,9 @@ Regras:
   - **Atributos**: toda função dos nossos esquemas é criada com `SET search_path = ''` e nomes qualificados pelo esquema.
   - **Revogação de `PUBLIC`**: na mesma migration, cada função recebe `REVOKE ALL ON FUNCTION ... FROM PUBLIC`, e só então os grants explícitos. Não usamos `ALTER DEFAULT PRIVILEGES`: a revogação global do padrão de `PUBLIC` atingiria funções de outros esquemas (R-31), e o grant função a função deixa cada permissão visível na migration que a cria.
 - **Associação ao `postgres`**: `etl_carga` e `painel_leitor` não são membros de nenhum papel. O `postgres` recebe `GRANT etl_carga, painel_leitor TO postgres WITH INHERIT FALSE, SET TRUE`, para que os testes pgTAP possam fazer `SET ROLE` sem que o `postgres` herde nada deles (R-34).
-- **`pg_net`**: não usamos o `pg_net`. Com ele instalado, nossos papéis leem a fila de requisições pelo que `PUBLIC` recebe (R-30). A migration dos papéis remove a extensão com `DROP EXTENSION IF EXISTS pg_net`, e um teste pgTAP prova que `etl_carga` e `painel_leitor` não têm `USAGE` no esquema `net`. No banco local, ela vem instalada e o `postgres` consegue removê-la; em produção, a presença dela é *a confirmar* (Q-12).
+- **`pg_net`**: não usamos o `pg_net`. Com ele instalado, nossos papéis leem a fila de requisições pelo que `PUBLIC` recebe, e o Supabase não permite mudar os grants dessa fila (R-30). A migration dos papéis remove a extensão com `DROP EXTENSION IF EXISTS pg_net` e `DROP SCHEMA IF EXISTS net`, como a documentação indica. Um teste pgTAP prova que `etl_carga` e `painel_leitor` não têm `USAGE` no esquema `net`.
+  - **Estado de produção**: o desenho não depende dele. Os dois comandos não fazem nada se a extensão não existir, e uma recusa da remoção interrompe o `db push` antes de qualquer outro objeto ser criado.
+  - **Verificação local**: no banco local, a extensão vem instalada, o `postgres` consegue removê-la, e a remoção leva o esquema `net` junto.
 - **Criação idempotente**: papéis são do cluster, não do banco, e por isso a migration os cria dentro de um bloco que confere `pg_roles` antes do `CREATE ROLE`.
 
 **Senhas**: a migration cria os papéis com `LOGIN` e sem senha. Senha nula nunca autentica (R-33), então um papel recém-criado não abre conexão até alguém definir a senha. A senha nunca entra em migration, seed, `.env.example`, log ou histórico do shell. Em produção, depois do `supabase db push --linked` (ADR-0010):
@@ -372,12 +375,12 @@ Resultado: nenhuma coluna tem nome, e-mail, telefone ou identificador de pessoa 
   - **Domínios abertos**: valores novos entram sem falha e aparecem como "Não identificado" até ganharem rótulo.
 - **`pg_net`**: removido. Se um dia o usarmos, a decisão precisa rever o que ele expõe aos nossos papéis (R-30).
 - **Senhas fora do repositório**: são definidas e rotacionadas à mão, pelo runbook (RF-53). Até a senha ser definida, um papel novo existe mas não conecta.
-- **Dono dos objetos, *a confirmar* (Q-13)**: a documentação do Supabase CLI não diz com que papel o `supabase db push` aplica as migrations. O desenho supõe o `postgres` como dono de toda tabela e de toda função dos nossos esquemas, e um teste pgTAP confere isso no banco local.
+- **Dono dos objetos**: o `supabase db push` aplica as migrations com o `postgres` como papel efetivo, com ou sem a senha do banco (R-36). Toda tabela e toda função dos nossos esquemas ficam com ele como dono, e um teste pgTAP confere isso. Se uma versão futura do CLI mudar esse comportamento, o teste não pega, porque roda no banco local; a R-36 registra a versão verificada.
 - **Login**: quando o login entrar (gatilhos do ADR-0004), as funções de `analitico` passam a resolver o escopo por `auth.uid()` e pelo vínculo usuário–empresa, e `credencial_acesso` dá lugar a esse vínculo. Nenhuma tabela de fato ou de entidade muda, porque todas já têm `empresa_id`.
 
 ## Referências
 
-Consultadas em 03/11/2026. As que sustentam as restrições R-29 a R-35 também estão no `docs/REQUIREMENTS.md` §4.1 e §9.
+Consultadas em 03/11/2026. As que sustentam as restrições R-29 a R-36 também estão no `docs/REQUIREMENTS.md` §4.1 e §9.
 
 Supabase:
 - https://supabase.com/docs/guides/api/using-custom-schemas
@@ -391,6 +394,13 @@ Supabase:
 - https://supabase.com/kb/troubleshooting/provisioning-credentials-without-log-exposure
 - https://supabase.com/docs/reference/cli/supabase-test-db
 - https://supabase.com/docs/reference/cli/supabase-db-push
+- https://supabase.com/docs/guides/database/extensions/pg_net
+- https://supabase.com/kb/troubleshooting/database-roles-can-read-request-headers-queued-by-pg_net
+
+Código-fonte do Supabase CLI v2.114.0:
+- https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/internal/utils/connect.go
+- https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/internal/utils/flags/db_url.go
+- https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/pkg/migration/apply.go
 
 PostgreSQL 17:
 - https://www.postgresql.org/docs/17/sql-createrole.html
@@ -410,6 +420,7 @@ Meta:
 - https://developers.facebook.com/docs/marketing-api/reference/adgroup/
 - https://developers.facebook.com/docs/marketing-api/reference/ad-account/
 - https://developers.facebook.com/docs/marketing-api/reference/ad-creative/
+- https://developers.facebook.com/docs/graph-api/reference/page/
 
 Verificação local, em 03/11/2026, no Supabase local (imagem `supabase/postgres:17.6.1.158`, Supabase CLI 2.114.0), dentro de transações desfeitas com `ROLLBACK`:
 - atributos de `postgres` e `service_role`;
@@ -419,6 +430,7 @@ Verificação local, em 03/11/2026, no Supabase local (imagem `supabase/postgres
 - `EXECUTE` padrão de `PUBLIC` e efeito do `REVOKE`;
 - leitura via `SECURITY DEFINER` sem `SELECT` na tabela;
 - `SET ROLE` negado ao criador e liberado por `WITH INHERIT FALSE, SET TRUE`;
-- leitura da fila do `pg_net` por papel próprio e remoção da extensão pelo `postgres`;
+- leitura da fila do `pg_net` por papel próprio e remoção da extensão pelo `postgres`, com o esquema `net` junto;
+- `SET SESSION ROLE` mantido depois de `RESET ALL`;
 - `UNIQUE NULLS NOT DISTINCT`;
 - `sha256`.

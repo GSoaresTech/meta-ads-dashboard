@@ -86,7 +86,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-35, consultadas em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
 
 | ID | Restrição | Fonte |
 |---|---|---|
@@ -119,12 +119,13 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-35, 
 | R-27 | Meta: o post da Página tem `permalink_url` e a mídia do Instagram tem `permalink`. *A confirmar*: as permissões necessárias (`pages_read_engagement`, `instagram_basic`) para o System User | [M13], [M14] |
 | R-28 | Supabase Pro: o disco de 8 GB é cotado por projeto e cobrado pelo tamanho provisionado. Storage (100 GB), egress (250 GB) e egress em cache (250 GB, cota separada) são cotados pela organização. Com o spend cap ligado, o excedente não é cobrado, mas leva a restrições que "em geral" valem para todos os projetos da organização. O spend cap não cobre computação | [S1], [S7], [S8] |
 | R-29 | Supabase: um esquema próprio só é servido pela Data API depois de incluído em "Exposed schemas", e os objetos dele não recebem privilégios padrão para `anon`, `authenticated` e `service_role`. Em `public`, tabelas novas deixaram de recebê-los automaticamente em todos os projetos a partir de 30/10/2026 | [S9], [S10], [S11] |
-| R-30 | Supabase: `postgres` e `service_role` têm o atributo `bypassrls`; o `postgres` não é superusuário e tem `createrole` (verificado no banco local). Um papel próprio fica sujeito ao RLS nas tabelas de que não é dono e herda tudo o que é concedido a `PUBLIC`, inclusive a leitura das filas do `pg_net` quando a extensão está instalada. A documentação pede para nunca distribuir a credencial de login de um papel com `bypassrls` | [S12], [S13], [S16], [P6] |
+| R-30 | Supabase: `postgres` e `service_role` têm o atributo `bypassrls`; o `postgres` não é superusuário e tem `createrole` (verificado no banco local). Um papel próprio fica sujeito ao RLS nas tabelas de que não é dono e herda tudo o que é concedido a `PUBLIC`, inclusive a leitura das filas do `pg_net` quando a extensão está instalada. A documentação pede para nunca distribuir a credencial de login de um papel com `bypassrls`. O Supabase não permite mudar os grants nem as políticas das tabelas do `pg_net`, e a documentação remove a extensão com `DROP EXTENSION` e `DROP SCHEMA net` | [S12], [S13], [S16], [S18], [S19], [P6] |
 | R-31 | Postgres: toda função nova recebe `EXECUTE` para `PUBLIC`, e um `REVOKE` limitado a um esquema não remove esse padrão global. Uma função `SECURITY DEFINER` roda com os privilégios do dono, exige `search_path` fixo e não deve ficar num esquema exposto pela Data API | [S12], [S14], [P1], [P2] |
 | R-32 | Supabase: um papel próprio conecta pelo pooler compartilhado com o usuário `[ROLE].[PROJECT-REF]` | [S3] |
 | R-33 | Postgres: um papel criado sem senha tem senha nula e nunca autentica por senha. `ALTER ROLE ... PASSWORD` envia a senha em texto puro, que pode ir para o histórico do cliente e para o log do servidor; o `\password` do `psql` calcula o hash no cliente. O Supabase mascara no log a senha entre aspas simples, mas não a entre cifrões nem a de um comando que falha | [S15], [P3], [P4], [P5] |
 | R-34 | Postgres 16 ou mais novo: quem cria um papel com `createrole`, sem ser superusuário, não ganha `SET ROLE` nem herança sobre ele (`createrole_self_grant` vem vazio). `GRANT <papel> TO <membro> WITH INHERIT FALSE, SET TRUE` dá só o `SET ROLE` (verificado no banco local) | [P7], [P8] |
-| R-35 | Meta: os IDs de campanha, conjunto, anúncio e criativo e o `account_id` da conta são "numeric string"; o `id` da conta é `act_` seguido do `account_id`. O `status` de campanha, conjunto e anúncio é `ACTIVE`, `PAUSED`, `DELETED` ou `ARCHIVED`. O `objective` da campanha é `string`. O `attribution_spec` do conjunto é uma lista de `event_type` e `window_days`. O `object_story_id` do criativo é um token "Post ID", não um número | [M12], [M16], [M17], [M18], [M19] |
+| R-35 | Meta: os IDs de campanha, conjunto, anúncio e criativo e o `account_id` da conta são "numeric string"; o `id` da conta é `act_` seguido do `account_id`. O `status` de campanha, conjunto e anúncio é `ACTIVE`, `PAUSED`, `DELETED` ou `ARCHIVED`. O `objective` da campanha é `string`. O `attribution_spec` do conjunto é uma lista de `event_type` e `window_days`. O `object_story_id` do criativo e o `id` do post são um token "Post ID", não um número. O `id` da Página e o `actor_id` do criativo, que é o ID da Página, são "numeric string" | [M12], [M13], [M16], [M17], [M18], [M19], [M20] |
+| R-36 | Supabase CLI 2.114.0, `db push` no projeto ligado: com a senha do banco, conecta como `postgres`. Sem ela, usa um papel temporário `cli_login_*`, criado pela Management API, e executa `SET SESSION ROLE postgres` ao conectar. O `RESET ALL` que roda antes de cada migration não desfaz essa troca (verificado no banco local). Nos dois casos, os objetos das migrations ficam com o `postgres` como dono | [S17], [S20] |
 
 ### 4.2 Estimativa de volume
 
@@ -380,15 +381,12 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 | Q-09 | O volume real por empresa confirma a estimativa da §4.2? | Custo de armazenamento acima do previsto e consultas mais lentas. |
 | Q-10 | Quais são os valores exatos dos enums de objetivos legados e de metas de otimização (§7.2)? | Campanhas mal classificadas. |
 | Q-11 | O GitHub avisa antes de desativar o workflow agendado por 60 dias sem atividade (R-08)? | Carga parada sem aviso, visível só pelo RF-28 e pelo RNF-13. |
-| Q-12 | A extensão `pg_net` está instalada no projeto de produção (R-30)? | Se estiver e a remoção falhar, os papéis próprios leem a fila de requisições dela, que pode conter chaves de API (ADR-0009). |
-| Q-13 | Com que papel o `supabase db push` aplica as migrations no projeto remoto? | Se não for o `postgres`, os objetos ficam com outro dono, e as funções `SECURITY DEFINER` passam a rodar com os privilégios dele (ADR-0009). |
-| Q-14 | O ID da Página do Facebook é "numeric string", como os das entidades de anúncio (R-35)? | Se não for, o `CHECK` numérico do `id_meta` recusa as Páginas e falha a carga do cadastro. |
 
 ---
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026, exceto [M16] a [M19], [S7] a [S17] e [P1] a [P8], consultadas em 03/11/2026.
+Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
@@ -410,6 +408,7 @@ Todas consultadas em 29/10/2026, exceto [M16] a [M19], [S7] a [S17] e [P1] a [P8
 - [M17] Ad Set (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/
 - [M18] Ad (referência): https://developers.facebook.com/docs/marketing-api/reference/adgroup/
 - [M19] Ad Account (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-account/
+- [M20] Page (referência): https://developers.facebook.com/docs/graph-api/reference/page/
 
 **Supabase**
 - [S1] Pricing: https://supabase.com/pricing
@@ -429,6 +428,9 @@ Todas consultadas em 29/10/2026, exceto [M16] a [M19], [S7] a [S17] e [P1] a [P8
 - [S15] Provisioning role credentials without exposing them in logs: https://supabase.com/kb/troubleshooting/provisioning-credentials-without-log-exposure
 - [S16] Postgres roles: https://supabase.com/docs/guides/database/postgres/roles
 - [S17] CLI `supabase test db` e `supabase db push`: https://supabase.com/docs/reference/cli/supabase-test-db, https://supabase.com/docs/reference/cli/supabase-db-push
+- [S18] pg_net: https://supabase.com/docs/guides/database/extensions/pg_net
+- [S19] Database roles can read request headers queued by pg_net: https://supabase.com/kb/troubleshooting/database-roles-can-read-request-headers-queued-by-pg_net
+- [S20] Código-fonte do Supabase CLI v2.114.0 (conexão e aplicação de migrations): https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/internal/utils/connect.go, https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/internal/utils/flags/db_url.go, https://github.com/supabase/cli/blob/v2.114.0/apps/cli-go/pkg/migration/apply.go
 
 **PostgreSQL 17**
 - [P1] CREATE FUNCTION (`SECURITY DEFINER`): https://www.postgresql.org/docs/17/sql-createfunction.html
