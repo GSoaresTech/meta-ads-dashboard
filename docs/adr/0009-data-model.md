@@ -139,6 +139,8 @@ O anúncio não guarda `campanha_id` nem `conta_anuncio_id`, que são derivávei
 
 Detalhes que a tabela não comporta:
 - **Fatos sem `conta_anuncio_id` e ações sem coluna por tipo**: nenhum fato guarda a conta, que é derivável pelo anúncio ou pela campanha. As ações seguem a tabela longa do `CLAUDE.md` §5, e a ausência de linha significa zero.
+- **Fatos sem colunas de auditoria**: a carga substitui as linhas a cada execução (§5), então `criado_em` repetiria o instante da execução, que já vem por `execucao_id`.
+- **Formato do tipo de ação**: segmentos de letras minúsculas, dígitos e `_`, separados por ponto, o primeiro começando por letra. Cobre os tipos do R-21 e as conversões personalizadas, que a Meta devolve como `offsite_conversion.custom.<id>`. Um tipo fora desse formato faz a carga falhar com `23514` até uma migration ampliar o `CHECK`.
 - **Quebras**: idade+gênero e plataforma+posicionamento têm duas dimensões (`categoria` e `subcategoria`), e região tem uma. Como `subcategoria` é anulável, ela não pode entrar numa PK. Por isso a quebra usa chave substituta, e o grão é garantido pelo `UNIQUE NULLS NOT DISTINCT`, que trata dois `NULL` como iguais. O valor da categoria é o da API; o rótulo vem do catálogo.
 - **Ações das quebras**: guardamos os tipos de ação que existem no catálogo de métricas, não só os do resultado principal. Assim, uma sobrescrita do resultado (RF-49) vale também para o histórico das quebras, sem reextração. O resultado principal não é coluna, porque depende do catálogo e da sobrescrita, e por isso é derivado em `analitico`.
 - **Alcance por período**:
@@ -424,6 +426,7 @@ Meta:
 - https://developers.facebook.com/docs/marketing-api/reference/ad-account/
 - https://developers.facebook.com/docs/marketing-api/reference/ad-creative/
 - https://developers.facebook.com/docs/graph-api/reference/page/
+- https://developers.facebook.com/documentation/meta-pixel/implementation/conversion-tracking
 
 Verificação local, em 03/11/2026, no Supabase local (imagem `supabase/postgres:17.6.1.158`, Supabase CLI 2.114.0), dentro de transações desfeitas com `ROLLBACK`:
 - atributos de `postgres` e `service_role`;
