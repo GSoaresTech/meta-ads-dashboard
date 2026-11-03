@@ -187,7 +187,7 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
 - **`execucao_carga`**: uma linha por execução × empresa (RF-20).
   - PK `id`, que é o `execucao_id` dos logs. `UNIQUE (empresa_id, id)`.
   - Colunas `tipo` (`horaria`, `diaria`, `historica`), `status` (`em_andamento`, `sucesso`, `falha`, `ignorada`), `iniciado_em`, `terminado_em` e `erro`.
-  - `CHECK ((status = 'em_andamento') = (terminado_em IS NULL))` e `CHECK (status <> 'falha' OR erro IS NOT NULL)`, com o `CHECK` de texto que proíbe erro vazio.
+  - `CHECK ((status = 'em_andamento') = (terminado_em IS NULL))`, `CHECK (terminado_em >= iniciado_em)` e `CHECK (status <> 'falha' OR erro IS NOT NULL)`, com o `CHECK` de texto que proíbe erro vazio.
   - Índice `(empresa_id, iniciado_em)` para a área do operador (RF-51) e para a detecção de carga parada (RNF-13).
 - **`contagem_linhas_execucao`**: uma linha por execução × tabela. PK `(empresa_id, execucao_id, tabela)`, com FK composta para `execucao_carga`. Coluna `linhas bigint`, com `CHECK (linhas >= 0)`.
 - **`aviso_execucao`**: uma linha por aviso. PK `id bigint` identity, com FKs compostas para `execucao_carga` e, quando houver, para `campanha`. Colunas `tipo` (`objetivo_nao_classificado`, `divergencia_resultado`), `campanha_id` (opcional) e `criado_em`. Recebe os avisos do RF-15 e do RF-16.
@@ -206,7 +206,7 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
   - PK `id bigint` identity. FKs compostas para `execucao_carga` e `conta_anuncio`.
   - Colunas `endpoint`, `parametros jsonb`, `data_referencia`, `resposta jsonb` e `recebido_em`.
   - `data_referencia` é a última data coberta por uma consulta de insights. Nas consultas de cadastro, que não têm intervalo, é a data da extração no fuso da conta. Assim, a retenção do RF-21 alcança toda linha.
-  - `CHECK (NOT parametros ? 'access_token')`: o token vai no cabeçalho de autorização e nunca é gravado. Os links de paginação (`paging.next` e `paging.previous`) são retirados da resposta antes da gravação, e um teste da ETL prova que nenhuma resposta gravada contém `access_token`.
+  - `CHECK (NOT parametros ? 'access_token')`: o token vai no cabeçalho de autorização e nunca é gravado. O operador `?` só compara a chave inteira, no primeiro nível, então `CHECK (jsonb_typeof(parametros) = 'object')` recusa parâmetros em texto ou lista, em que um `access_token=...` escaparia da conferência. Os links de paginação (`paging.next` e `paging.previous`) são retirados da resposta antes da gravação, e um teste da ETL prova que nenhuma resposta gravada contém `access_token`.
   - Índice `(data_referencia)`, para a retenção.
   - Não segue a 3FN, porque é a resposta como recebida.
 
