@@ -100,7 +100,7 @@ O grão é "uma linha por". Colunas de auditoria (`criado_em`, `atualizado_em`) 
 - **`conta_anuncio`**: uma linha por conta de anúncios da Meta.
   - PK `id`. `UNIQUE (id_meta)` e `UNIQUE (empresa_id, id)`. FK `empresa_id` → `empresa`.
   - Colunas `nome`, `fuso_horario`, `moeda`, `situacao` (`ativa`, `inativa`) e `execucao_id` (nulo até a primeira extração).
-  - `moeda` tem `CHECK (moeda ~ '^[A-Z]{3}$')`, o formato da ISO 4217. `fuso_horario` tem `CHECK` de formato (letras, dígitos, `_`, `-`, `+` e `/`), porque um `CHECK` não consegue consultar a base IANA; a ETL confere o nome nessa base antes de gravar.
+  - `moeda` tem `CHECK (moeda ~ '^[A-Z]{3}$')`, o formato da ISO 4217. `fuso_horario` tem `CHECK` de formato (letras, dígitos, `_`, `-`, `+` e `/`) e um trigger, `normalizado.validar_fuso_horario()`, que na inclusão e na alteração do fuso confere o nome em `pg_timezone_names` e recusa com `23514` o que não está na base IANA. O `AT TIME ZONE` não serve para essa conferência, porque aceita especificações POSIX, como `XYZ+3`, que não são nomes IANA. Um `CHECK` com função também não, porque o `pg_dump` põe o `CHECK` no `CREATE TABLE`, antes dos dados: um nome retirado do tzdata de um Postgres mais novo impediria a restauração. Já o trigger é criado depois dos dados e vale só para a escrita.
   - `nome`, `fuso_horario` e `moeda` ficam `NULL` entre o cadastro, que informa só o ID (RF-43), e a primeira extração. Um `CHECK` exige `fuso_horario` e `moeda` juntos.
 - **`credencial_acesso`**: uma linha por link de empresa ou credencial de operador (ADR-0004).
   - PK `id`. `UNIQUE (hash)`, com `hash bytea` e `CHECK (octet_length(hash) = 32)`, o tamanho do SHA-256. O token em texto puro não cabe em nenhuma coluna (RNF-15).
@@ -414,6 +414,8 @@ PostgreSQL 17:
 - https://www.postgresql.org/docs/17/sql-createfunction.html
 - https://www.postgresql.org/docs/17/sql-createtable.html
 - https://www.postgresql.org/docs/17/functions-binarystring.html
+- https://www.postgresql.org/docs/17/view-pg-timezone-names.html
+- https://www.postgresql.org/docs/17/datetime-posix-timezone-specs.html
 
 Meta:
 - https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/
@@ -434,4 +436,7 @@ Verificação local, em 03/11/2026, no Supabase local (imagem `supabase/postgres
 - leitura da fila do `pg_net` por papel próprio e remoção da extensão pelo `postgres`, com o esquema `net` junto;
 - `SET SESSION ROLE` mantido depois de `RESET ALL`;
 - `UNIQUE NULLS NOT DISTINCT`;
-- `sha256`.
+- `sha256`;
+- `AT TIME ZONE` aceitando `XYZ+3`, que não está em `pg_timezone_names`.
+
+No mesmo banco, o `pg_dump` de `conta_anuncio` mostrou o `CHECK` dentro do `CREATE TABLE`, antes do `COPY`, e o trigger depois dele.
