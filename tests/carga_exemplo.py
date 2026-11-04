@@ -1,7 +1,8 @@
 """Uma carga de exemplo, no formato que as rotinas da E4 vão produzir: a
-hierarquia de uma conta (campanha, conjunto, criativo e anúncio) e as
-métricas e ações diárias do anúncio, com nomes fictícios e IDs da Meta
-inventados. Também lê o estado das tabelas, para comparar cargas (RF-17).
+resposta bruta dos insights, a hierarquia de uma conta (campanha, conjunto,
+criativo e anúncio) e as métricas e ações diárias do anúncio, com nomes
+fictícios e IDs da Meta inventados. Também lê o estado das tabelas, para
+comparar cargas (RF-17).
 """
 
 from collections.abc import Mapping, Sequence
@@ -15,9 +16,11 @@ import psycopg
 from etl.carga import (
     Contagens,
     TabelaEntidade,
+    gravar_respostas_brutas,
     substituir_metricas_diarias,
     upsert_entidades,
 )
+from etl.cliente_api_meta import Endpoint
 
 INICIO_PADRAO = date(2026, 10, 1)
 DIAS_PADRAO = 6
@@ -107,7 +110,19 @@ def trocar_dia(carga: CargaExemplo, indice: int, **campos: object) -> CargaExemp
 def carregar_exemplo(
     conexao: psycopg.Connection, execucao_id: UUID, carga: CargaExemplo
 ) -> Contagens:
-    """Carrega a hierarquia e os fatos, na transação aberta pelo chamador."""
+    """Grava a resposta bruta e carrega a hierarquia e os fatos, na transação
+    aberta pelo chamador. A contagem do bruto fica com a execução, que a lê
+    do banco."""
+    gravar_respostas_brutas(
+        conexao,
+        carga.empresa_id,
+        execucao_id,
+        carga.conta_id,
+        Endpoint.INSIGHTS,
+        {"level": "ad", "time_increment": "1"},
+        carga.fim,
+        [montar_pagina_insights(carga)],
+    )
     contagens: Contagens = {}
     anuncio_id = carregar_hierarquia(conexao, execucao_id, carga, contagens)
     contagens |= substituir_metricas_diarias(
@@ -121,6 +136,21 @@ def carregar_exemplo(
         montar_acoes(anuncio_id, carga.dias),
     )
     return contagens
+
+
+def montar_pagina_insights(carga: CargaExemplo) -> dict[str, object]:
+    """A página de insights que a carga transformaria, com os nomes da Meta."""
+    return {
+        "data": [
+            {
+                "ad_id": carga.id_meta(4),
+                "spend": str(dia.investimento),
+                "date_start": dia.data.isoformat(),
+                "date_stop": dia.data.isoformat(),
+            }
+            for dia in carga.dias
+        ]
+    }
 
 
 def carregar_hierarquia(

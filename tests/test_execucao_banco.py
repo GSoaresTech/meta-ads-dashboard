@@ -20,8 +20,10 @@ from etl.carga import Contagens
 from etl.cliente_api_meta import ErroApiMeta, ErroAutenticacao
 from etl.execucao import StatusExecucao, executar_empresa, executar_empresas
 from tests.carga_exemplo import (
+    COLUNAS_NEGOCIO,
     CargaExemplo,
     carregar_exemplo,
+    carregar_hierarquia,
     ler_estado,
     montar_carga,
     trocar_dia,
@@ -44,6 +46,7 @@ CONTAGENS_CARGA_EXEMPLO = {
     "anuncio": 1,
     "metrica_diaria_anuncio": 6,
     "acao_diaria_anuncio": 18,
+    "resposta_api": 1,
 }
 
 
@@ -448,3 +451,78 @@ def test_falha_no_registro_de_fim_nao_marca_falha_na_carga_confirmada(
     )
     assert (status, terminou, erro) == ("em_andamento", False, None)
     assert contar_linhas_da_execucao(conexao_operador, execucao_id) == 28
+
+
+def contar_linhas_sem_bruto(conexao: psycopg.Connection, empresa_id: UUID) -> int:
+    """As linhas de normalizado da empresa cuja execução não gravou nenhuma
+    resposta bruta (RF-09)."""
+    return sum(
+        conexao.execute(
+            f"SELECT count(*) FROM normalizado.{tabela} AS linha"
+            " WHERE linha.empresa_id = %s AND NOT EXISTS ("
+            "  SELECT FROM bruto.resposta_api AS resposta"
+            "  WHERE resposta.empresa_id = linha.empresa_id"
+            "    AND resposta.execucao_id = linha.execucao_id)",
+            (empresa_id,),
+        ).fetchone()[0]
+        for tabela in COLUNAS_NEGOCIO
+    )
+
+
+def test_toda_linha_carregada_tem_resposta_bruta_da_mesma_execucao(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+) -> None:
+    empresa_ids = [empresa.empresa_id for empresa in empresas]
+    cargas = montar_cargas(empresas)
+    executar_empresas(conectar_etl, empresa_ids, "diaria", TarefaExemplo(cargas))
+    # A revisão regrava os fatos com a segunda execução, e as entidades
+    # passam a apontar para ela.
+    revisadas = {empresa_id: revisar(carga) for empresa_id, carga in cargas.items()}
+
+    codigo = executar_empresas(
+        conectar_etl, empresa_ids, "horaria", TarefaExemplo(revisadas)
+    )
+
+    assert codigo == 0
+    for empresa_id in empresa_ids:
+        assert ler_estado(conexao_operador, [empresa_id])["campanha"][0] == 1
+        assert contar_linhas_sem_bruto(conexao_operador, empresa_id) == 0
+
+
+def test_carga_sem_resposta_bruta_falha_sem_gravar_nada(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+) -> None:
+    empresa_a, empresa_b = (empresa.empresa_id for empresa in empresas)
+
+    class TarefaSemBruto(TarefaExemplo):
+        def carregar(
+            self,
+            conexao: psycopg.Connection,
+            empresa_id: UUID,
+            execucao_id: UUID,
+            dados: CargaExemplo,
+        ) -> Contagens:
+            self.execucoes[empresa_id] = execucao_id
+            contagens: Contagens = {}
+            carregar_hierarquia(conexao, execucao_id, dados, contagens)
+            return contagens
+
+    cargas = montar_cargas(empresas)
+    tarefa = TarefaSemBruto({empresa_a: cargas[empresa_a]})
+    estado_a = ler_estado(conexao_operador, [empresa_a])
+
+    codigo = executar_empresas(conectar_etl, [empresa_a], "diaria", tarefa)
+    codigo_b = executar_empresas(
+        conectar_etl, [empresa_b], "diaria", TarefaExemplo(cargas)
+    )
+
+    assert (codigo, codigo_b) == (1, 0)
+    assert ler_estado(conexao_operador, [empresa_a]) == estado_a
+    assert contar_linhas_da_execucao(conexao_operador, tarefa.execucoes[empresa_a]) == 0
+    [(_, _, status, terminou, erro)] = ler_execucoes(conexao_operador, empresa_a)
+    assert (status, terminou) == ("falha", True)
+    assert erro.startswith("ErroSemRespostaBruta")

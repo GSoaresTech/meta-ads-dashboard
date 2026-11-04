@@ -211,6 +211,18 @@ def gravar_respostas_brutas(
     return len(paginas)
 
 
+def contar_respostas_brutas(
+    conexao: psycopg.Connection, empresa_id: UUID, execucao_id: UUID
+) -> int:
+    """As respostas que a execução gravou em bruto, inclusive as ainda não
+    confirmadas da transação aberta."""
+    return conexao.execute(
+        "SELECT count(*) FROM bruto.resposta_api"
+        " WHERE empresa_id = %s AND execucao_id = %s",
+        (empresa_id, execucao_id),
+    ).fetchone()[0]
+
+
 def retirar_links_paginacao(pagina: Mapping[str, object]) -> dict[str, object]:
     """Uma cópia da página sem paging.next e paging.previous; o resto fica
     como recebido."""
