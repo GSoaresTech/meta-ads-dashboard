@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "cabecalhos": {},
+  "corpo": {
+    "data": [
+      {
+        "id": "995000000000000019",
+        "adset_id": "995000000000000008",
+        "status": "ACTIVE",
+        "name": "Anúncio Exemplo 3",
+        "creative": {
+          "id": "9950000000000011",
+          "actor_id": "995000000000012",
+          "call_to_action_type": "WATCH_LIVE_VIDEO",
+          "effective_instagram_media_id": "99500000000000013",
+          "effective_object_story_id": "995000000000012_9950000000000014",
+          "instagram_permalink_url": "https://www.instagram.com/p/Exemplo0001Ab/",
+          "title": "Título Exemplo 1"
+        }
+      },
+      {
+        "id": "995000000000000020",
+        "name": "Anúncio Exemplo 4",
+        "status": "ARCHIVED",
+        "adset_id": "995000000000000009",
+        "creative": {
+          "id": "9950000000000021",
+          "title": "Título Exemplo 3",
+          "body": "Texto de exemplo do criativo 3.",
+          "call_to_action_type": "WATCH_LIVE_VIDEO",
+          "effective_object_story_id": "995000000000012_9950000000000022",
+          "effective_instagram_media_id": "99500000000000023",
+          "actor_id": "995000000000012"
+        }
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUnNlZ3VpbnRlRXhlbXBsbw",
+        "after": "QVFIUnVsdGltb0V4ZW1wbG8"
+      }
+    }
+  }
+}
