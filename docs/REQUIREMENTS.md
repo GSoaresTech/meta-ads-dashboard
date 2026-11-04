@@ -87,7 +87,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026, e as R-37 a R-39 e as revisões das R-14, R-18 a R-20, R-22, R-24, R-26 e R-27, consultadas em 04/11/2026. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026, e as R-37 a R-41 e as revisões das R-14, R-18 a R-22, R-24, R-26 e R-27, consultadas em 04/11/2026. Restrições que dependem de confirmação estão marcadas.
 
 "Verificado por experimento" indica chamadas à Marketing API v26.0 em 04/11/2026, com o token do System User e o app no nível Limited, sem publicação, em contas de anúncio de uma BM cliente compartilhadas com a BM do operador como parceira. Os scripts ficaram fora do repositório, e só as conclusões e os formatos estão aqui, sem IDs, nomes ou valores das contas.
 
@@ -113,7 +113,7 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, 
 | R-18 | Meta Insights: desde 10/06/2025, consultas padrão com quebras e data inicial a mais de 13 meses não retornam alcance. Desde 12/01/2026, quebras de contagem única ficam limitadas a 13 meses, e os totais seguem disponíveis por 37 meses. Jobs assíncronos podem levar até 1 h, e o `report_run_id` expira em 30 dias. Verificado por experimento: sem quebra, semanas de até 36 meses atrás vêm com `reach`; com `age`+`gender`, uma semana de 20 meses atrás vem sem `reach` | [M6], [M21] |
 | R-19 | Meta Insights: no máximo 37 meses de dados (`date_preset=maximum`). Verificado por experimento: um `time_range` que começa antes disso falha com o erro `#3018`, cuja mensagem, em parte das contas, informa a data inicial mais antiga aceita | [M7] |
 | R-20 | Meta Insights: `time_increment` aceita 1 a 90 dias, `monthly` (mês de calendário) ou `all_days`. Verificado por experimento, nos níveis de conta, campanha e anúncio: com `time_increment=7`, os blocos começam no `since` e seguem de 7 em 7 dias, e o último é cortado no `until`; outros valores de N não foram testados. Com `monthly`, o primeiro bloco vai do `since` ao fim do mês, e os seguintes são meses de calendário. O alcance de cada bloco é deduplicado no bloco: é igual ao de um `time_range` só daquele bloco e menor que a soma dos alcances diários. Blocos sem entrega não vêm na resposta | [M7] |
-| R-21 | Meta Insights: `actions`, `action_values` e `cost_per_action_type` são listas de `AdsActionStats` (`action_type`, `value`). Tipos documentados: `onsite_conversion.messaging_conversation_started_7d`, `lead`, `onsite_conversion.lead_grouped`, `offsite_conversion.fb_pixel_purchase`, `omni_purchase`, `link_click`, `landing_page_view` | [M7], [M8] |
+| R-21 | Meta Insights: `actions`, `action_values` e `cost_per_action_type` são listas de `AdsActionStats` (`action_type`, `value`). Tipos documentados: `onsite_conversion.messaging_conversation_started_7d`, `lead`, `onsite_conversion.lead_grouped`, `offsite_conversion.fb_pixel_purchase`, `omni_purchase`, `link_click`, `landing_page_view`. Verificado por experimento: `post_engagement` também vem como tipo de ação. Nas campanhas observadas, `lead` é igual a `offsite_conversion.fb_pixel_lead` e `omni_purchase` é igual a `offsite_conversion.fb_pixel_purchase`, em `actions` e em `action_values` | [M7], [M8] |
 | R-22 | Meta Insights: a janela `default` equivale a `7d_click` + `1d_view`. Desde 12/01/2026, `7d_view` e `28d_view` não são mais devolvidos, e seguem disponíveis `1d_click`, `7d_click`, `28d_click`, `1d_view` e `1d_ev`. A referência ainda lista as duas janelas removidas e diz que `use_unified_attribution_setting=true` reproduz o Gerenciador. Verificado por experimento: `7d_view`, `28d_view`, `dda` e `skan_*` são aceitos sem erro e não devolvem a chave da janela. Com `use_unified_attribution_setting` igual a `true`, a `false` ou ausente, o `value` de `actions` e de `results` é o mesmo e igual a `7d_click` + `1d_view` em mais de 99% dos pares conjunto × tipo de ação, inclusive em conjuntos cujo `attribution_spec` é só de clique ou inclui `ENGAGED_VIDEO_VIEW`. O campo `attribution_setting` dos insights vem mesmo com o parâmetro desligado e informa `1d_view_7d_click` também para conjuntos cujo `attribution_spec` é só de clique | [M7], [M21] |
 | R-23 | Meta Insights, combinações de quebra disponíveis: `age`, `gender`, `age`+`gender`, `region`, `publisher_platform`+`platform_position`, entre outras. `region` é do "Tipo 1" e não retorna métricas de ações fora da Meta | [M9] |
 | R-24 | Meta Insights: `results` ("quantas vezes o anúncio alcançou um resultado, conforme o objetivo e as configurações escolhidas") e `cost_per_result` são `list<AdsInsightsResult>`. Verificado por experimento: cada item tem `indicator` e, quando há resultado, `values`, uma lista de `{value, attribution_windows}` com `attribution_windows: ["default"]` e `value` em texto. O `indicator` é `actions:<tipo de ação>` (ex.: `actions:onsite_conversion.messaging_conversation_started_7d`, `actions:offsite_conversion.fb_pixel_purchase`) ou o nome de outra métrica (`reach`, `video_thruplay_watched_actions`, `profile_visit_view`, `conversions:contact_website`). O `value` de `results` é igual ao de `actions` do mesmo tipo, e o de `cost_per_result` é o investimento dividido pelo resultado, com duas casas | [M7] |
@@ -132,6 +132,8 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, 
 | R-37 | Meta, cabeçalhos de uso: `X-Business-Use-Case-Usage` traz, por BM e por tipo (`ads_insights`, `ads_management`), `call_count`, `total_cputime`, `total_time`, `estimated_time_to_regain_access` e `ads_api_access_tier`. `X-FB-Ads-Insights-Throttle` traz `app_id_util_pct`, `acc_id_util_pct` e `ads_api_access_tier`. `X-Ad-Account-Usage` traz `acc_id_util_pct`, `reset_time_duration` e `ads_api_access_tier`. O nível padrão é `development_access`. Verificado por experimento: as respostas trouxeram `X-Business-Use-Case-Usage` e, nos insights, `X-FB-Ads-Insights-Throttle`; o `X-Ad-Account-Usage` não veio em nenhuma resposta observada. Depois de algumas centenas de chamadas na sessão de testes, nenhum indicador de uso passou de 2%, e não houve erro de limite | [M4] |
 | R-38 | Meta, verificado por experimento: as arestas `/campaigns`, `/adsets` e `/ads` da conta omitem os objetos `ARCHIVED`, que só vêm com `filtering` em `effective_status`. Os insights, em qualquer nível, incluem os arquivados: a soma do investimento por anúncio, por conjunto e por campanha é igual à da conta ao centavo, em amostras de até 35 meses atrás, e, nas contas conferidas, todo anúncio com insights aparece na aresta `/ads` com o filtro | Experimento |
 | R-39 | Meta Insights, verificado por experimento: uma consulta síncrona de 30 dias no nível de anúncio, com `filtering` por status, falhou numa conta com milhares de anúncios com o código 100 e o subcódigo 1487534 (`error_user_title` "Número excessivo de linhas"). O limite de linhas não é documentado; a saída é fatiar o intervalo ou usar job assíncrono | [M6] |
+| R-40 | Meta: o `objective` da campanha aceita `OUTCOME_APP_PROMOTION`, `OUTCOME_AWARENESS`, `OUTCOME_ENGAGEMENT`, `OUTCOME_LEADS`, `OUTCOME_SALES`, `OUTCOME_TRAFFIC` e 15 valores legados, depreciados com a v17.0, desde a qual a Marketing API só cria campanhas com os objetivos novos: `APP_INSTALLS`, `BRAND_AWARENESS`, `CONVERSIONS`, `EVENT_RESPONSES`, `LEAD_GENERATION`, `LINK_CLICKS`, `LOCAL_AWARENESS`, `MESSAGES`, `OFFER_CLAIMS`, `PAGE_LIKES`, `POST_ENGAGEMENT`, `PRODUCT_CATALOG_SALES`, `REACH`, `STORE_VISITS` e `VIDEO_VIEWS`. As campanhas existentes com objetivo legado não são afetadas. A referência da campanha traz a tabela oficial de equivalência, resumida na §7.2. Verificado por experimento: há campanhas `LINK_CLICKS` criadas em 2026, com meta `VISIT_INSTAGRAM_PROFILE` e destino `INSTAGRAM_PROFILE`, por um caminho de criação que não verificamos, e campanhas arquivadas com `CONVERSIONS`, `MESSAGES` e `VIDEO_VIEWS` | [M16], [M22] |
+| R-41 | Meta: o `optimization_goal` do conjunto aceita `NONE`, `APP_INSTALLS`, `AD_RECALL_LIFT`, `ENGAGED_USERS`, `EVENT_RESPONSES`, `IMPRESSIONS`, `LEAD_GENERATION`, `QUALITY_LEAD`, `LINK_CLICKS`, `OFFSITE_CONVERSIONS`, `PAGE_LIKES`, `POST_ENGAGEMENT`, `QUALITY_CALL`, `REACH`, `LANDING_PAGE_VIEWS`, `VISIT_INSTAGRAM_PROFILE`, `ENGAGED_PAGE_VIEWS`, `VALUE`, `THRUPLAY`, `DERIVED_EVENTS`, `APP_INSTALLS_AND_OFFSITE_CONVERSIONS`, `CONVERSATIONS`, `IN_APP_VALUE`, `MESSAGING_PURCHASE_CONVERSION`, `MESSAGING_DEEP_CONVERSATION_AND_FOLLOW`, `SUBSCRIBERS`, `REMINDERS_SET`, `MEANINGFUL_CALL_ATTEMPT`, `PROFILE_VISIT`, `PROFILE_AND_PAGE_ENGAGEMENT`, `ADVERTISER_SILOED_VALUE`, `AUTOMATIC_OBJECTIVE` e `MESSAGING_APPOINTMENT_CONVERSION`. Verificado por experimento: o campo `optimization_goal` dos insights usa outro vocabulário, como `REPLIES` para conjuntos `CONVERSATIONS` e `Unknown Optimization Goal`; por isso a meta de otimização vem do cadastro do conjunto | [M7], [M17] |
 
 ### 4.2 Estimativa de volume
 
@@ -343,7 +345,7 @@ Conteúdo inicial do catálogo, carregado por migration (ADR-0007). Os itens *a 
 | `valor_compras` | Valor das compras | Soma do valor das compras atribuídas aos anúncios. | soma | `action_values` → `omni_purchase` | Sim |
 | `custo_compra` | Custo por compra | Quanto custou, em média, cada compra. | investimento ÷ compras | derivada | Não |
 | `roas` | Retorno sobre o investimento | Quantos reais em vendas voltaram para cada real investido. | valor das compras ÷ investimento | derivada | Não |
-| `interacoes_publicacao` | Interações com a publicação | Curtidas, comentários, compartilhamentos e cliques na publicação. | soma | `actions` → `post_engagement` (*a confirmar*) | Sim |
+| `interacoes_publicacao` | Interações com a publicação | Curtidas, comentários, compartilhamentos e cliques na publicação. | soma | `actions` → `post_engagement` | Sim |
 | `custo_interacao` | Custo por interação | Quanto custou, em média, cada interação. | investimento ÷ interações | derivada | Não |
 
 Regras de agregação:
@@ -356,19 +358,46 @@ Regras de agregação:
 
 O resultado principal de cada campanha é resolvido pela precedência do ADR-0007.
 
-| Objetivo na API | Legados equivalentes (*a confirmar*) | Nome no painel | Meta de otimização do conjunto (*a confirmar*) | Resultado principal | KPI principal | Métricas de apoio |
+| Objetivo na API | Legados equivalentes | Nome no painel | Meta de otimização do conjunto | Resultado principal | KPI principal | Métricas de apoio |
 |---|---|---|---|---|---|---|
-| `OUTCOME_AWARENESS` | `BRAND_AWARENESS`, `REACH` | Reconhecimento | qualquer | `alcance` | `custo_mil_alcance` | `frequencia`, `impressoes`, `cpm` |
+| `OUTCOME_AWARENESS` | `BRAND_AWARENESS`, `REACH`, `STORE_VISITS` | Reconhecimento | qualquer | `alcance` | `custo_mil_alcance` | `frequencia`, `impressoes`, `cpm` |
 | `OUTCOME_TRAFFIC` | `LINK_CLICKS` | Tráfego | `LANDING_PAGE_VIEWS` | `visualizacoes_pagina_destino` | `custo_visualizacao_pagina` | `cliques_link`, `ctr`, `cpc` |
 | `OUTCOME_TRAFFIC` | `LINK_CLICKS` | Tráfego | qualquer outra | `cliques_link` | `cpc` | `ctr`, `cpm`, `visualizacoes_pagina_destino` |
 | `OUTCOME_ENGAGEMENT` | `MESSAGES` | Conversas | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `cliques_link`, `ctr`, `cpm` |
-| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT` | Engajamento | qualquer outra | `interacoes_publicacao` | `custo_interacao` | `alcance`, `ctr`, `cpm` |
+| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT`, `EVENT_RESPONSES`, `PAGE_LIKES` | Engajamento | qualquer outra | `interacoes_publicacao` | `custo_interacao` | `alcance`, `ctr`, `cpm` |
 | `OUTCOME_LEADS` | `LEAD_GENERATION` | Cadastros | qualquer, exceto `CONVERSATIONS` | `cadastros` | `custo_cadastro` | `cliques_link`, `ctr`, `cpm` |
 | `OUTCOME_LEADS` | — | Cadastros por conversa | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `cadastros`, `ctr` |
-| `OUTCOME_SALES` | `CONVERSIONS` | Vendas | qualquer, exceto `CONVERSATIONS` | `compras` | `custo_compra` | `valor_compras`, `roas`, `cliques_link` |
+| `OUTCOME_SALES` | `PRODUCT_CATALOG_SALES`, `CONVERSIONS` (*a confirmar*) | Vendas | qualquer, exceto `CONVERSATIONS` | `compras` | `custo_compra` | `valor_compras`, `roas`, `cliques_link` |
 | `OUTCOME_SALES` | — | Vendas por conversa | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `compras`, `valor_compras` |
 | `OUTCOME_APP_PROMOTION` | `APP_INSTALLS` | Promoção de app | qualquer | *a confirmar* | — | `investimento`, `cliques_link` |
 | fora do catálogo | — | Não classificado | — | nenhum; exibe só as métricas-base | — | `investimento`, `impressoes`, `cliques_link` |
+
+Equivalência oficial dos objetivos legados (R-40):
+- `APP_INSTALLS` → `OUTCOME_APP_PROMOTION`;
+- `BRAND_AWARENESS`, `REACH` e `STORE_VISITS` → `OUTCOME_AWARENESS`;
+- `LINK_CLICKS` → `OUTCOME_TRAFFIC`;
+- `EVENT_RESPONSES`, `MESSAGES`, `PAGE_LIKES` e `POST_ENGAGEMENT` → `OUTCOME_ENGAGEMENT`;
+- `LEAD_GENERATION` → `OUTCOME_LEADS`;
+- `PRODUCT_CATALOG_SALES` → `OUTCOME_SALES`;
+- com mais de um equivalente, conforme a meta de otimização e o objeto promovido: `CONVERSIONS` (`OUTCOME_ENGAGEMENT`, `OUTCOME_LEADS` ou `OUTCOME_SALES`) e `VIDEO_VIEWS` (`OUTCOME_AWARENESS` ou `OUTCOME_ENGAGEMENT`);
+- sem linha na tabela oficial: `LOCAL_AWARENESS` e `OFFER_CLAIMS`.
+
+Combinações observadas nas contas verificadas (R-40, R-41), com o resultado que a Meta usa em `results` (R-24). As marcadas como "não coberta" caem numa linha genérica da tabela acima e recebem um resultado principal diferente do da Meta (Q-10).
+
+| Objetivo | Meta de otimização do conjunto | `indicator` em `results` | Resolução pela tabela acima |
+|---|---|---|---|
+| `OUTCOME_AWARENESS` | `REACH` | `reach` | Reconhecimento: `alcance` |
+| `OUTCOME_ENGAGEMENT` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | Conversas: `conversas_iniciadas` |
+| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT` | `actions:post_engagement` | Engajamento: `interacoes_publicacao` |
+| `OUTCOME_ENGAGEMENT` | `THRUPLAY` | `video_thruplay_watched_actions` | não coberta: Engajamento, `interacoes_publicacao` |
+| `OUTCOME_ENGAGEMENT` | `OFFSITE_CONVERSIONS`, com evento `CONTACT` | `conversions:contact_website` | não coberta: Engajamento, `interacoes_publicacao` |
+| `OUTCOME_LEADS` | `OFFSITE_CONVERSIONS` | `actions:offsite_conversion.fb_pixel_lead` | Cadastros: `cadastros`, igual pelo R-21 |
+| `OUTCOME_LEADS`, `OUTCOME_SALES` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | Cadastros por conversa e Vendas por conversa: `conversas_iniciadas` |
+| `OUTCOME_SALES` | `OFFSITE_CONVERSIONS`, `VALUE` | `actions:offsite_conversion.fb_pixel_purchase` | Vendas: `compras`, igual pelo R-21 |
+| `OUTCOME_TRAFFIC` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | não coberta: Tráfego, `cliques_link` |
+| `OUTCOME_TRAFFIC` | `PROFILE_VISIT`, `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: Tráfego, `cliques_link` |
+| `LINK_CLICKS` | `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: Tráfego, `cliques_link` |
+| `LINK_CLICKS` | `AUTOMATIC_OBJECTIVE` | `actions:visit_instagram_profile` | não coberta: Tráfego, `cliques_link` |
 
 ---
 
@@ -381,14 +410,14 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 | Q-06 | Atribuir a Página da empresa ao System User basta para ler o `permalink_url` do post e o `name` da Página (R-27; ADR-0003)? | Os anúncios sem mídia do Instagram ficam sem o link "ver publicação" (RF-39), e a prévia (RF-40) fica sem o nome da página. Os anúncios com mídia do Instagram têm o link pelo criativo. |
 | Q-08 | Quando os conjuntos de uma campanha têm metas de otimização diferentes, o critério do maior investimento (ADR-0007) atende ao negócio? | Resultado principal pouco representativo nessas campanhas. A sobrescrita por campanha resolve caso a caso. |
 | Q-09 | O volume real por empresa confirma a estimativa da §4.2? | Custo de armazenamento acima do previsto e consultas mais lentas. |
-| Q-10 | Quais são os valores exatos dos enums de objetivos legados e de metas de otimização (§7.2)? | Campanhas mal classificadas. |
+| Q-10 | Como classificar as combinações de objetivo e meta de otimização que a §7.2 marca como "não coberta" (ThruPlays, visitas ao perfil, conversas em Tráfego, contato no site) e os legados com mais de um equivalente (`CONVERSIONS`, `VIDEO_VIEWS`) ou sem equivalente oficial (`LOCAL_AWARENESS`, `OFFER_CLAIMS`)? O resultado de `OUTCOME_APP_PROMOTION` também segue sem definição, assim como a comparação do RF-16 quando o `indicator` é de pixel (`offsite_conversion.fb_pixel_lead`, `offsite_conversion.fb_pixel_purchase`) e o catálogo usa `lead` e `omni_purchase`. Os enums e a equivalência oficial estão na R-40, na R-41 e na §7.2. | Campanhas mal classificadas, corrigíveis caso a caso pela sobrescrita (RF-49). |
 | Q-11 | O GitHub avisa antes de desativar o workflow agendado por 60 dias sem atividade (R-08)? | Carga parada sem aviso, visível só pelo RF-28 e pelo RNF-13. |
 
 ---
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026, e [M21], consultada em 04/11/2026. As fontes das restrições revistas em 04/11/2026 (§4.1) foram consultadas de novo nessa data.
+Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026, e [M21] e [M22], consultadas em 04/11/2026. As fontes das restrições revistas em 04/11/2026 (§4.1) foram consultadas de novo nessa data.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
@@ -412,6 +441,7 @@ Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8
 - [M19] Ad Account (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-account/
 - [M20] Page (referência): https://developers.facebook.com/docs/graph-api/reference/page/
 - [M21] Ads Insights API Metric Availability Updates (16/10/2025): https://developers.facebook.com/blog/post/2025/10/16/ads-insights-api-metric-availability-updates/
+- [M22] An update to ad objectives (13/02/2023): https://developers.facebook.com/blog/post/2023/02/13/outcome-driven-ad-experiences-update/
 
 **Supabase**
 - [S1] Pricing: https://supabase.com/pricing
