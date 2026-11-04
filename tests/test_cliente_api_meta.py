@@ -665,9 +665,9 @@ def test_job_que_falha_por_excesso_de_linhas_sobe_para_fatiar(
 
 @pytest.mark.parametrize(
     ("status", "codigo", "subcodigo"),
-    [("Job Failed", 1, None), ("Job Failed", None, None), ("Job Skipped", None, None)],
+    [("Job Failed", 1, None), ("Job Failed", None, None), ("Job Failed", 4, None)],
 )
-def test_job_falho_ou_expirado_vira_erro_tipado(
+def test_job_falho_vira_erro_tipado_sem_reenvio(
     api: responses.RequestsMock,
     cliente: ClienteApiMeta,
     status: str,
@@ -693,6 +693,46 @@ def test_job_falho_ou_expirado_vira_erro_tipado(
         cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
 
     assert (erro.value.codigo, erro.value.subcodigo) == (codigo, subcodigo)
+
+
+def test_job_expirado_e_reenviado(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    """A Meta pede para reenviar o job em Job Skipped."""
+    pulado = ler_fixture("relatorio_assincrono_falhou")
+    pulado["corpo"] = {"id": RELATORIO, "async_status": "Job Skipped"}
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+    )
+    simular(api, RELATORIO, pulado)
+    esperado = simular_job_ate_concluir(api)
+
+    paginas = cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert paginas == esperado
+
+
+def test_job_expirado_em_todas_as_tentativas_vira_erro_tipado(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    pulado = ler_fixture("relatorio_assincrono_falhou")
+    pulado["corpo"] = {"id": RELATORIO, "async_status": "Job Skipped"}
+    for _ in range(MAXIMO_TENTATIVAS):
+        simular(
+            api,
+            f"{CONTA}/insights",
+            ler_fixture("relatorio_assincrono_criado"),
+            metodo=responses.POST,
+        )
+        simular(api, RELATORIO, pulado)
+
+    with pytest.raises(ErroJobAssincrono) as erro:
+        cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert erro.value.tentativas == MAXIMO_TENTATIVAS
 
 
 def test_job_concluido_abaixo_de_100_por_cento_segue_consultando(
