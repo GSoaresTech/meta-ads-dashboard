@@ -36,6 +36,10 @@ TEMPO_LIMITE_REQUISICAO_SEGUNDOS = 120
 INTERVALO_CONSULTA_RELATORIO_SEGUNDOS = 15
 TEMPO_MAXIMO_RELATORIO_SEGUNDOS = 3600
 
+# Tamanho de página das arestas de cadastro. Com o criativo expandido, a de
+# anúncios recusa páginas maiores com o código 1 (R-42).
+LIMITE_PAGINA_CADASTRO = 100
+
 # Limites da Marketing API (RF-08; R-15). Com estas esperas, a soma mínima
 # entre a primeira e a última tentativa (360 s) passa do bloqueio de 300 s do
 # nível de desenvolvimento, e a máxima (720 s) cabe na execução horária.

@@ -1,0 +1,38 @@
+{
+  "status": 200,
+  "cabecalhos": {},
+  "corpo": {
+    "data": [
+      {
+        "id": "995000000000000002",
+        "name": "Campanha Exemplo 1",
+        "objective": "OUTCOME_ENGAGEMENT",
+        "status": "PAUSED"
+      },
+      {
+        "id": "995000000000000003",
+        "name": "Campanha Exemplo 2",
+        "objective": "OUTCOME_LEADS",
+        "status": "PAUSED"
+      },
+      {
+        "id": "995000000000000004",
+        "name": "Campanha Exemplo 3",
+        "objective": "OUTCOME_ENGAGEMENT",
+        "status": "PAUSED"
+      },
+      {
+        "id": "995000000000000005",
+        "name": "Campanha Exemplo 4",
+        "objective": "OUTCOME_SALES",
+        "status": "ARCHIVED"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmFudGVyaW9yRXhlbXBsbw",
+        "after": "QVFIUnVsdGltb0V4ZW1wbG8"
+      }
+    }
+  }
+}

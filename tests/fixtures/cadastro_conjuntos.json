@@ -1,0 +1,78 @@
+{
+  "status": 200,
+  "cabecalhos": {},
+  "corpo": {
+    "data": [
+      {
+        "id": "995000000000000006",
+        "name": "Conjunto Exemplo 1",
+        "optimization_goal": "THRUPLAY",
+        "status": "ACTIVE",
+        "campaign_id": "995000000000000002",
+        "attribution_spec": [
+          {
+            "event_type": "CLICK_THROUGH",
+            "window_days": 1
+          }
+        ]
+      },
+      {
+        "id": "995000000000000007",
+        "name": "Conjunto Exemplo 2",
+        "optimization_goal": "OFFSITE_CONVERSIONS",
+        "status": "ACTIVE",
+        "campaign_id": "995000000000000003",
+        "attribution_spec": [
+          {
+            "event_type": "CLICK_THROUGH",
+            "window_days": 7
+          },
+          {
+            "event_type": "VIEW_THROUGH",
+            "window_days": 1
+          },
+          {
+            "event_type": "ENGAGED_VIDEO_VIEW",
+            "window_days": 1
+          }
+        ]
+      },
+      {
+        "id": "995000000000000008",
+        "name": "Conjunto Exemplo 3",
+        "optimization_goal": "THRUPLAY",
+        "status": "ACTIVE",
+        "campaign_id": "995000000000000004",
+        "attribution_spec": [
+          {
+            "event_type": "CLICK_THROUGH",
+            "window_days": 1
+          }
+        ]
+      },
+      {
+        "id": "995000000000000009",
+        "name": "Conjunto Exemplo 4",
+        "optimization_goal": "OFFSITE_CONVERSIONS",
+        "status": "ARCHIVED",
+        "campaign_id": "995000000000000005",
+        "attribution_spec": [
+          {
+            "event_type": "CLICK_THROUGH",
+            "window_days": 7
+          },
+          {
+            "event_type": "VIEW_THROUGH",
+            "window_days": 1
+          }
+        ]
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmFudGVyaW9yRXhlbXBsbw",
+        "after": "QVFIUnVsdGltb0V4ZW1wbG8"
+      }
+    }
+  }
+}

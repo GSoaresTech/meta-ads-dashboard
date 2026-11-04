@@ -1,0 +1,10 @@
+{
+  "status": 200,
+  "cabecalhos": {},
+  "corpo": {
+    "id": "act_995000000000001",
+    "name": "Conta Exemplo Cadastro",
+    "timezone_name": "America/Sao_Paulo",
+    "currency": "BRL"
+  }
+}
