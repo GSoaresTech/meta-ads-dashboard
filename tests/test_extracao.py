@@ -156,6 +156,20 @@ def test_insights_ficam_na_janela_de_atribuicao_padrao() -> None:
     assert "action_attribution_windows" not in parametros
 
 
+def test_insights_incluem_os_anuncios_excluidos() -> None:
+    # Sem o filtro, a lista por anúncio omite os excluídos, que entram na soma
+    # da conta (R-38; RF-02). Os insights aceitam DELETED, e as arestas não.
+    parametros = montar_parametros_insights_diarios(INICIO, FIM)
+
+    assert json.loads(parametros["filtering"]) == [
+        {
+            "field": "ad.effective_status",
+            "operator": "IN",
+            "value": [*STATUS_EFETIVOS_CADASTRO, "DELETED"],
+        }
+    ]
+
+
 def test_todo_campo_de_insights_pedido_tem_entrada_no_mapa() -> None:
     assert set(CAMPOS_INSIGHTS_DIARIOS) <= set(MAPA_CAMPOS[ObjetoApi.INSIGHTS])
 
