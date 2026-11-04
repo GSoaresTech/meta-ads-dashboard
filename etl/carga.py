@@ -1,6 +1,7 @@
-"""Carga de normalizado: a transação por empresa ou por fatia, com o lock que
-põe em série as execuções da mesma empresa, o upsert das entidades pela chave
-natural e a substituição da janela dos fatos (CLAUDE.md §6; ADR-0009 §5).
+"""Carga de bruto e de normalizado: a transação por empresa ou por fatia, com o
+lock que põe em série as execuções da mesma empresa, a gravação das respostas
+da API como recebidas, o upsert das entidades pela chave natural e a
+substituição da janela dos fatos (CLAUDE.md §6; ADR-0009 §5).
 
 A conexão é direta, por psycopg, e em autocommit: cada bloco transaction() é
 uma transação real, com BEGIN e COMMIT, e não um savepoint dentro de uma
@@ -17,7 +18,9 @@ from uuid import UUID
 import psycopg
 from psycopg import sql
 from psycopg.pq import TransactionStatus
+from psycopg.types.json import Jsonb
 
+from etl.cliente_api_meta import Endpoint
 from etl.configuracao import (
     ESPERA_MAXIMA_LOCK_SEGUNDOS,
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
@@ -29,6 +32,18 @@ type Contagens = dict[str, int]
 type Linha = Mapping[str, object]
 
 BYTES_CHAVE_LOCK: Final = 8
+
+# Os links de paginação repetem a URL da consulta, com o ID da conta, e
+# trariam o access_token se ele fosse na URL; os cursores bastam para
+# auditar a sequência das páginas (ADR-0009 §2).
+LINKS_PAGINACAO: Final = ("next", "previous")
+INSERIR_RESPOSTA_BRUTA: Final = """
+INSERT INTO bruto.resposta_api
+  (empresa_id, execucao_id, conta_anuncio_id, endpoint, parametros,
+   data_referencia, resposta)
+VALUES (%(empresa_id)s, %(execucao_id)s, %(conta_anuncio_id)s, %(endpoint)s,
+        %(parametros)s, %(data_referencia)s, %(resposta)s)
+"""
 
 # Gravadas pela própria carga, e não pela transformação.
 COLUNAS_CONTROLE: Final = ("empresa_id", "execucao_id")
@@ -155,6 +170,59 @@ def executar_com_lock(
         if restante <= 0:
             return None
         dormir(min(intervalo_segundos, restante))
+
+
+def gravar_respostas_brutas(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    endpoint: Endpoint,
+    parametros: Mapping[str, str],
+    data_referencia: date,
+    paginas: Sequence[Mapping[str, object]],
+) -> int:
+    """Grava cada página de uma consulta como a Meta a devolveu, sem os
+    links de paginação, e devolve as linhas gravadas (RF-09).
+
+    Roda na transação da empresa, antes da transformação: uma falha em
+    qualquer passo seguinte desfaz também o bruto (RF-18). data_referencia é
+    a última data coberta pela consulta de insights ou, nas de cadastro, a
+    data da extração no fuso da conta, que a retenção usa (RF-21).
+    """
+    exigir_transacao(conexao)
+    comum = {
+        "empresa_id": empresa_id,
+        "execucao_id": execucao_id,
+        "conta_anuncio_id": conta_anuncio_id,
+        # O valor de OBJETO é a aresta vazia, que o CHECK de endpoint recusa.
+        "endpoint": endpoint.name.lower(),
+        "parametros": Jsonb(dict(parametros)),
+        "data_referencia": data_referencia,
+    }
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            INSERIR_RESPOSTA_BRUTA,
+            [
+                {**comum, "resposta": Jsonb(retirar_links_paginacao(pagina))}
+                for pagina in paginas
+            ],
+        )
+    return len(paginas)
+
+
+def retirar_links_paginacao(pagina: Mapping[str, object]) -> dict[str, object]:
+    """Uma cópia da página sem paging.next e paging.previous; o resto fica
+    como recebido."""
+    copia = dict(pagina)
+    paginacao = copia.get("paging")
+    if isinstance(paginacao, dict):
+        copia["paging"] = {
+            chave: valor
+            for chave, valor in paginacao.items()
+            if chave not in LINKS_PAGINACAO
+        }
+    return copia
 
 
 def upsert_entidades(
