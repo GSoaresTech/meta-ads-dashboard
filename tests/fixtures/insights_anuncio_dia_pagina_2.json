@@ -1,0 +1,25 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"990000000000009\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":2,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "ad_id": "990000000000303",
+        "spend": "0.99",
+        "impressions": "77",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmN1cnNvclNlZ3VpbnRlRmljdGljaW8",
+        "after": "QVFIUmN1cnNvckZpbmFsRmljdGljaW8"
+      },
+      "previous": "https://graph.facebook.com/v26.0/act_990000000000001/insights?level=ad&time_increment=1&limit=2&before=QVFIUmN1cnNvclNlZ3VpbnRlRmljdGljaW8"
+    }
+  }
+}
