@@ -1,4 +1,7 @@
 import copy
+from collections import Counter
+from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -6,10 +9,20 @@ from etl.mapa_campos import ErroCampoNaoMapeado
 from etl.transformacao import (
     CadastroConta,
     ErroCadastro,
+    ErroInsights,
+    InsightsDiarios,
     transformar_cadastro,
     transformar_conjuntos,
+    transformar_entidades,
+    transformar_insights_diarios,
 )
 from tests.cadastro_exemplo import ID_META_CONTA, Fixtures, ler_fixtures
+from tests.insights_exemplo import (
+    ID_META_ANUNCIO_AUSENTE,
+    NOMES_PAGINAS,
+    listar_linhas,
+)
+from tests.insights_exemplo import ler_fixtures as ler_fixtures_insights
 
 ID_CRIATIVO_REUTILIZADO = "9950000000000011"
 ID_PAGINA = "995000000000012"
@@ -229,3 +242,182 @@ def test_campo_nao_pedido_e_recusado_pelo_mapa() -> None:
 
     with pytest.raises(ErroCampoNaoMapeado):
         transformar(fixtures)
+
+
+def test_entidades_lidas_pelo_id_viram_linhas_com_o_pai_pelo_id_da_meta() -> None:
+    fixtures = ler_fixtures_insights()
+
+    entidades = transformar_entidades(
+        [fixtures["entidade_campanha_por_id"]["corpo"]],
+        [fixtures["entidade_conjunto_por_id"]["corpo"]],
+        [fixtures["entidade_anuncio_por_id"]["corpo"]],
+    )
+
+    assert entidades.anuncios == [
+        {
+            "id_meta": ID_META_ANUNCIO_AUSENTE,
+            "nome": "Anúncio Exemplo 5",
+            "status": "DELETED",
+            "id_meta_conjunto": "995000000000000025",
+            "id_meta_criativo": "9950000000000027",
+        }
+    ]
+    assert entidades.conjuntos[0]["id_meta_campanha"] == "995000000000000026"
+    assert [c["id_meta"] for c in entidades.campanhas] == ["995000000000000026"]
+    assert entidades.paginas == [ID_PAGINA]
+    assert len(entidades.janelas) == 2
+
+
+def transformar_insights(fixtures: Fixtures) -> InsightsDiarios:
+    return transformar_insights_diarios(
+        [fixtures[nome]["corpo"] for nome in NOMES_PAGINAS]
+    )
+
+
+def acoes_do_grao(insights: InsightsDiarios, id_meta: str, dia: date) -> list[dict]:
+    return [
+        acao
+        for acao in insights.acoes
+        if acao["id_meta_anuncio"] == id_meta and acao["data"] == dia
+    ]
+
+
+def test_cada_linha_de_insights_vira_uma_metrica_do_anuncio_no_dia() -> None:
+    insights = transformar_insights(ler_fixtures_insights())
+
+    assert len(insights.metricas) == 8
+    assert insights.metricas[0] == {
+        "id_meta_anuncio": "995000000000000010",
+        "data": date(2026, 10, 1),
+        "investimento": Decimal("21.47"),
+        "impressoes": 3105,
+        "alcance": 2688,
+    }
+
+
+def test_resposta_com_12_itens_em_actions_gera_12_linhas() -> None:
+    # Critério do RF-12. O anúncio de vendas tem 12 tipos no primeiro dia.
+    fixtures = ler_fixtures_insights()
+    linha = listar_linhas(fixtures)[2]
+    assert len(linha["actions"]) == 12
+
+    insights = transformar_insights(fixtures)
+
+    acoes = acoes_do_grao(insights, linha["ad_id"], date(2026, 10, 1))
+    assert len(acoes) == 12
+    assert {a["tipo_acao"] for a in acoes} == {
+        a["action_type"] for a in linha["actions"]
+    }
+
+
+def test_soma_por_tipo_de_acao_e_igual_a_da_resposta() -> None:
+    # Critério do RF-12, na quantidade e no valor.
+    fixtures = ler_fixtures_insights()
+    esperadas: Counter[tuple[str, str]] = Counter()
+    for linha in listar_linhas(fixtures):
+        for lista, medida, tipo in (
+            ("actions", "quantidade", int),
+            ("action_values", "valor", Decimal),
+        ):
+            for item in linha.get(lista, ()):
+                esperadas[(medida, item["action_type"])] += tipo(item["value"])
+
+    insights = transformar_insights(fixtures)
+
+    obtidas: Counter[tuple[str, str]] = Counter()
+    for acao in insights.acoes:
+        for medida in ("quantidade", "valor"):
+            if acao[medida] is not None:
+                obtidas[(medida, acao["tipo_acao"])] += acao[medida]
+    assert obtidas == esperadas
+
+
+def test_quantidade_vem_de_actions_e_valor_de_action_values() -> None:
+    insights = transformar_insights(ler_fixtures_insights())
+
+    acoes = acoes_do_grao(insights, "995000000000000020", date(2026, 10, 1))
+    compra = next(a for a in acoes if a["tipo_acao"] == "omni_purchase")
+    assert compra == {
+        "id_meta_anuncio": "995000000000000020",
+        "data": date(2026, 10, 1),
+        "tipo_acao": "omni_purchase",
+        "quantidade": 2,
+        "valor": Decimal("259.8"),
+    }
+    clique = next(a for a in acoes if a["tipo_acao"] == "link_click")
+    assert clique["valor"] is None
+
+
+def test_tipo_so_em_action_values_fica_sem_quantidade() -> None:
+    fixtures = ler_fixtures_insights()
+    linha = listar_linhas(fixtures)[0]
+    linha["action_values"] = [{"action_type": "omni_purchase", "value": "99.9"}]
+
+    insights = transformar_insights(fixtures)
+
+    acoes = acoes_do_grao(insights, linha["ad_id"], date(2026, 10, 1))
+    assert len(acoes) == len(linha["actions"]) + 1
+    assert acoes[-1] == {
+        "id_meta_anuncio": linha["ad_id"],
+        "data": date(2026, 10, 1),
+        "tipo_acao": "omni_purchase",
+        "quantidade": None,
+        "valor": Decimal("99.9"),
+    }
+
+
+def test_investimento_zero_e_zero_e_campo_ausente_e_nulo() -> None:
+    fixtures = ler_fixtures_insights()
+    linha = listar_linhas(fixtures)[3]
+    del linha["reach"]
+    del linha["actions"]
+
+    insights = transformar_insights(fixtures)
+
+    metrica = insights.metricas[3]
+    assert metrica["investimento"] == Decimal(0)
+    assert metrica["alcance"] is None
+    assert acoes_do_grao(insights, linha["ad_id"], date(2026, 10, 1)) == []
+
+
+def test_linha_que_nao_e_de_um_dia_e_recusada() -> None:
+    fixtures = ler_fixtures_insights()
+    listar_linhas(fixtures)[0]["date_stop"] = "2026-10-02"
+
+    with pytest.raises(ErroInsights):
+        transformar_insights(fixtures)
+
+
+def test_linha_sem_anuncio_e_recusada() -> None:
+    fixtures = ler_fixtures_insights()
+    del listar_linhas(fixtures)[0]["ad_id"]
+
+    with pytest.raises(ErroInsights):
+        transformar_insights(fixtures)
+
+
+def test_tipo_de_acao_repetido_na_linha_e_recusado() -> None:
+    fixtures = ler_fixtures_insights()
+    acoes = listar_linhas(fixtures)[0]["actions"]
+    acoes.append(dict(acoes[0]))
+
+    with pytest.raises(ErroInsights):
+        transformar_insights(fixtures)
+
+
+def test_anuncio_e_dia_repetidos_sao_recusados_sem_citar_o_id() -> None:
+    fixtures = ler_fixtures_insights()
+    pagina = fixtures["insights_diarios_anuncio_pagina_2"]["corpo"]["data"]
+    pagina.append(copy.deepcopy(listar_linhas(fixtures)[0]))
+
+    with pytest.raises(ErroInsights) as erro:
+        transformar_insights(fixtures)
+    assert "995000000000000010" not in str(erro.value)
+
+
+def test_campo_de_insights_nao_pedido_e_recusado_pelo_mapa() -> None:
+    fixtures = ler_fixtures_insights()
+    listar_linhas(fixtures)[0]["cpc"] = "0.37"
+
+    with pytest.raises(ErroCampoNaoMapeado):
+        transformar_insights(fixtures)

@@ -1,7 +1,9 @@
-"""Transformação pura do cadastro de uma conta nas linhas de normalizado: a
-conta, as campanhas, os conjuntos com as janelas de atribuição, as Páginas,
-os criativos e os anúncios (RF-01, RF-11, RF-13). Sem rede, banco nem relógio
-(CLAUDE.md §8).
+"""Transformação pura das respostas da API nas linhas de normalizado: o
+cadastro de uma conta, com a conta, as campanhas, os conjuntos com as janelas
+de atribuição, as Páginas, os criativos e os anúncios (RF-01), e os insights
+diários por anúncio, com as métricas e a tabela longa das ações (RF-02,
+RF-12). Os nomes e os tipos vêm do mapa de campos (RF-11, RF-13). Sem rede,
+banco nem relógio (CLAUDE.md §8).
 
 As linhas apontam para o pai pelo ID da Meta (id_meta_<entidade>), porque a
 chave interna só existe depois do upsert do pai, na carga. As mensagens de
@@ -11,6 +13,8 @@ públicos (RNF-17).
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
+from typing import Final
 
 from etl.mapa_campos import ObjetoApi, RegistroTraduzido, traduzir_registro
 from etl.padronizacao import ErroPadronizacao
@@ -32,8 +36,18 @@ COLUNAS_CRIATIVO = (
 )
 
 
+# Os pares de lista da API e medida da tabela longa das ações (RF-12): a
+# quantidade vem de actions, e o valor, de action_values.
+MEDIDAS_ACAO: Final = (("acoes", "quantidade"), ("valores_acoes", "valor"))
+
+
 class ErroCadastro(ValueError):
     """Cadastro da API incoerente, que a carga não pode gravar."""
+
+
+class ErroInsights(ValueError):
+    """Insights da API fora do grão anúncio × dia, que a carga não pode
+    gravar."""
 
 
 @dataclass(frozen=True)
@@ -47,6 +61,15 @@ class EntidadesConta:
     paginas: list[str]
     criativos: list[LinhaCadastro]
     anuncios: list[LinhaCadastro]
+
+
+@dataclass(frozen=True)
+class InsightsDiarios:
+    """As métricas de cada anúncio e dia e as ações deles, uma linha por
+    tipo, com o anúncio pelo ID da Meta."""
+
+    metricas: list[LinhaCadastro]
+    acoes: list[LinhaCadastro]
 
 
 @dataclass(frozen=True)
@@ -189,3 +212,65 @@ def validar_referencias(
     ausentes = sum(1 for filho in filhos if filho[chave_pai] not in ids_pais)
     if ausentes:
         raise ErroCadastro(f"{ausentes} objeto(s) com {chave_pai} fora da extração")
+
+
+def transformar_insights_diarios(
+    paginas: Sequence[Mapping[str, object]],
+) -> InsightsDiarios:
+    """Uma métrica por linha de insights e uma ação por tipo da linha.
+
+    A ausência de um tipo de ação é a ausência da linha, porque a API omite
+    os tipos sem ocorrência (CLAUDE.md §5). Um anúncio e dia repetidos são
+    recusados: a carga substitui o conjunto completo, e uma das duas linhas
+    se perderia.
+    """
+    metricas: list[LinhaCadastro] = []
+    acoes: list[LinhaCadastro] = []
+    for registro in ler_registros(paginas):
+        linha = traduzir_registro(ObjetoApi.INSIGHTS, registro)
+        grao = ler_grao(linha)
+        metricas.append(
+            {
+                **grao,
+                "investimento": linha["investimento"],
+                "impressoes": linha["impressoes"],
+                "alcance": linha["alcance"],
+            }
+        )
+        acoes.extend({**grao, **acao} for acao in combinar_acoes(linha))
+    repetidos = len(metricas) - len(
+        {(m["id_meta_anuncio"], m["data"]) for m in metricas}
+    )
+    if repetidos:
+        raise ErroInsights(f"{repetidos} linha(s) de anúncio e dia repetidas")
+    return InsightsDiarios(metricas=metricas, acoes=acoes)
+
+
+def ler_grao(linha: RegistroTraduzido) -> LinhaCadastro:
+    """O anúncio e o dia da linha, que na consulta diária começa e termina na
+    mesma data."""
+    if linha["id_meta_anuncio"] is None:
+        raise ErroInsights("linha de insights sem anúncio")
+    inicio = linha["inicio_periodo"]
+    if not isinstance(inicio, date) or inicio != linha["fim_periodo"]:
+        raise ErroInsights("linha de insights que não é de um dia")
+    return {"id_meta_anuncio": linha["id_meta_anuncio"], "data": inicio}
+
+
+def combinar_acoes(linha: RegistroTraduzido) -> list[LinhaCadastro]:
+    """Uma linha por tipo de ação, com a quantidade de actions e o valor de
+    action_values (RF-12). O tipo que vem só numa das listas fica com a
+    outra medida nula."""
+    por_tipo: dict[object, LinhaCadastro] = {}
+    for lista, medida in MEDIDAS_ACAO:
+        itens = linha[lista] or []
+        tipos = [item["tipo_acao"] for item in itens]
+        if None in tipos or len(set(tipos)) != len(tipos):
+            raise ErroInsights(f"tipo de ação ausente ou repetido em {lista}")
+        for item in itens:
+            acao = por_tipo.setdefault(
+                item["tipo_acao"],
+                {"tipo_acao": item["tipo_acao"], "quantidade": None, "valor": None},
+            )
+            acao[medida] = item[medida]
+    return list(por_tipo.values())
