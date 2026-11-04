@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import psycopg
 
-from etl.carga import Contagens, executar_com_lock
+from etl.carga import Contagens, contar_respostas_brutas, executar_com_lock
 from etl.cliente_api_meta import ErroApiMeta
 from etl.configuracao import (
     ESPERA_MAXIMA_LOCK_SEGUNDOS,
@@ -27,6 +27,9 @@ from etl.log_estruturado import (
 # workflow (RF-50).
 CODIGO_SAIDA_SUCESSO: Final = 0
 CODIGO_SAIDA_FALHA: Final = 1
+
+# A chave das respostas brutas nas linhas por tabela do registro de fim.
+TABELA_BRUTO: Final = "resposta_api"
 
 
 class StatusExecucao(StrEnum):
@@ -45,11 +48,16 @@ class ErroRegistroFim(Exception):
     """O registro de fim falhou depois do COMMIT ou da desistência da carga."""
 
 
+class ErroSemRespostaBruta(Exception):
+    """A carga gravou linhas em normalizado sem nenhuma resposta bruta da
+    mesma execução, o que as deixaria sem rastro até a API (RF-09)."""
+
+
 class TarefaCarga[D](Protocol):
     """O que cada rotina faz por empresa. extrair faz todo o I/O de rede, fora
     de transação. carregar roda na transação da empresa, já com o lock, grava
     o bruto, transforma e carrega normalizado, e devolve as linhas gravadas
-    por tabela."""
+    em normalizado por tabela; as do bruto, a execução conta."""
 
     def extrair(self, empresa_id: UUID) -> D: ...
 
@@ -157,8 +165,8 @@ def processar_execucao[D](
         contagens = executar_com_lock(
             conexao,
             empresa_id,
-            lambda conexao_carga: tarefa.carregar(
-                conexao_carga, empresa_id, execucao_id, dados
+            lambda conexao_carga: carregar_com_rastreio(
+                conexao_carga, empresa_id, execucao_id, tarefa, dados
             ),
             espera_maxima_segundos=espera_maxima_segundos,
             intervalo_segundos=intervalo_segundos,
@@ -172,6 +180,31 @@ def processar_execucao[D](
             raise ErroRegistroFim from erro
     registrar_evento(status, linhas=sum(contagens.values()) if contagens else None)
     return status
+
+
+def carregar_com_rastreio[D](
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    tarefa: TarefaCarga[D],
+    dados: D,
+) -> Contagens:
+    """Roda a carga da tarefa e confere, ainda na transação, que ela gravou
+    o bruto da execução; sem ele, a carga é desfeita (RF-09).
+
+    A conferência vale para a execução inteira, pelo execucao_id que as
+    linhas de normalizado e as respostas brutas compartilham. A contagem do
+    bruto vem do banco, e não da tarefa, que pode chamar a gravação várias
+    vezes.
+    """
+    contagens = tarefa.carregar(conexao, empresa_id, execucao_id, dados)
+    respostas = contar_respostas_brutas(conexao, empresa_id, execucao_id)
+    normalizadas = sum(
+        linhas for tabela, linhas in contagens.items() if tabela != TABELA_BRUTO
+    )
+    if normalizadas and not respostas:
+        raise ErroSemRespostaBruta("linhas em normalizado sem resposta bruta")
+    return {**contagens, TABELA_BRUTO: respostas}
 
 
 def registrar_inicio(
