@@ -346,21 +346,41 @@ def test_excecao_nao_expoe_mensagem_da_meta_nem_ids(
         assert trecho not in texto
 
 
-def test_falha_de_conexao_nao_encadeia_a_excecao_com_a_url(
-    api: responses.RequestsMock, cliente: ClienteApiMeta
+def listar_cadeia(erro: BaseException) -> list[BaseException]:
+    cadeia: list[BaseException] = []
+    atual: BaseException | None = erro
+    while atual is not None and atual not in cadeia:
+        cadeia.append(atual)
+        atual = atual.__cause__ or atual.__context__
+    return cadeia
+
+
+@pytest.mark.parametrize(
+    "falha",
+    [requests.ConnectionError, requests.ReadTimeout],
+    ids=["conexao", "tempo"],
+)
+def test_falha_de_rede_nao_guarda_a_url_na_cadeia_da_excecao(
+    api: responses.RequestsMock,
+    cliente: ClienteApiMeta,
+    falha: type[requests.RequestException],
 ) -> None:
+    """A exceção do requests traz a URL, com o ID da conta: nenhum elo da
+    cadeia que chega a quem chamou pode guardá-la, nem para um formatador
+    que percorra __context__."""
     for _ in range(MAXIMO_TENTATIVAS):
         api.add(
             responses.GET,
             montar_url(CONTA),
-            body=requests.ConnectionError(f"falhou em {montar_url(CONTA)}"),
+            body=falha(f"falhou em {montar_url(CONTA)}"),
         )
 
     with pytest.raises(ErroTransitorio) as erro:
         cliente.obter(CONTA, Endpoint.OBJETO, {})
 
-    assert erro.value.__cause__ is None
-    assert erro.value.__suppress_context__
+    for elo in listar_cadeia(erro.value):
+        assert not isinstance(elo, requests.RequestException)
+        assert "990000000000001" not in str(elo) + repr(elo)
 
 
 def test_uso_alto_pausa_antes_da_chamada_seguinte(
