@@ -24,6 +24,7 @@ from etl.cliente_api_meta import Endpoint
 from etl.configuracao import (
     ESPERA_MAXIMA_LOCK_SEGUNDOS,
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
+    RETENCAO_BRUTO_DIAS,
 )
 
 # Linhas gravadas por tabela, para o registro de fim (RF-20).
@@ -55,6 +56,20 @@ COLUNAS_METRICA_DIARIA: Final = (
     "alcance",
 )
 COLUNAS_ACAO_DIARIA: Final = ("anuncio_id", "data", "tipo_acao", "quantidade", "valor")
+
+# A data de referência está no fuso da conta (ADR-0009 §2), e o hoje também.
+# A conta sem fuso, que ainda não teve a primeira extração, usa o dia em UTC:
+# sem o coalesce, a comparação com nulo nunca apagaria as respostas dela.
+APAGAR_RESPOSTAS_VENCIDAS: Final = """
+DELETE FROM bruto.resposta_api AS resposta
+USING normalizado.conta_anuncio AS conta
+WHERE resposta.empresa_id = %(empresa_id)s
+  AND conta.empresa_id = resposta.empresa_id
+  AND conta.id = resposta.conta_anuncio_id
+  AND resposta.data_referencia
+      < (now() AT TIME ZONE coalesce(conta.fuso_horario, 'UTC'))::date
+        - %(retencao_dias)s::integer
+"""
 
 # Os fatos não guardam a conta: o DELETE chega a ela pelo anúncio, pelo
 # conjunto e pela campanha, e as ações saem junto pelo ON DELETE CASCADE. Uma
@@ -221,6 +236,28 @@ def contar_respostas_brutas(
         " WHERE empresa_id = %s AND execucao_id = %s",
         (empresa_id, execucao_id),
     ).fetchone()[0]
+
+
+def apagar_respostas_vencidas(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    *,
+    retencao_dias: int = RETENCAO_BRUTO_DIAS,
+) -> int:
+    """Apaga as respostas brutas da empresa com data de referência anterior a
+    hoje menos a retenção, no fuso de cada conta, e devolve quantas apagou
+    (RF-21).
+
+    A data de gravação não conta: a resposta da carga histórica, gravada
+    hoje com a data de um mês antigo, sai na execução diária seguinte. Roda
+    na transação da carga diária da empresa, e uma falha desfaz também a
+    carga.
+    """
+    exigir_transacao(conexao)
+    return conexao.execute(
+        APAGAR_RESPOSTAS_VENCIDAS,
+        {"empresa_id": empresa_id, "retencao_dias": retencao_dias},
+    ).rowcount
 
 
 def retirar_links_paginacao(pagina: Mapping[str, object]) -> dict[str, object]:

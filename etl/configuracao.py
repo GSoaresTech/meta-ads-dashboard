@@ -53,6 +53,10 @@ LIMITE_USO_PERCENTUAL = 90
 ESPERA_MAXIMA_LOCK_SEGUNDOS = 900
 INTERVALO_TENTATIVA_LOCK_SEGUNDOS = 10
 
+# Retenção de bruto pela data de referência (RF-21): a janela de
+# reprocessamento de 28 dias mais uma margem (ADR-0005).
+RETENCAO_BRUTO_DIAS = 35
+
 
 class ErroConfiguracao(Exception):
     """Variável de ambiente ausente ou inválida na inicialização."""
