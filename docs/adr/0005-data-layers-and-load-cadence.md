@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 30/10/2026
+- Atualizado em: 04/11/2026, com a expiração da URL da miniatura
 
 ## Contexto
 
@@ -36,7 +37,7 @@ O tratamento de dados é intensivo. A Meta revisa conversões de dias passados (
   - reprocessamento dos **28 dias** anteriores (R-17);
   - alcance e impressões por semana ISO, mês e ano (ADR-0006);
   - cadastro de entidades e criativos;
-  - cópia de miniaturas para o Storage;
+  - cópia de miniaturas para o Storage, a partir do `thumbnail_url` lido na mesma execução, porque a URL expira em poucos dias e a guardada em `bruto` pode já ter vencido (R-26);
   - retenção de `bruto`;
   - registro do uso das cotas do plano.
 - **Histórica**: ao cadastrar uma conta, importa até 37 meses fatiados por mês. Cada fatia é uma transação atômica e idempotente, e a carga pode ser retomada pela tabela de controle.
@@ -51,6 +52,7 @@ O tratamento de dados é intensivo. A Meta revisa conversões de dias passados (
 ## Consequências
 
 - RTO de 24 h e RPO de 24 h para os dados operacionais (backup diário), e RPO de 0 para as métricas dentro de 37 meses (RNF-12).
+- Um criativo que entra numa execução horária fica sem miniatura no painel até a execução diária seguinte, que lê a URL de novo e copia a imagem (R-26).
 - Em repositório público, os workflows agendados são desativados após 60 dias sem atividade (R-08; Q-11). O indicador de atraso do painel (RF-28) e o destaque de carga parada (RNF-13) tornam o problema visível.
 - O agendamento do GitHub pode atrasar ou descartar jobs (R-08), o que o RNF-08 tolera com 2 h de defasagem.
 
