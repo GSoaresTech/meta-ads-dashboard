@@ -1,0 +1,18 @@
+{
+  "status": 400,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"990000000000009\":[{\"type\":\"ads_insights\",\"call_count\":2,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}"
+  },
+  "corpo": {
+    "error": {
+      "message": "Please reduce the amount of data you're asking for, then retry your request",
+      "type": "OAuthException",
+      "is_transient": false,
+      "code": 100,
+      "error_subcode": 1487534,
+      "error_user_title": "Número excessivo de linhas",
+      "error_user_msg": "A consulta da conta Empresa Exemplo retornou linhas demais. Reduza o intervalo de datas.",
+      "fbtrace_id": "AbCdEfGhIjKlMnOpQrStUv2"
+    }
+  }
+}

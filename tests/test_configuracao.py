@@ -1,6 +1,12 @@
+import re
+import subprocess
+from pathlib import Path
+
 import pytest
 
-from etl.configuracao import ErroConfiguracao, carregar_ambiente
+from etl.configuracao import VERSAO_API_META, ErroConfiguracao, carregar_ambiente
+
+RAIZ_REPOSITORIO = Path(__file__).parent.parent
 
 TOKEN_FICTICIO = "token-ficticio"
 URL_FICTICIA = "postgresql://postgres:senha-ficticia@127.0.0.1:54322/postgres"
@@ -103,3 +109,39 @@ def test_repr_do_ambiente_nao_expoe_valores() -> None:
 
     assert TOKEN_FICTICIO not in repr(ambiente)
     assert "senha-ficticia" not in repr(ambiente)
+
+
+def listar_arquivos_de_codigo() -> list[str]:
+    """Arquivos versionados e os novos ainda não ignorados, fora os
+    documentos, que citam a versão ao registrar as restrições, e as
+    fixtures, que reproduzem as respostas da Meta com os links que ela
+    devolve."""
+    saida = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=RAIZ_REPOSITORIO,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [
+        caminho
+        for caminho in saida.splitlines()
+        if not caminho.endswith((".md", ".pdf"))
+        and not caminho.startswith("tests/fixtures/")
+        and (RAIZ_REPOSITORIO / caminho).is_file()
+    ]
+
+
+def test_versao_da_api_aparece_em_um_so_lugar() -> None:
+    """Critério de aceite do RF-10."""
+    encontrados = [
+        caminho
+        for caminho in listar_arquivos_de_codigo()
+        if VERSAO_API_META
+        in (RAIZ_REPOSITORIO / caminho).read_text(encoding="utf-8", errors="ignore")
+    ]
+
+    assert encontrados == ["etl/configuracao.py"]
+    texto = (RAIZ_REPOSITORIO / "etl/configuracao.py").read_text(encoding="utf-8")
+    assert texto.count(VERSAO_API_META) == 1
+    assert re.fullmatch(r"v[0-9]+\.[0-9]+", VERSAO_API_META)

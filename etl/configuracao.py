@@ -25,6 +25,12 @@ COTA_EGRESS_ORGANIZACAO_GB = 250
 COTA_EGRESS_CACHE_ORGANIZACAO_GB = 250
 PARCELA_COTA_ORGANIZACAO = Decimal("0.3")
 
+# Único lugar da versão da Graph/Marketing API (RF-10; R-12).
+VERSAO_API_META = "v26.0"
+URL_BASE_API_META = "https://graph.facebook.com"
+# Espera máxima por uma resposta; esgotada, a chamada é tentada de novo.
+TEMPO_LIMITE_REQUISICAO_SEGUNDOS = 120
+
 # Limites da Marketing API (RF-08; R-15). Com estas esperas, a soma mínima
 # entre a primeira e a última tentativa (360 s) passa do bloqueio de 300 s do
 # nível de desenvolvimento, e a máxima (720 s) cabe na execução horária.
