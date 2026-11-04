@@ -46,6 +46,13 @@ ESPERA_MAXIMA_SEGUNDOS = 300
 # de sair, em vez de gastar o que resta da cota até o erro de limite.
 LIMITE_USO_PERCENTUAL = 90
 
+# Concorrência da carga (RF-19): a segunda execução da mesma empresa espera
+# até 15 min pelo lock e, sem obtê-lo, termina como ignorada. Cada tentativa
+# é uma transação curta, para não segurar uma transação aberta durante a
+# espera.
+ESPERA_MAXIMA_LOCK_SEGUNDOS = 900
+INTERVALO_TENTATIVA_LOCK_SEGUNDOS = 10
+
 
 class ErroConfiguracao(Exception):
     """Variável de ambiente ausente ou inválida na inicialização."""
