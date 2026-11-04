@@ -1,7 +1,8 @@
 """Extração de uma conta de anúncios: o cadastro, com a própria conta, as
 campanhas, os conjuntos e os anúncios, com o criativo de cada anúncio expandido
-(RF-01, RF-43), e os insights diários por anúncio, com as entidades que eles
-referenciam lidas pelo ID (RF-02; ADR-0009 §5). Só faz o I/O de rede, fora de
+(RF-01, RF-43), os insights diários por anúncio, com as entidades que eles
+referenciam lidas pelo ID (RF-02; ADR-0009 §5), e o alcance por período, por
+conta, campanha e anúncio (RF-04; ADR-0006). Só faz o I/O de rede, fora de
 transação, e devolve as páginas como a Meta as entregou, para a gravação em
 bruto antes da transformação (RF-09; CLAUDE.md §3).
 """
@@ -10,6 +11,7 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from typing import Final
 from zoneinfo import ZoneInfo
 
@@ -82,6 +84,50 @@ FILTRO_STATUS_INSIGHTS: Final = json.dumps(
         }
     ]
 )
+
+
+class TipoPeriodo(StrEnum):
+    """Os tipos de período do CHECK de alcance_periodo."""
+
+    SEMANA = "semana"
+    MES = "mes"
+    ANO = "ano"
+
+
+# O time_increment de cada tipo (ADR-0006; R-20). Com o since numa
+# segunda-feira, os blocos de 7 dias são as semanas ISO; com o since no dia
+# 1, os de monthly são os meses de calendário; o ano é o intervalo inteiro.
+INCREMENTOS_PERIODO: Final[Mapping[TipoPeriodo, str]] = {
+    TipoPeriodo.SEMANA: "7",
+    TipoPeriodo.MES: "monthly",
+    TipoPeriodo.ANO: "all_days",
+}
+
+
+class NivelAlcance(StrEnum):
+    """Os níveis do alcance por período. O valor é o level da API."""
+
+    CONTA = "account"
+    CAMPANHA = "campaign"
+    ANUNCIO = "ad"
+
+
+# No nível de conta, a linha é da própria conta consultada e dispensa o ID.
+# date_start e date_stop vêm em toda linha sem ser pedidos.
+CAMPOS_ALCANCE_PERIODO: Final[Mapping[NivelAlcance, tuple[str, ...]]] = {
+    NivelAlcance.CONTA: ("reach", "impressions"),
+    NivelAlcance.CAMPANHA: ("campaign_id", "reach", "impressions"),
+    NivelAlcance.ANUNCIO: ("ad_id", "reach", "impressions"),
+}
+
+
+@dataclass(frozen=True)
+class PeriodoAlcance:
+    """Uma consulta de alcance: o tipo de período, do since ao until."""
+
+    tipo: TipoPeriodo
+    inicio: date
+    fim: date
 
 
 @dataclass(frozen=True)
@@ -276,3 +322,37 @@ def ler_id_referenciado(objeto: object, campo: str) -> str:
     if not isinstance(valor, str) or not valor:
         raise ErroRespostaInvalida()
     return valor
+
+
+def montar_parametros_alcance(
+    nivel: NivelAlcance, periodo: PeriodoAlcance
+) -> dict[str, str]:
+    """Nos níveis de campanha e de anúncio, o filtro dos insights diários,
+    porque a lista por nível omite os objetos excluídos (R-38; ADR-0006)."""
+    parametros = {
+        "level": nivel,
+        "time_increment": INCREMENTOS_PERIODO[periodo.tipo],
+        "time_range": json.dumps(
+            {"since": periodo.inicio.isoformat(), "until": periodo.fim.isoformat()}
+        ),
+        "fields": ",".join(CAMPOS_ALCANCE_PERIODO[nivel]),
+        "limit": str(LIMITE_PAGINA_INSIGHTS),
+    }
+    if nivel is not NivelAlcance.CONTA:
+        parametros["filtering"] = FILTRO_STATUS_INSIGHTS
+    return parametros
+
+
+def extrair_alcance_periodo(
+    cliente: ClienteApiMeta, id_meta_conta: str, periodo: PeriodoAlcance
+) -> dict[NivelAlcance, Consulta]:
+    """O alcance e as impressões do período já agregados pela API, numa
+    consulta paginada da conta por nível, com todas as entidades do nível,
+    em vez de uma consulta por entidade (R-15; ADR-0006)."""
+    objeto_conta = f"{PREFIXO_ID_CONTA}{id_meta_conta}"
+    consultas = {}
+    for nivel in NivelAlcance:
+        parametros = montar_parametros_alcance(nivel, periodo)
+        paginas = cliente.ler_insights(objeto_conta, parametros)
+        consultas[nivel] = Consulta(Endpoint.INSIGHTS, parametros, paginas)
+    return consultas
