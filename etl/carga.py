@@ -26,6 +26,7 @@ from etl.configuracao import (
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
     RETENCAO_BRUTO_DIAS,
 )
+from etl.transformacao import CadastroConta
 
 # Linhas gravadas por tabela, para o registro de fim (RF-20).
 type Contagens = dict[str, int]
@@ -108,6 +109,35 @@ WHERE NOT EXISTS (
     AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
 )
 """
+
+
+ATUALIZAR_CONTA: Final = """
+UPDATE normalizado.conta_anuncio
+SET nome = %(nome)s, fuso_horario = %(fuso_horario)s, moeda = %(moeda)s,
+    execucao_id = %(execucao_id)s, atualizado_em = now()
+WHERE empresa_id = %(empresa_id)s AND id = %(conta_anuncio_id)s
+"""
+
+# A Página é única só dentro da empresa (ADR-0009 §1), então o conflito é por
+# (empresa_id, id_meta), e nunca move a Página de dono. O nome não é tocado:
+# a ETL ainda não o lê (R-27).
+UPSERT_PAGINA: Final = """
+INSERT INTO normalizado.pagina (empresa_id, id_meta, execucao_id)
+VALUES (%(empresa_id)s, %(id_meta)s, %(execucao_id)s)
+ON CONFLICT (empresa_id, id_meta) DO UPDATE
+SET execucao_id = EXCLUDED.execucao_id, atualizado_em = now()
+RETURNING id_meta, id
+"""
+
+APAGAR_JANELAS: Final = """
+DELETE FROM normalizado.janela_atribuicao_conjunto
+WHERE empresa_id = %(empresa_id)s AND conjunto_anuncio_id = ANY(%(conjuntos)s)
+"""
+COLUNAS_JANELA: Final = ("conjunto_anuncio_id", "tipo_evento", "janela_dias")
+
+
+class ErroContaAusente(Exception):
+    """A conta do cadastro não existe na empresa."""
 
 
 class TabelaEntidade(StrEnum):
@@ -341,6 +371,88 @@ def montar_upsert_entidade(
     )
 
 
+def atualizar_conta_anuncio(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    conta: Linha,
+) -> int:
+    """Grava o nome, o fuso e a moeda lidos da API na conta cadastrada só
+    pelo ID (RF-43)."""
+    exigir_transacao(conexao)
+    linhas = conexao.execute(
+        ATUALIZAR_CONTA,
+        {
+            "nome": conta["nome"],
+            "fuso_horario": conta["fuso_horario"],
+            "moeda": conta["moeda"],
+            "execucao_id": execucao_id,
+            "empresa_id": empresa_id,
+            "conta_anuncio_id": conta_anuncio_id,
+        },
+    ).rowcount
+    if linhas != 1:
+        raise ErroContaAusente("conta do cadastro fora da empresa")
+    return linhas
+
+
+def upsert_paginas(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    ids_meta: Sequence[str],
+) -> dict[str, UUID]:
+    """Inclui as Páginas que faltam e devolve o id interno de cada uma, pelo
+    id_meta, para a FK do criativo."""
+    exigir_transacao(conexao)
+    if not ids_meta:
+        return {}
+    if len(set(ids_meta)) != len(ids_meta):
+        raise ValueError("id_meta repetido no lote")
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            UPSERT_PAGINA,
+            [
+                {
+                    "empresa_id": empresa_id,
+                    "id_meta": id_meta,
+                    "execucao_id": execucao_id,
+                }
+                for id_meta in ids_meta
+            ],
+            returning=True,
+        )
+        return ler_ids_devolvidos(cursor)
+
+
+def substituir_janelas_atribuicao(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conjuntos: Sequence[UUID],
+    janelas: Sequence[Linha],
+) -> int:
+    """Troca as janelas de atribuição dos conjuntos dados pelas lidas agora,
+    para que uma janela retirada do conjunto saia também do banco
+    (ADR-0009 §2)."""
+    exigir_transacao(conexao)
+    validar_colunas_fato(janelas, COLUNAS_JANELA)
+    substituidos = set(conjuntos)
+    if any(janela["conjunto_anuncio_id"] not in substituidos for janela in janelas):
+        raise ValueError("janela de conjunto fora do lote substituído")
+    conexao.execute(
+        APAGAR_JANELAS, {"empresa_id": empresa_id, "conjuntos": list(conjuntos)}
+    )
+    controle = {"empresa_id": empresa_id, "execucao_id": execucao_id}
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            montar_insercao_fato("janela_atribuicao_conjunto", COLUNAS_JANELA),
+            [{**janela, **controle} for janela in janelas],
+        )
+    return len(janelas)
+
+
 def ler_ids_devolvidos(cursor: psycopg.Cursor) -> dict[str, UUID]:
     """Junta o RETURNING de cada comando do executemany."""
     ids: dict[str, UUID] = {}
@@ -438,3 +550,95 @@ def exigir_transacao(conexao: psycopg.Connection) -> None:
     autocommit, cada comando seria confirmado sozinho."""
     if conexao.info.transaction_status != TransactionStatus.INTRANS:
         raise RuntimeError("carga fora da transação da empresa")
+
+
+def carregar_cadastro(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    cadastro: CadastroConta,
+) -> Contagens:
+    """Grava o cadastro de uma conta de cima para baixo, porque cada filho
+    precisa da chave interna do pai: a conta, as campanhas, os conjuntos com
+    as janelas, as Páginas, os criativos e os anúncios (RF-01).
+
+    Roda na transação da empresa. Uma entidade que já não vem da API fica
+    como estava: a ETL não apaga entidades (ADR-0009 §2).
+    """
+
+    def upsert(tabela: TabelaEntidade, linhas: list[dict[str, object]]) -> dict:
+        return upsert_entidades(conexao, tabela, empresa_id, execucao_id, linhas)
+
+    atualizar_conta_anuncio(
+        conexao, empresa_id, execucao_id, conta_anuncio_id, cadastro.conta
+    )
+    campanhas = upsert(
+        TabelaEntidade.CAMPANHA,
+        [
+            {**linha, "conta_anuncio_id": conta_anuncio_id}
+            for linha in cadastro.campanhas
+        ],
+    )
+    conjuntos = upsert(
+        TabelaEntidade.CONJUNTO_ANUNCIO,
+        trocar_referencias(
+            cadastro.conjuntos, {"campanha_id": ("id_meta_campanha", campanhas)}
+        ),
+    )
+    janelas = substituir_janelas_atribuicao(
+        conexao,
+        empresa_id,
+        execucao_id,
+        list(conjuntos.values()),
+        trocar_referencias(
+            cadastro.janelas, {"conjunto_anuncio_id": ("id_meta_conjunto", conjuntos)}
+        ),
+    )
+    paginas = upsert_paginas(conexao, empresa_id, execucao_id, cadastro.paginas)
+    criativos = upsert(
+        TabelaEntidade.CRIATIVO,
+        [
+            {**linha, "conta_anuncio_id": conta_anuncio_id}
+            for linha in trocar_referencias(
+                cadastro.criativos, {"pagina_id": ("id_meta_pagina", paginas)}
+            )
+        ],
+    )
+    anuncios = upsert(
+        TabelaEntidade.ANUNCIO,
+        trocar_referencias(
+            cadastro.anuncios,
+            {
+                "conjunto_anuncio_id": ("id_meta_conjunto", conjuntos),
+                "criativo_id": ("id_meta_criativo", criativos),
+            },
+        ),
+    )
+    return {
+        "conta_anuncio": 1,
+        "campanha": len(campanhas),
+        "conjunto_anuncio": len(conjuntos),
+        "janela_atribuicao_conjunto": janelas,
+        "pagina": len(paginas),
+        "criativo": len(criativos),
+        "anuncio": len(anuncios),
+    }
+
+
+def trocar_referencias(
+    linhas: Sequence[Mapping[str, object]],
+    referencias: Mapping[str, tuple[str, Mapping[str, UUID]]],
+) -> list[dict[str, object]]:
+    """Troca, em cada linha, o ID da Meta do pai pela chave interna dele:
+    referencias leva a coluna de destino ao campo de origem e aos ids
+    devolvidos pelo upsert do pai. Um pai nulo continua nulo, como a Página
+    opcional do criativo."""
+    trocadas = []
+    for linha in linhas:
+        trocada = dict(linha)
+        for coluna, (origem, ids) in referencias.items():
+            id_meta = trocada.pop(origem)
+            trocada[coluna] = None if id_meta is None else ids[id_meta]
+        trocadas.append(trocada)
+    return trocadas
