@@ -121,7 +121,7 @@ Todas têm `UNIQUE (id_meta)` (ou `UNIQUE (empresa_id, id_meta)`, em `pagina`), 
 - **`criativo`**: uma linha por criativo, reutilizável por vários anúncios (N:1). Pais: `conta_anuncio` e, opcionalmente, `pagina`, identificada pelo `actor_id` do criativo (R-35).
   - Colunas `titulo`, `texto`, `chamada_acao` (domínio aberto), `id_publicacao_facebook`, `link_publicacao_facebook`, `id_midia_instagram`, `link_publicacao_instagram`, `caminho_miniatura`.
   - `id_publicacao_facebook` é texto sem `CHECK` numérico, porque a Meta o declara como token "Post ID" (R-35).
-  - Os campos de origem dos links e do ID da mídia do Instagram são *a confirmar* (Q-06).
+  - Origem (R-27): `id_publicacao_facebook` vem de `effective_object_story_id`; `link_publicacao_facebook`, do `permalink_url` do post, que não é lido sem a Página atribuída ao System User (ADR-0003; Q-06); `id_midia_instagram`, de `effective_instagram_media_id`; e `link_publicacao_instagram`, do `instagram_permalink_url` do criativo.
   - `caminho_miniatura` é o caminho no Storage, derivado do `id` interno e nunca do ID da Meta (RF-38).
 - **`anuncio`**: uma linha por anúncio. Pais: `conjunto_anuncio` e `criativo`, ambos `NOT NULL` (RF-01). Colunas `nome`, `status`.
 
