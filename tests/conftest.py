@@ -23,6 +23,7 @@ EMPRESAS_FICTICIAS = (
 
 # As FKs são NO ACTION (ADR-0009 §1): a limpeza apaga de baixo para cima.
 LIMPEZA_EMPRESA = (
+    "DELETE FROM normalizado.alcance_periodo WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.acao_diaria_anuncio WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.metrica_diaria_anuncio WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.anuncio WHERE empresa_id = %(empresa_id)s",

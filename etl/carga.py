@@ -1,7 +1,8 @@
 """Carga de bruto e de normalizado: a transação por empresa ou por fatia, com o
 lock que põe em série as execuções da mesma empresa, a gravação das respostas
 da API como recebidas, o upsert das entidades pela chave natural e a
-substituição da janela dos fatos (CLAUDE.md §6; ADR-0009 §5).
+substituição da janela dos fatos e dos períodos do alcance (CLAUDE.md §6;
+ADR-0009 §5).
 
 A conexão é direta, por psycopg, e em autocommit: cada bloco transaction() é
 uma transação real, com BEGIN e COMMIT, e não um savepoint dentro de uma
@@ -57,6 +58,16 @@ COLUNAS_METRICA_DIARIA: Final = (
     "alcance",
 )
 COLUNAS_ACAO_DIARIA: Final = ("anuncio_id", "data", "tipo_acao", "quantidade", "valor")
+COLUNAS_ALCANCE_PERIODO: Final = (
+    "conta_anuncio_id",
+    "campanha_id",
+    "anuncio_id",
+    "tipo_periodo",
+    "inicio_periodo",
+    "fim_periodo",
+    "alcance",
+    "impressoes",
+)
 
 # A data de referência está no fuso da conta (ADR-0009 §2), e o hoje também.
 # A conta sem fuso, que ainda não teve a primeira extração, usa o dia em UTC:
@@ -108,6 +119,56 @@ WHERE NOT EXISTS (
     AND anuncio.id = lote.anuncio_id
     AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
 )
+"""
+
+# O escopo de uma consulta de alcance: os períodos do tipo que começam de
+# inicio a fim, na conta e nas campanhas e anúncios dela, pelo mesmo caminho
+# do DELETE das métricas diárias (ADR-0009 §5).
+APAGAR_ALCANCE_PERIODO: Final = """
+DELETE FROM normalizado.alcance_periodo AS alcance
+WHERE alcance.empresa_id = %(empresa_id)s
+  AND alcance.tipo_periodo = %(tipo_periodo)s
+  AND alcance.inicio_periodo BETWEEN %(inicio)s AND %(fim)s
+  AND (
+    alcance.conta_anuncio_id = %(conta_anuncio_id)s
+    OR alcance.campanha_id IN (
+      SELECT campanha.id FROM normalizado.campanha AS campanha
+      WHERE campanha.empresa_id = %(empresa_id)s
+        AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
+    )
+    OR alcance.anuncio_id IN (
+      SELECT anuncio.id
+      FROM normalizado.anuncio AS anuncio
+      JOIN normalizado.conjunto_anuncio AS conjunto
+        ON conjunto.empresa_id = anuncio.empresa_id
+       AND conjunto.id = anuncio.conjunto_anuncio_id
+      JOIN normalizado.campanha AS campanha
+        ON campanha.empresa_id = conjunto.empresa_id
+       AND campanha.id = conjunto.campanha_id
+      WHERE anuncio.empresa_id = %(empresa_id)s
+        AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
+    )
+  )
+"""
+
+# As campanhas e os anúncios da conta entre os IDs da Meta dados.
+LER_IDS_CAMPANHAS_DA_CONTA: Final = """
+SELECT id_meta, id FROM normalizado.campanha
+WHERE empresa_id = %(empresa_id)s AND conta_anuncio_id = %(conta_anuncio_id)s
+  AND id_meta = ANY(%(ids_meta)s)
+"""
+LER_IDS_ANUNCIOS_DA_CONTA: Final = """
+SELECT anuncio.id_meta, anuncio.id
+FROM normalizado.anuncio AS anuncio
+JOIN normalizado.conjunto_anuncio AS conjunto
+  ON conjunto.empresa_id = anuncio.empresa_id
+ AND conjunto.id = anuncio.conjunto_anuncio_id
+JOIN normalizado.campanha AS campanha
+  ON campanha.empresa_id = conjunto.empresa_id
+ AND campanha.id = conjunto.campanha_id
+WHERE anuncio.empresa_id = %(empresa_id)s
+  AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
+  AND anuncio.id_meta = ANY(%(ids_meta)s)
 """
 
 LER_IDS_ANUNCIOS: Final = """
@@ -172,6 +233,13 @@ class ErroAnuncioAusente(Exception):
 class ErroAnuncioForaDaConta(ValueError):
     """Um fato de anúncio de outra conta não seria apagado pela próxima
     substituição da conta substituída."""
+
+
+class ErroEntidadeForaDaConta(Exception):
+    """Uma campanha ou um anúncio do alcance não existe na conta: a FK
+    recusaria a entidade ausente, e a linha de outra conta não seria apagada
+    pela próxima substituição desta. A carga falha antes, sem citar o ID
+    (RNF-17)."""
 
 
 def conectar_banco(url_banco: str) -> psycopg.Connection:
@@ -715,3 +783,111 @@ def trocar_referencias(
             trocada[coluna] = None if id_meta is None else ids[id_meta]
         trocadas.append(trocada)
     return trocadas
+
+
+def carregar_alcance_periodo(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    tipo_periodo: str,
+    inicio: date,
+    fim: date,
+    linhas: Sequence[Linha],
+) -> Contagens:
+    """Troca o alcance da conta nos períodos do tipo que começam de inicio a
+    fim pelo das linhas, com a campanha e o anúncio pela chave interna
+    (RF-04, RF-17; ADR-0006).
+
+    Roda na transação da empresa, depois das entidades lidas pelo ID: toda
+    campanha e todo anúncio das linhas já existem na conta (ADR-0009 §5). A
+    linha sem campanha nem anúncio é da própria conta.
+    """
+    exigir_transacao(conexao)
+    escopo = {"empresa_id": empresa_id, "conta_anuncio_id": conta_anuncio_id}
+    referencias = {
+        coluna: (origem, ler_ids_da_conta(conexao, consulta, escopo, linhas, origem))
+        for coluna, origem, consulta in (
+            ("campanha_id", "id_meta_campanha", LER_IDS_CAMPANHAS_DA_CONTA),
+            ("anuncio_id", "id_meta_anuncio", LER_IDS_ANUNCIOS_DA_CONTA),
+        )
+    }
+    trocadas = trocar_referencias(linhas, referencias)
+    for linha in trocadas:
+        sem_entidade = linha["campanha_id"] is None and linha["anuncio_id"] is None
+        linha["conta_anuncio_id"] = conta_anuncio_id if sem_entidade else None
+    return substituir_alcance_periodo(
+        conexao,
+        empresa_id,
+        execucao_id,
+        conta_anuncio_id,
+        tipo_periodo,
+        inicio,
+        fim,
+        trocadas,
+    )
+
+
+def ler_ids_da_conta(
+    conexao: psycopg.Connection,
+    consulta: str,
+    escopo: Mapping[str, object],
+    linhas: Sequence[Linha],
+    origem: str,
+) -> dict[str, UUID]:
+    """O id interno de cada entidade das linhas pelo ID da Meta em origem,
+    que precisa existir na conta do escopo."""
+    ids_meta = list({linha[origem] for linha in linhas} - {None})
+    ids = dict(conexao.execute(consulta, {**escopo, "ids_meta": ids_meta}).fetchall())
+    if len(ids) != len(ids_meta):
+        raise ErroEntidadeForaDaConta(
+            f"{len(ids_meta) - len(ids)} entidade(s) do alcance fora da conta"
+        )
+    return ids
+
+
+def substituir_alcance_periodo(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    tipo_periodo: str,
+    inicio: date,
+    fim: date,
+    linhas: Sequence[Linha],
+) -> Contagens:
+    """Apaga o alcance da conta nos períodos do tipo que começam de inicio a
+    fim e inclui o conjunto completo devolvido pela API. O período sem linha
+    na resposta, sem entrega, fica sem linha no banco (R-20).
+
+    O leitor vê o conjunto anterior ou o novo, nunca o vazio entre o DELETE
+    e o INSERT (RNF-09).
+    """
+    exigir_transacao(conexao)
+    validar_colunas_fato(linhas, COLUNAS_ALCANCE_PERIODO)
+    if inicio > fim:
+        raise ValueError("janela com início depois do fim")
+    if any(
+        linha["tipo_periodo"] != tipo_periodo
+        or not inicio <= linha["inicio_periodo"] <= fim
+        or linha["fim_periodo"] > fim
+        for linha in linhas
+    ):
+        raise ErroLinhaForaDaJanela("alcance fora dos períodos substituídos")
+    conexao.execute(
+        APAGAR_ALCANCE_PERIODO,
+        {
+            "empresa_id": empresa_id,
+            "conta_anuncio_id": conta_anuncio_id,
+            "tipo_periodo": tipo_periodo,
+            "inicio": inicio,
+            "fim": fim,
+        },
+    )
+    controle = {"empresa_id": empresa_id, "execucao_id": execucao_id}
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            montar_insercao_fato("alcance_periodo", COLUNAS_ALCANCE_PERIODO),
+            [{**linha, **controle} for linha in linhas],
+        )
+    return {"alcance_periodo": len(linhas)}
