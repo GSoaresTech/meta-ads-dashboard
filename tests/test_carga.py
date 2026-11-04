@@ -9,6 +9,7 @@ from etl.carga import (
     Linha,
     calcular_chave_lock,
     ler_colunas,
+    retirar_links_paginacao,
     validar_colunas_fato,
     validar_janela,
     validar_linhas_entidade,
@@ -84,3 +85,44 @@ def test_fatos_nas_pontas_da_janela_sao_aceitos() -> None:
     inicio, fim = date(2026, 10, 1), date(2026, 10, 7)
 
     validar_janela(inicio, fim, [{"data": inicio}, {"data": fim}])
+
+
+def test_links_de_paginacao_saem_da_resposta() -> None:
+    pagina = {
+        "data": [{"ad_id": "990000000000301", "spend": "12.34"}],
+        "paging": {
+            "cursors": {"before": "QVFIUmFudGVyaW9y", "after": "QVFIUnNlZ3VpbnRl"},
+            "next": "https://graph.facebook.com/act_990000000000001/insights?access_token=FICTICIO",
+            "previous": "https://graph.facebook.com/act_990000000000001/insights?access_token=FICTICIO",
+        },
+    }
+
+    assert retirar_links_paginacao(pagina) == {
+        "data": [{"ad_id": "990000000000301", "spend": "12.34"}],
+        "paging": {
+            "cursors": {"before": "QVFIUmFudGVyaW9y", "after": "QVFIUnNlZ3VpbnRl"}
+        },
+    }
+
+
+def test_retirar_links_nao_altera_a_pagina_recebida() -> None:
+    paginacao = {"cursors": {"after": "QVFIUnNlZ3VpbnRl"}, "next": "https://exemplo"}
+    pagina = {"data": [], "paging": paginacao}
+
+    retirar_links_paginacao(pagina)
+
+    assert pagina == {"data": [], "paging": paginacao}
+    assert "next" in paginacao
+
+
+@pytest.mark.parametrize(
+    "pagina",
+    [
+        {"id": "990000000000001", "timezone_name": "America/Sao_Paulo"},
+        {"data": [], "paging": "fora do formato"},
+    ],
+)
+def test_resposta_sem_links_de_paginacao_fica_como_recebida(
+    pagina: dict[str, object],
+) -> None:
+    assert retirar_links_paginacao(pagina) == pagina
