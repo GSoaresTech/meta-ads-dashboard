@@ -13,6 +13,8 @@ from etl.cliente_api_meta import (
     Endpoint,
     ErroApiMeta,
     ErroAutenticacao,
+    ErroExcessoLinhas,
+    ErroJobAssincrono,
     ErroLimiteTaxa,
     ErroPermissao,
     ErroRespostaInvalida,
@@ -20,7 +22,9 @@ from etl.cliente_api_meta import (
 )
 from etl.configuracao import (
     ESPERA_INICIAL_SEGUNDOS,
+    INTERVALO_CONSULTA_RELATORIO_SEGUNDOS,
     MAXIMO_TENTATIVAS,
+    TEMPO_MAXIMO_RELATORIO_SEGUNDOS,
     URL_BASE_API_META,
     VERSAO_API_META,
 )
@@ -464,3 +468,226 @@ def test_aceita_ids_de_conta_objeto_e_publicacao(
     simular(api, objeto_id, pagina)
 
     assert cliente.obter(objeto_id, Endpoint.OBJETO, {}) == pagina["corpo"]
+
+
+RELATORIO = "990000000000777"
+CAMPOS_ESTADO_RELATORIO = {
+    "fields": "async_status,async_percent_completion,error_code,error_subcode"
+}
+
+
+def simular_job_ate_concluir(api: responses.RequestsMock) -> list[dict]:
+    """Criação, uma consulta em andamento, a conclusão e o resultado em duas
+    páginas. Devolve os corpos das páginas do resultado."""
+    pagina_1 = ler_fixture("insights_anuncio_dia_pagina_1")
+    pagina_2 = ler_fixture("insights_anuncio_dia_pagina_2")
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+        match=[
+            matchers.urlencoded_params_matcher(PARAMETROS_INSIGHTS),
+            matchers.header_matcher({"Authorization": f"Bearer {TOKEN}"}),
+        ],
+    )
+    estado = [matchers.query_param_matcher(CAMPOS_ESTADO_RELATORIO)]
+    simular(
+        api, RELATORIO, ler_fixture("relatorio_assincrono_em_execucao"), match=estado
+    )
+    simular(api, RELATORIO, ler_fixture("relatorio_assincrono_concluido"), match=estado)
+    cursor = pagina_1["corpo"]["paging"]["cursors"]["after"]
+    simular(
+        api,
+        f"{RELATORIO}/insights",
+        pagina_1,
+        match=[matchers.query_param_matcher({"limit": "2"})],
+    )
+    simular(
+        api,
+        f"{RELATORIO}/insights",
+        pagina_2,
+        match=[matchers.query_param_matcher({"limit": "2", "after": cursor})],
+    )
+    return [pagina_1["corpo"], pagina_2["corpo"]]
+
+
+def test_fluxo_assincrono_ate_job_completed(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, relogio: RelogioFalso
+) -> None:
+    """Critério de aceite da #17: criação do job, consulta do report_run_id
+    até Job Completed e leitura do resultado."""
+    esperado = simular_job_ate_concluir(api)
+
+    paginas = cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert paginas == esperado
+    assert relogio.esperas == [INTERVALO_CONSULTA_RELATORIO_SEGUNDOS]
+    assert "access_token" not in str(api.calls[0].request.body)
+
+
+def test_excesso_de_linhas_na_consulta_sincrona_refaz_por_job_assincrono(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, relogio: RelogioFalso
+) -> None:
+    """Critério de aceite do RF-08: o excesso de linhas (100/1487534) refaz a
+    mesma consulta por job assíncrono, sem tentar de novo a síncrona."""
+    simular(api, f"{CONTA}/insights", ler_fixture("erro_excesso_linhas"))
+    esperado = simular_job_ate_concluir(api)
+
+    paginas = cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS)
+
+    assert paginas == esperado
+    assert relogio.esperas == [INTERVALO_CONSULTA_RELATORIO_SEGUNDOS]
+
+
+def test_excesso_de_linhas_na_segunda_pagina_descarta_a_primeira(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    simular(api, f"{CONTA}/insights", ler_fixture("insights_anuncio_dia_pagina_1"))
+    simular(api, f"{CONTA}/insights", ler_fixture("erro_excesso_linhas"))
+    esperado = simular_job_ate_concluir(api)
+
+    assert cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS) == esperado
+
+
+def test_tempo_esgotado_na_consulta_sincrona_refaz_por_job_assincrono(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, relogio: RelogioFalso
+) -> None:
+    api.add(
+        responses.GET,
+        montar_url(f"{CONTA}/insights"),
+        body=requests.ReadTimeout("tempo esgotado"),
+    )
+    esperado = simular_job_ate_concluir(api)
+
+    assert cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS) == esperado
+    assert relogio.esperas == [INTERVALO_CONSULTA_RELATORIO_SEGUNDOS]
+
+
+def test_consulta_sincrona_bem_sucedida_nao_cria_job(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    pagina = ler_fixture("insights_anuncio_dia_pagina_2")
+    simular(api, f"{CONTA}/insights", pagina)
+
+    assert cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS) == [pagina["corpo"]]
+
+
+def test_falha_de_conexao_na_sincrona_nao_vira_job(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    for _ in range(MAXIMO_TENTATIVAS):
+        api.add(
+            responses.GET,
+            montar_url(f"{CONTA}/insights"),
+            body=requests.ConnectionError(),
+        )
+
+    with pytest.raises(ErroTransitorio) as erro:
+        cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS)
+
+    assert type(erro.value) is ErroTransitorio
+
+
+def test_job_que_falha_por_excesso_de_linhas_sobe_para_fatiar(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    """Se nem o job dá conta, quem chamou fatia o intervalo (R-39)."""
+    simular(api, f"{CONTA}/insights", ler_fixture("erro_excesso_linhas"))
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+    )
+    simular(api, RELATORIO, ler_fixture("relatorio_assincrono_falhou"))
+
+    with pytest.raises(ErroExcessoLinhas) as erro:
+        cliente.ler_insights(CONTA, PARAMETROS_INSIGHTS)
+
+    assert (erro.value.codigo, erro.value.subcodigo) == (100, 1487534)
+
+
+@pytest.mark.parametrize(
+    ("status", "codigo", "subcodigo"),
+    [("Job Failed", 1, None), ("Job Failed", None, None), ("Job Skipped", None, None)],
+)
+def test_job_falho_ou_expirado_vira_erro_tipado(
+    api: responses.RequestsMock,
+    cliente: ClienteApiMeta,
+    status: str,
+    codigo: int | None,
+    subcodigo: int | None,
+) -> None:
+    falhou = ler_fixture("relatorio_assincrono_falhou")
+    falhou["corpo"].update(async_status=status)
+    for campo, valor in (("error_code", codigo), ("error_subcode", subcodigo)):
+        if valor is None:
+            del falhou["corpo"][campo]
+        else:
+            falhou["corpo"][campo] = valor
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+    )
+    simular(api, RELATORIO, falhou)
+
+    with pytest.raises(ErroJobAssincrono) as erro:
+        cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert (erro.value.codigo, erro.value.subcodigo) == (codigo, subcodigo)
+
+
+def test_job_concluido_abaixo_de_100_por_cento_segue_consultando(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    quase = ler_fixture("relatorio_assincrono_concluido")
+    quase["corpo"]["async_percent_completion"] = 99
+    pagina = ler_fixture("insights_anuncio_dia_pagina_2")
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+    )
+    simular(api, RELATORIO, quase)
+    simular(api, RELATORIO, ler_fixture("relatorio_assincrono_concluido"))
+    simular(api, f"{RELATORIO}/insights", pagina)
+
+    paginas = cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert paginas == [pagina["corpo"]]
+
+
+def test_job_sem_conclusao_desiste_no_tempo_maximo(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, relogio: RelogioFalso
+) -> None:
+    """Um job pode levar até 1 h (R-18); depois disso, a falha é da empresa."""
+    simular(
+        api,
+        f"{CONTA}/insights",
+        ler_fixture("relatorio_assincrono_criado"),
+        metodo=responses.POST,
+    )
+    consultas = TEMPO_MAXIMO_RELATORIO_SEGUNDOS // INTERVALO_CONSULTA_RELATORIO_SEGUNDOS
+    for _ in range(consultas + 1):
+        simular(api, RELATORIO, ler_fixture("relatorio_assincrono_em_execucao"))
+
+    with pytest.raises(ErroJobAssincrono):
+        cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
+
+    assert relogio.agora == TEMPO_MAXIMO_RELATORIO_SEGUNDOS
+
+
+@pytest.mark.parametrize(
+    "criacao", [{}, {"report_run_id": ""}, {"report_run_id": "1/leads"}, {"id": 1}]
+)
+def test_criacao_sem_report_run_id_valido_e_resposta_invalida(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, criacao: dict
+) -> None:
+    api.add(responses.POST, montar_url(f"{CONTA}/insights"), json=criacao)
+
+    with pytest.raises(ErroRespostaInvalida):
+        cliente.executar_relatorio_assincrono(CONTA, PARAMETROS_INSIGHTS)
