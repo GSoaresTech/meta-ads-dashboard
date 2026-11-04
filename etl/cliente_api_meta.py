@@ -21,7 +21,9 @@ from typing import Final
 import requests
 
 from etl.configuracao import (
+    INTERVALO_CONSULTA_RELATORIO_SEGUNDOS,
     TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
+    TEMPO_MAXIMO_RELATORIO_SEGUNDOS,
     URL_BASE_API_META,
     VERSAO_API_META,
 )
@@ -30,9 +32,11 @@ from etl.limites_api_meta import (
     TipoErro,
     UsoApi,
     calcular_pausa_preventiva,
+    classificar_codigo,
     classificar_erro,
     decidir_espera,
     ler_erro_graph,
+    ler_inteiro,
     ler_uso,
 )
 
@@ -58,6 +62,19 @@ class Endpoint(StrEnum):
 # outro formato impede que um caminho no ID escape da lista de endpoints.
 PADRAO_ID_OBJETO: Final = re.compile(r"(act_)?[0-9]+(_[0-9]+)?")
 STATUS_HTTP_ERRO: Final = 400
+GET: Final = "GET"
+POST: Final = "POST"
+PADRAO_ID_RELATORIO: Final = re.compile(r"[0-9]+")
+# Estados do job assíncrono, conferidos em 04/11/2026 em
+# https://developers.facebook.com/docs/marketing-api/insights/best-practices.
+STATUS_JOB_CONCLUIDO: Final = "Job Completed"
+STATUS_JOB_SEM_CONCLUSAO: Final = frozenset({"Job Failed", "Job Skipped"})
+PERCENTUAL_JOB_CONCLUIDO: Final = 100
+# Só os códigos do erro do job: a mensagem e o título podem trazer nome de
+# campanha (RNF-17).
+CAMPOS_ESTADO_RELATORIO: Final = (
+    "async_status,async_percent_completion,error_code,error_subcode"
+)
 SEM_USO: Final = UsoApi(percentual=0, espera_recuperacao_segundos=0)
 
 
@@ -114,6 +131,12 @@ class ErroPermissao(ErroApiMeta):
     TIPO = TipoErro.PERMISSAO
 
 
+class ErroJobAssincrono(ErroApiMeta):
+    """Job falho, expirado ou sem conclusão até TEMPO_MAXIMO_RELATORIO_SEGUNDOS."""
+
+    TIPO = "job assíncrono sem conclusão"
+
+
 class ErroRespostaInvalida(ErroApiMeta):
     """Resposta de sucesso fora do formato da Graph API."""
 
@@ -167,7 +190,7 @@ class ClienteApiMeta:
         self, objeto_id: str, endpoint: Endpoint, parametros: Mapping[str, str]
     ) -> dict[str, object]:
         """Uma chamada GET, sem paginação."""
-        return self._requisitar(montar_url(objeto_id, endpoint), parametros)
+        return self._requisitar(GET, montar_url(objeto_id, endpoint), parametros)
 
     def paginar(
         self, objeto_id: str, endpoint: Endpoint, parametros: Mapping[str, str]
@@ -177,22 +200,98 @@ class ClienteApiMeta:
         Devolve a lista só no fim, para que uma falha no meio não deixe
         páginas soltas com quem chamou.
         """
-        url = montar_url(objeto_id, endpoint)
-        paginas = [self._requisitar(url, parametros)]
-        while (cursor := ler_cursor_seguinte(paginas[-1])) is not None:
-            paginas.append(self._requisitar(url, {**parametros, "after": cursor}))
+        return self._paginar(montar_url(objeto_id, endpoint), parametros)
+
+    def ler_insights(
+        self, objeto_id: str, parametros: Mapping[str, str]
+    ) -> list[dict[str, object]]:
+        """Insights pela consulta síncrona; se ela falhar por excesso de linhas
+        ou por tempo, a mesma consulta é refeita por job assíncrono (RF-08).
+
+        O tempo esgotado na síncrona não é tentado de novo, porque a mesma
+        consulta tende a esgotá-lo outra vez. Se o job também falhar por
+        excesso de linhas, o ErroExcessoLinhas sobe para quem chamou fatiar o
+        intervalo (R-39).
+        """
+        url = montar_url(objeto_id, Endpoint.INSIGHTS)
+        try:
+            return self._paginar(url, parametros, repetir_tempo_esgotado=False)
+        except (ErroExcessoLinhas, ErroTempoEsgotado):
+            return self.executar_relatorio_assincrono(objeto_id, parametros)
+
+    def executar_relatorio_assincrono(
+        self, objeto_id: str, parametros: Mapping[str, str]
+    ) -> list[dict[str, object]]:
+        """Cria o job de insights, consulta o report_run_id até Job Completed
+        e devolve as páginas do resultado (R-18).
+
+        Uma criação repetida por erro transitório pode deixar um job a mais
+        na Meta, o que é inócuo: o job só lê. O resultado é lido com o mesmo
+        limit da consulta, para não cair no tamanho de página padrão da Meta
+        e gastar a cota com páginas pequenas.
+        """
+        url = montar_url(objeto_id, Endpoint.INSIGHTS)
+        relatorio_id = ler_id_relatorio(self._requisitar(POST, url, parametros))
+        self._aguardar_relatorio(relatorio_id)
+        leitura = {"limit": parametros["limit"]} if "limit" in parametros else {}
+        return self._paginar(montar_url(relatorio_id, Endpoint.INSIGHTS), leitura)
+
+    def _aguardar_relatorio(self, relatorio_id: str) -> None:
+        url = montar_url(relatorio_id, Endpoint.OBJETO)
+        inicio = self._relogio()
+        while True:
+            estado = self._requisitar(GET, url, {"fields": CAMPOS_ESTADO_RELATORIO})
+            if relatorio_concluido(estado):
+                return
+            if estado.get("async_status") in STATUS_JOB_SEM_CONCLUSAO:
+                raise montar_excecao_job(estado)
+            if self._relogio() - inicio >= TEMPO_MAXIMO_RELATORIO_SEGUNDOS:
+                raise ErroJobAssincrono()
+            self._dormir(INTERVALO_CONSULTA_RELATORIO_SEGUNDOS)
+
+    def _paginar(
+        self,
+        url: str,
+        parametros: Mapping[str, str],
+        *,
+        repetir_tempo_esgotado: bool = True,
+    ) -> list[dict[str, object]]:
+        paginas: list[dict[str, object]] = []
+        cursor: str | None = None
+        while not paginas or cursor is not None:
+            pagina_parametros = (
+                {**parametros, "after": cursor} if cursor else parametros
+            )
+            paginas.append(
+                self._requisitar(
+                    GET,
+                    url,
+                    pagina_parametros,
+                    repetir_tempo_esgotado=repetir_tempo_esgotado,
+                )
+            )
+            cursor = ler_cursor_seguinte(paginas[-1])
         return paginas
 
-    def _requisitar(self, url: str, parametros: Mapping[str, str]) -> dict[str, object]:
+    def _requisitar(
+        self,
+        metodo: str,
+        url: str,
+        parametros: Mapping[str, str],
+        *,
+        repetir_tempo_esgotado: bool = True,
+    ) -> dict[str, object]:
         validar_parametros(parametros)
         tentativa = 1
         while True:
             try:
-                corpo = self._enviar(url, parametros)
+                corpo = self._enviar(metodo, url, parametros)
             except FalhaChamada as falha:
                 espera = decidir_espera(
                     falha.tipo, tentativa, falha.uso, self._sortear()
                 )
+                if falha.tipo is TipoErro.TEMPO_ESGOTADO and not repetir_tempo_esgotado:
+                    espera = None
                 if espera is None:
                     raise montar_excecao(falha, tentativa) from None
             else:
@@ -202,14 +301,16 @@ class ClienteApiMeta:
             self._dormir(espera)
             tentativa += 1
 
-    def _enviar(self, url: str, parametros: Mapping[str, str]) -> object:
+    def _enviar(self, metodo: str, url: str, parametros: Mapping[str, str]) -> object:
         self._respeitar_pausa()
         # from None em toda falha: a exceção do requests traz a URL, com o ID
         # da conta, e não pode ir encadeada para o log.
         try:
-            resposta = self._sessao.get(
+            resposta = self._sessao.request(
+                metodo,
                 url,
-                params=parametros,
+                params=parametros if metodo == GET else None,
+                data=parametros if metodo == POST else None,
                 headers=self._cabecalhos,
                 timeout=TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
             )
@@ -281,3 +382,35 @@ def montar_excecao(falha: FalhaChamada, tentativas: int) -> ErroApiMeta:
         subcodigo=erro.subcodigo if erro else None,
         tentativas=tentativas,
     )
+
+
+def ler_id_relatorio(criacao: Mapping[str, object]) -> str:
+    """A documentação mostra o report_run_id como número JSON; o int do
+    Python não perde dígitos, e o ID segue como texto (CLAUDE.md §5)."""
+    valor = criacao.get("report_run_id")
+    texto = str(valor) if type(valor) is int else valor
+    if isinstance(texto, str) and PADRAO_ID_RELATORIO.fullmatch(texto):
+        return texto
+    raise ErroRespostaInvalida()
+
+
+def relatorio_concluido(estado: Mapping[str, object]) -> bool:
+    return (
+        estado.get("async_status") == STATUS_JOB_CONCLUIDO
+        and estado.get("async_percent_completion") == PERCENTUAL_JOB_CONCLUIDO
+    )
+
+
+def montar_excecao_job(estado: Mapping[str, object]) -> ErroApiMeta:
+    """O job que falha por excesso de linhas vira ErroExcessoLinhas, para quem
+    chamou fatiar o intervalo; os demais, ErroJobAssincrono."""
+    erro = ErroGraph(
+        codigo=ler_inteiro(estado.get("error_code")),
+        subcodigo=ler_inteiro(estado.get("error_subcode")),
+        transitorio=False,
+    )
+    tipo = TipoErro.DEFINITIVO if erro.codigo is None else classificar_codigo(erro)
+    excecao = (
+        ErroExcessoLinhas if tipo is TipoErro.EXCESSO_LINHAS else ErroJobAssincrono
+    )
+    return excecao(codigo=erro.codigo, subcodigo=erro.subcodigo)
