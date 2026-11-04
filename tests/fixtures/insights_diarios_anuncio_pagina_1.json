@@ -1,0 +1,208 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "ad_id": "995000000000000010",
+        "spend": "21.47",
+        "impressions": "3105",
+        "reach": "2688",
+        "actions": [
+          {
+            "action_type": "comment",
+            "value": "2"
+          },
+          {
+            "action_type": "link_click",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "512"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "512"
+          },
+          {
+            "action_type": "post_reaction",
+            "value": "9"
+          },
+          {
+            "action_type": "video_view",
+            "value": "498"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      },
+      {
+        "ad_id": "995000000000000015",
+        "spend": "34.90",
+        "impressions": "4120",
+        "reach": "3377",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "41"
+          },
+          {
+            "action_type": "lead",
+            "value": "5"
+          },
+          {
+            "action_type": "link_click",
+            "value": "58"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "5"
+          },
+          {
+            "action_type": "omni_landing_page_view",
+            "value": "41"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "66"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "66"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      },
+      {
+        "ad_id": "995000000000000020",
+        "spend": "48.15",
+        "impressions": "5210",
+        "reach": "4402",
+        "actions": [
+          {
+            "action_type": "add_to_cart",
+            "value": "9"
+          },
+          {
+            "action_type": "initiate_checkout",
+            "value": "4"
+          },
+          {
+            "action_type": "landing_page_view",
+            "value": "52"
+          },
+          {
+            "action_type": "link_click",
+            "value": "74"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "omni_add_to_cart",
+            "value": "9"
+          },
+          {
+            "action_type": "omni_initiated_checkout",
+            "value": "4"
+          },
+          {
+            "action_type": "omni_landing_page_view",
+            "value": "52"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "omni_view_content",
+            "value": "31"
+          },
+          {
+            "action_type": "purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "view_content",
+            "value": "31"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "add_to_cart",
+            "value": "1127.7"
+          },
+          {
+            "action_type": "initiate_checkout",
+            "value": "498.6"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "omni_add_to_cart",
+            "value": "1127.7"
+          },
+          {
+            "action_type": "omni_initiated_checkout",
+            "value": "498.6"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "omni_view_content",
+            "value": "3890.4"
+          },
+          {
+            "action_type": "purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "view_content",
+            "value": "3890.4"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      },
+      {
+        "ad_id": "995000000000000019",
+        "spend": "0",
+        "impressions": "37",
+        "reach": "35",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "4"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "4"
+          },
+          {
+            "action_type": "video_view",
+            "value": "4"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmluc2lnaHRzQW50ZXJpb3JFeGVtcGxv",
+        "after": "QVFIUmluc2lnaHRzU2VndWludGVFeGVtcGxv"
+      },
+      "next": "https://graph.facebook.com/v26.0/act_995000000000001/insights?level=ad&time_increment=1&limit=4&after=QVFIUmluc2lnaHRzU2VndWludGVFeGVtcGxv"
+    }
+  }
+}
