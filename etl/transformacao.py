@@ -37,16 +37,23 @@ class ErroCadastro(ValueError):
 
 
 @dataclass(frozen=True)
-class CadastroConta:
-    """As linhas do cadastro de uma conta, prontas para a carga."""
+class EntidadesConta:
+    """As linhas das entidades e dos criativos de uma conta, prontas para a
+    carga."""
 
-    conta: LinhaCadastro
     campanhas: list[LinhaCadastro]
     conjuntos: list[LinhaCadastro]
     janelas: list[LinhaCadastro]
     paginas: list[str]
     criativos: list[LinhaCadastro]
     anuncios: list[LinhaCadastro]
+
+
+@dataclass(frozen=True)
+class CadastroConta(EntidadesConta):
+    """As entidades de uma conta e o nome, o fuso e a moeda dela."""
+
+    conta: LinhaCadastro
 
 
 def transformar_cadastro(
@@ -56,13 +63,29 @@ def transformar_cadastro(
     paginas_conjuntos: Sequence[Mapping[str, object]],
     paginas_anuncios: Sequence[Mapping[str, object]],
 ) -> CadastroConta:
-    campanhas = transformar_campanhas(ler_registros(paginas_campanhas))
-    conjuntos, janelas = transformar_conjuntos(ler_registros(paginas_conjuntos))
-    anuncios, criativos = transformar_anuncios(ler_registros(paginas_anuncios))
+    entidades = transformar_entidades(
+        ler_registros(paginas_campanhas),
+        ler_registros(paginas_conjuntos),
+        ler_registros(paginas_anuncios),
+    )
+    return CadastroConta(
+        conta=transformar_conta(id_meta_conta, resposta_conta), **vars(entidades)
+    )
+
+
+def transformar_entidades(
+    registros_campanhas: Iterable[object],
+    registros_conjuntos: Iterable[object],
+    registros_anuncios: Iterable[object],
+) -> EntidadesConta:
+    """As campanhas, os conjuntos e os anúncios, com os criativos e as
+    Páginas, recusando o filho cujo pai não veio junto."""
+    campanhas = transformar_campanhas(registros_campanhas)
+    conjuntos, janelas = transformar_conjuntos(registros_conjuntos)
+    anuncios, criativos = transformar_anuncios(registros_anuncios)
     validar_referencias(conjuntos, "id_meta_campanha", campanhas)
     validar_referencias(anuncios, "id_meta_conjunto", conjuntos)
-    return CadastroConta(
-        conta=transformar_conta(id_meta_conta, resposta_conta),
+    return EntidadesConta(
         campanhas=campanhas,
         conjuntos=conjuntos,
         janelas=janelas,
