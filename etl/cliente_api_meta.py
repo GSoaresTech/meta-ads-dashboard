@@ -45,8 +45,10 @@ class Endpoint(StrEnum):
     """Lista explícita dos endpoints que a ETL chama (RNF-24).
 
     O valor é a aresta pedida sob o objeto; OBJETO lê o próprio objeto: a
-    conta, o relatório assíncrono, a Página ou a publicação. Nenhum endpoint
-    de leads entra aqui, e o cliente recusa o que estiver fora da lista.
+    conta, o relatório assíncrono, a Página ou a publicação, sempre por um ID
+    que veio de uma resposta dessas mesmas consultas. Nenhum endpoint de
+    leads entra aqui. O cliente recusa a aresta fora da lista e, em `fields`,
+    a expansão para as arestas de leads (ARESTAS_LEADS).
     """
 
     OBJETO = ""
@@ -61,6 +63,10 @@ class Endpoint(StrEnum):
 # da publicação junta o da Página e o do post com _ (R-35). Recusar qualquer
 # outro formato impede que um caminho no ID escape da lista de endpoints.
 PADRAO_ID_OBJETO: Final = re.compile(r"(act_)?[0-9]+(_[0-9]+)?")
+# Arestas de leads da Graph API (anúncio, formulário e Página), que uma
+# expansão em `fields` leria por um endpoint da lista (RNF-24).
+ARESTAS_LEADS: Final = frozenset({"leads", "leadgen_forms"})
+PADRAO_NOME_CAMPO: Final = re.compile(r"[a-z_]+")
 STATUS_HTTP_ERRO: Final = 400
 GET: Final = "GET"
 POST: Final = "POST"
@@ -357,6 +363,9 @@ def validar_parametros(parametros: Mapping[str, str]) -> None:
         raise ValueError(
             "parametros: o access_token vai só no cabeçalho de autorização"
         )
+    campos = PADRAO_NOME_CAMPO.findall(parametros.get("fields", "").lower())
+    if ARESTAS_LEADS.intersection(campos):
+        raise ValueError("fields: expansão para aresta de leads (RNF-24)")
 
 
 def ler_corpo(resposta: requests.Response) -> object:
