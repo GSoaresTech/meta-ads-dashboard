@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 29/10/2026
+- Atualizado em: 04/11/2026, com o alinhamento de `time_increment` verificado na API
 
 ## Contexto
 
@@ -18,9 +19,10 @@ Alcance conta pessoas únicas, então não pode ser somado entre dias, entre an�
 ## Decisão
 
 - Extrair `reach` e `impressions` agregados pela API para cada conta, campanha e anúncio:
-  - por **semana ISO**: segunda a domingo, um `time_range` por semana, até que a Q-03 confirme o alinhamento de `time_increment=7`;
-  - por **mês**: `time_increment=monthly`, documentado como mês de calendário (R-20);
+  - por **semana ISO**: segunda a domingo, com `time_increment=7` e o `since` numa segunda-feira. Os blocos começam no `since` e seguem de 7 em 7 dias, cada um com o alcance deduplicado no próprio bloco (R-20);
+  - por **mês**: `time_increment=monthly`, com o `since` no dia 1, porque o primeiro bloco começa no `since` e vai até o fim do mês (R-20);
   - por **ano**: um `time_range` de 1º de janeiro até 31 de dezembro ou até hoje.
+- A semana e o mês em andamento vêm cortados no `until`. Um período sem entrega não vem na resposta e não gera linha (R-20).
 - A frequência do período é `impressões ÷ alcance` da mesma resposta.
 - A execução diária recalcula as semanas, os meses e o ano que tocam a janela de 28 dias. A carga histórica preenche todos os períodos.
 - O painel exibe alcance e frequência segundo as regras do `docs/REQUIREMENTS.md` §3.3.
@@ -28,11 +30,16 @@ Alcance conta pessoas únicas, então não pode ser somado entre dias, entre an�
 ## Consequências
 
 - Uma tabela própria guarda alcance por entidade × tipo de período × início do período, com `UNIQUE` nesse grão. O tamanho é desprezível (`docs/REQUIREMENTS.md` §4.2).
-- Chamadas extras por conta na execução diária: cerca de 5 semanas + 2 meses + 1 ano, vezes 3 níveis, com paginação. Isso cabe no limite do nível Limited quando a ETL respeita os cabeçalhos de uso (R-15).
-- Fora das quebras, o alcance não tem restrição conhecida de histórico além dos 37 meses. Com quebras, a Meta não devolve alcance para datas a mais de 13 meses em consultas padrão (R-18), outro motivo para não exibir alcance nas quebras.
+- Chamadas extras por conta na execução diária: uma consulta para as semanas, uma para os meses e uma para o ano, vezes 3 níveis, com paginação, fatiadas ou por job assíncrono quando a resposta síncrona falha por excesso de linhas (R-39). Isso cabe no limite do nível Limited quando a ETL respeita os cabeçalhos de uso (R-15).
+- Fora das quebras, o alcance não tem restrição conhecida de histórico além dos 37 meses, e veio em semanas de até 36 meses atrás (R-18). Com quebras, a Meta não devolve alcance para datas a mais de 13 meses em consultas padrão (R-18), outro motivo para não exibir alcance nas quebras.
+- Na carga histórica, a semana, o mês e o ano que começam antes do limite de 37 meses (R-19) ficam sem alcance: a API recusa o `since` anterior ao limite, e um bloco iniciado depois da segunda-feira, do dia 1 ou de 1º de janeiro não é o período inteiro. O ano mais antigo do histórico fica sempre nessa situação, salvo quando o limite cai em 1º de janeiro. O painel mostra esses períodos como "Não disponível" (`docs/REQUIREMENTS.md` §3.3).
 
 ## Referências
 
 Consultadas em 29/10/2026.
 - https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/
 - https://developers.facebook.com/docs/marketing-api/insights/best-practices
+
+Consultadas em 04/11/2026.
+- https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/
+- https://developers.facebook.com/blog/post/2025/10/16/ads-insights-api-metric-availability-updates/
