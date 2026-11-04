@@ -22,7 +22,7 @@ import responses
 from responses import matchers
 
 from etl.configuracao import URL_BASE_API_META, VERSAO_API_META
-from etl.extracao import montar_campos
+from etl.extracao import STATUS_EFETIVOS_CADASTRO, montar_campos
 from etl.mapa_campos import ObjetoApi
 from tests.cadastro_exemplo import CONTA
 
@@ -63,6 +63,15 @@ def montar_parametros_insights(inicio: date = INICIO, fim: date = FIM) -> dict:
             {"since": inicio.isoformat(), "until": fim.isoformat()}
         ),
         "fields": "ad_id,spend,impressions,reach,actions,action_values",
+        "filtering": json.dumps(
+            [
+                {
+                    "field": "ad.effective_status",
+                    "operator": "IN",
+                    "value": [*STATUS_EFETIVOS_CADASTRO, "DELETED"],
+                }
+            ]
+        ),
         "limit": "500",
     }
 

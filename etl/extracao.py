@@ -68,6 +68,20 @@ CAMPOS_INSIGHTS_DIARIOS: Final = (
 )
 NIVEL_ANUNCIO: Final = "ad"
 INCREMENTO_DIARIO: Final = "1"
+# Sem filtro, a lista por anúncio omite os excluídos, cujas métricas entram
+# na soma da conta: a soma no banco ficaria abaixo da API (RF-02). Os
+# insights aceitam DELETED no filtro, ao contrário das arestas, e com a lista
+# completa devolvem as mesmas linhas da consulta sem filtro para os demais
+# status (R-38).
+FILTRO_STATUS_INSIGHTS: Final = json.dumps(
+    [
+        {
+            "field": "ad.effective_status",
+            "operator": "IN",
+            "value": [*STATUS_EFETIVOS_CADASTRO, "DELETED"],
+        }
+    ]
+)
 
 
 @dataclass(frozen=True)
@@ -187,6 +201,7 @@ def montar_parametros_insights_diarios(inicio: date, fim: date) -> dict[str, str
             {"since": inicio.isoformat(), "until": fim.isoformat()}
         ),
         "fields": ",".join(CAMPOS_INSIGHTS_DIARIOS),
+        "filtering": FILTRO_STATUS_INSIGHTS,
         "limit": str(LIMITE_PAGINA_INSIGHTS),
     }
 
@@ -222,8 +237,8 @@ def extrair_entidades_por_id(
     de cada um e a campanha de cada conjunto, cada objeto uma vez só.
 
     Serve aos anúncios dos insights que ainda não estão no banco: criados
-    depois do último cadastro ou excluídos, que as arestas não devolvem
-    (R-38). O conjunto e a campanha são lidos mesmo que já existam, para que
+    depois do último cadastro ou excluídos, que as arestas não devolvem e
+    que continuam legíveis pelo ID (R-38). O conjunto e a campanha são lidos mesmo que já existam, para que
     todo filho tenha o pai na mesma extração.
     """
     anuncios = ler_objetos(cliente, ObjetoApi.ANUNCIO, ids_anuncios)
