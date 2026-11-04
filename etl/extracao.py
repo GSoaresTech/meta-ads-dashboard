@@ -1,8 +1,9 @@
-"""Extração do cadastro de uma conta de anúncios: a própria conta, com o fuso
-e a moeda, e as campanhas, os conjuntos e os anúncios, com o criativo de cada
-anúncio expandido (RF-01, RF-43). Só faz o I/O de rede, fora de transação, e
-devolve as páginas como a Meta as entregou, para a gravação em bruto antes da
-transformação (RF-09; CLAUDE.md §3).
+"""Extração de uma conta de anúncios: o cadastro, com a própria conta, as
+campanhas, os conjuntos e os anúncios, com o criativo de cada anúncio expandido
+(RF-01, RF-43), e os insights diários por anúncio, com as entidades que eles
+referenciam lidas pelo ID (RF-02; ADR-0009 §5). Só faz o I/O de rede, fora de
+transação, e devolve as páginas como a Meta as entregou, para a gravação em
+bruto antes da transformação (RF-09; CLAUDE.md §3).
 """
 
 import json
@@ -13,7 +14,7 @@ from typing import Final
 from zoneinfo import ZoneInfo
 
 from etl.cliente_api_meta import ClienteApiMeta, Endpoint, ErroRespostaInvalida
-from etl.configuracao import LIMITE_PAGINA_CADASTRO
+from etl.configuracao import LIMITE_PAGINA_CADASTRO, LIMITE_PAGINA_INSIGHTS
 from etl.mapa_campos import MAPA_CAMPOS, ObjetoApi, TipoCampo
 
 PREFIXO_ID_CONTA: Final = "act_"
@@ -52,6 +53,23 @@ ARESTAS_CADASTRO: Final[Mapping[Endpoint, ObjetoApi]] = {
 }
 
 
+# Os campos de AdsInsights do RF-02. Os cliques no link vêm de actions, pelo
+# tipo link_click (docs/REQUIREMENTS.md §7.1), e date_start e date_stop vêm
+# em toda linha sem ser pedidos. Sem use_unified_attribution_setting nem
+# action_attribution_windows: os resultados ficam na janela padrão da API
+# (ADR-0007; R-22).
+CAMPOS_INSIGHTS_DIARIOS: Final = (
+    "ad_id",
+    "spend",
+    "impressions",
+    "reach",
+    "actions",
+    "action_values",
+)
+NIVEL_ANUNCIO: Final = "ad"
+INCREMENTO_DIARIO: Final = "1"
+
+
 @dataclass(frozen=True)
 class Consulta:
     """Uma consulta à API e as páginas que ela devolveu, na ordem."""
@@ -76,6 +94,19 @@ class CadastroExtraido:
 
     def listar_consultas(self) -> tuple[Consulta, ...]:
         return (self.conta, *self.arestas.values())
+
+
+@dataclass(frozen=True)
+class EntidadesExtraidas:
+    """Os anúncios lidos pelo ID, com o criativo, e o conjunto e a campanha
+    de cada um, uma resposta por objeto."""
+
+    anuncios: Consulta
+    conjuntos: Consulta
+    campanhas: Consulta
+
+    def listar_consultas(self) -> tuple[Consulta, ...]:
+        return (self.anuncios, self.conjuntos, self.campanhas)
 
 
 def agora_utc() -> datetime:
@@ -146,3 +177,87 @@ def calcular_data_referencia(
     if not isinstance(fuso, str) or not fuso:
         raise ErroRespostaInvalida()
     return instante.astimezone(ZoneInfo(fuso)).date()
+
+
+def montar_parametros_insights_diarios(inicio: date, fim: date) -> dict[str, str]:
+    return {
+        "level": NIVEL_ANUNCIO,
+        "time_increment": INCREMENTO_DIARIO,
+        "time_range": json.dumps(
+            {"since": inicio.isoformat(), "until": fim.isoformat()}
+        ),
+        "fields": ",".join(CAMPOS_INSIGHTS_DIARIOS),
+        "limit": str(LIMITE_PAGINA_INSIGHTS),
+    }
+
+
+def extrair_insights_diarios(
+    cliente: ClienteApiMeta, id_meta_conta: str, inicio: date, fim: date
+) -> Consulta:
+    """Uma única consulta paginada da conta no nível de anúncio, com uma
+    linha por anúncio e dia de inicio a fim, inclusive, em vez de uma
+    consulta por anúncio (ADR-0003). As datas são as do fuso da conta, como
+    a API as entrega (R-17)."""
+    parametros = montar_parametros_insights_diarios(inicio, fim)
+    paginas = cliente.ler_insights(f"{PREFIXO_ID_CONTA}{id_meta_conta}", parametros)
+    return Consulta(Endpoint.INSIGHTS, parametros, paginas)
+
+
+def listar_anuncios_insights(paginas: Sequence[Mapping[str, object]]) -> list[str]:
+    """Os IDs dos anúncios das linhas de insights, sem repetição e na ordem,
+    para a conferência das entidades ausentes do banco."""
+    ids = []
+    for pagina in paginas:
+        linhas = pagina.get("data")
+        if not isinstance(linhas, list):
+            raise ErroRespostaInvalida()
+        ids.extend(ler_id_referenciado(linha, "ad_id") for linha in linhas)
+    return list(dict.fromkeys(ids))
+
+
+def extrair_entidades_por_id(
+    cliente: ClienteApiMeta, ids_anuncios: Sequence[str]
+) -> EntidadesExtraidas:
+    """Lê pelo ID cada anúncio, com o criativo expandido, depois o conjunto
+    de cada um e a campanha de cada conjunto, cada objeto uma vez só.
+
+    Serve aos anúncios dos insights que ainda não estão no banco: criados
+    depois do último cadastro ou excluídos, que as arestas não devolvem
+    (R-38). O conjunto e a campanha são lidos mesmo que já existam, para que
+    todo filho tenha o pai na mesma extração.
+    """
+    anuncios = ler_objetos(cliente, ObjetoApi.ANUNCIO, ids_anuncios)
+    conjuntos = ler_objetos(
+        cliente, ObjetoApi.CONJUNTO, listar_referencias(anuncios, "adset_id")
+    )
+    campanhas = ler_objetos(
+        cliente, ObjetoApi.CAMPANHA, listar_referencias(conjuntos, "campaign_id")
+    )
+    return EntidadesExtraidas(anuncios, conjuntos, campanhas)
+
+
+def ler_objetos(
+    cliente: ClienteApiMeta, objeto: ObjetoApi, ids: Sequence[str]
+) -> Consulta:
+    parametros = {"fields": montar_campos(objeto)}
+    return Consulta(
+        Endpoint.OBJETO,
+        parametros,
+        [cliente.obter(id_meta, Endpoint.OBJETO, parametros) for id_meta in ids],
+    )
+
+
+def listar_referencias(consulta: Consulta, campo: str) -> list[str]:
+    """Os IDs do pai, sem repetição e na ordem."""
+    return list(
+        dict.fromkeys(ler_id_referenciado(objeto, campo) for objeto in consulta.paginas)
+    )
+
+
+def ler_id_referenciado(objeto: object, campo: str) -> str:
+    """O ID de outra entidade num objeto da API. Sem ele, a entidade não teria
+    como ser lida nem ligada ao pai."""
+    valor = objeto.get(campo) if isinstance(objeto, Mapping) else None
+    if not isinstance(valor, str) or not valor:
+        raise ErroRespostaInvalida()
+    return valor

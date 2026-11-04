@@ -1,0 +1,18 @@
+{
+  "status": 200,
+  "cabecalhos": {},
+  "corpo": {
+    "id": "995000000000000024",
+    "name": "Anúncio Exemplo 5",
+    "status": "DELETED",
+    "adset_id": "995000000000000025",
+    "creative": {
+      "id": "9950000000000027",
+      "title": "Título Exemplo 4",
+      "body": "Texto de exemplo do criativo 4.",
+      "call_to_action_type": "SHOP_NOW",
+      "effective_object_story_id": "995000000000012_9950000000000028",
+      "actor_id": "995000000000012"
+    }
+  }
+}

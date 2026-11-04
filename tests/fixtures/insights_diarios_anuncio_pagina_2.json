@@ -1,0 +1,184 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "ad_id": "995000000000000024",
+        "spend": "6.02",
+        "impressions": "811",
+        "reach": "790",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "5"
+          },
+          {
+            "action_type": "link_click",
+            "value": "7"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01"
+      },
+      {
+        "ad_id": "995000000000000010",
+        "spend": "19.88",
+        "impressions": "2874",
+        "reach": "2501",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "2"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "470"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "470"
+          },
+          {
+            "action_type": "post_reaction",
+            "value": "6"
+          },
+          {
+            "action_type": "video_view",
+            "value": "455"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02"
+      },
+      {
+        "ad_id": "995000000000000015",
+        "spend": "31.05",
+        "impressions": "3880",
+        "reach": "3190",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "37"
+          },
+          {
+            "action_type": "lead",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "49"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "3"
+          },
+          {
+            "action_type": "omni_landing_page_view",
+            "value": "37"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "55"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "55"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02"
+      },
+      {
+        "ad_id": "995000000000000020",
+        "spend": "44.73",
+        "impressions": "4987",
+        "reach": "4215",
+        "actions": [
+          {
+            "action_type": "add_to_cart",
+            "value": "6"
+          },
+          {
+            "action_type": "landing_page_view",
+            "value": "47"
+          },
+          {
+            "action_type": "link_click",
+            "value": "66"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_add_to_cart",
+            "value": "6"
+          },
+          {
+            "action_type": "omni_landing_page_view",
+            "value": "47"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_view_content",
+            "value": "25"
+          },
+          {
+            "action_type": "purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "view_content",
+            "value": "25"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "add_to_cart",
+            "value": "742.8"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "omni_add_to_cart",
+            "value": "742.8"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "omni_view_content",
+            "value": "3010.25"
+          },
+          {
+            "action_type": "purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "view_content",
+            "value": "3010.25"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmluc2lnaHRzU2VndWludGVFeGVtcGxv",
+        "after": "QVFIUmluc2lnaHRzRmluYWxFeGVtcGxv"
+      },
+      "previous": "https://graph.facebook.com/v26.0/act_995000000000001/insights?level=ad&time_increment=1&limit=4&before=QVFIUmluc2lnaHRzU2VndWludGVFeGVtcGxv"
+    }
+  }
+}

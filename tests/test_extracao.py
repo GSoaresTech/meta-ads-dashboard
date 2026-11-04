@@ -8,13 +8,29 @@ from responses.registries import OrderedRegistry
 
 from etl.cliente_api_meta import ClienteApiMeta, Endpoint, ErroRespostaInvalida
 from etl.extracao import (
+    CAMPOS_INSIGHTS_DIARIOS,
     STATUS_EFETIVOS_CADASTRO,
     calcular_data_referencia,
     extrair_cadastro_conta,
+    extrair_entidades_por_id,
+    extrair_insights_diarios,
+    listar_anuncios_insights,
     montar_campos,
+    montar_parametros_insights_diarios,
 )
 from etl.mapa_campos import MAPA_CAMPOS, ObjetoApi, TipoCampo
 from tests.cadastro_exemplo import ID_META_CONTA, ler_fixtures, simular_cadastro
+from tests.insights_exemplo import (
+    FIM,
+    ID_META_ANUNCIO_AUSENTE,
+    INICIO,
+    NOMES_PAGINAS,
+    montar_parametros_insights,
+    simular,
+    simular_entidades,
+    simular_insights,
+)
+from tests.insights_exemplo import ler_fixtures as ler_fixtures_insights
 
 TOKEN = "EAAFicticio0000000000000000000000000000000000ZZ"
 # 02:30 em UTC ainda é o dia anterior em São Paulo, o fuso da fixture.
@@ -115,3 +131,139 @@ def test_data_de_referencia_e_o_dia_da_extracao_no_fuso_da_conta(
 def test_conta_sem_fuso_e_resposta_invalida() -> None:
     with pytest.raises(ErroRespostaInvalida):
         calcular_data_referencia({"id": "act_995000000000001"}, INSTANTE)
+
+
+def ler_campos(objeto: ObjetoApi) -> dict[str, str]:
+    return {"fields": montar_campos(objeto)}
+
+
+def test_insights_pedem_o_nivel_de_anuncio_dia_a_dia_no_intervalo() -> None:
+    parametros = montar_parametros_insights_diarios(INICIO, FIM)
+
+    assert parametros == montar_parametros_insights()
+    assert json.loads(parametros["time_range"]) == {
+        "since": "2026-10-01",
+        "until": "2026-10-02",
+    }
+
+
+def test_insights_ficam_na_janela_de_atribuicao_padrao() -> None:
+    # A #15 concluiu que o parâmetro unificado não muda nenhum valor e que as
+    # janelas explícitas não têm fonte confiável (ADR-0007; R-22).
+    parametros = montar_parametros_insights_diarios(INICIO, FIM)
+
+    assert "use_unified_attribution_setting" not in parametros
+    assert "action_attribution_windows" not in parametros
+
+
+def test_todo_campo_de_insights_pedido_tem_entrada_no_mapa() -> None:
+    assert set(CAMPOS_INSIGHTS_DIARIOS) <= set(MAPA_CAMPOS[ObjetoApi.INSIGHTS])
+
+
+def test_insights_vem_de_uma_consulta_paginada_da_conta(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixtures = ler_fixtures_insights()
+    simular_insights(api, fixtures, com_entidades=False)
+
+    consulta = extrair_insights_diarios(cliente, ID_META_CONTA, INICIO, FIM)
+
+    assert consulta.endpoint is Endpoint.INSIGHTS
+    assert consulta.parametros == montar_parametros_insights()
+    assert consulta.paginas == [
+        fixtures["insights_diarios_anuncio_pagina_1"]["corpo"],
+        fixtures["insights_diarios_anuncio_pagina_2"]["corpo"],
+    ]
+    # Uma chamada por página, e não uma por anúncio (ADR-0003).
+    assert len(api.calls) == 2
+
+
+def test_lista_os_anuncios_dos_insights_sem_repeticao() -> None:
+    fixtures = ler_fixtures_insights()
+    paginas = [fixtures[nome]["corpo"] for nome in NOMES_PAGINAS]
+
+    assert listar_anuncios_insights(paginas) == [
+        "995000000000000010",
+        "995000000000000015",
+        "995000000000000020",
+        "995000000000000019",
+        ID_META_ANUNCIO_AUSENTE,
+    ]
+
+
+def test_linha_de_insights_sem_anuncio_e_resposta_invalida() -> None:
+    with pytest.raises(ErroRespostaInvalida):
+        listar_anuncios_insights([{"data": [{"spend": "1.00"}]}])
+
+
+def test_le_pelo_id_o_anuncio_o_conjunto_e_a_campanha(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixtures = ler_fixtures_insights()
+    simular_entidades(api, fixtures)
+
+    entidades = extrair_entidades_por_id(cliente, [ID_META_ANUNCIO_AUSENTE])
+
+    assert [c.paginas for c in entidades.listar_consultas()] == [
+        [fixtures["entidade_anuncio_por_id"]["corpo"]],
+        [fixtures["entidade_conjunto_por_id"]["corpo"]],
+        [fixtures["entidade_campanha_por_id"]["corpo"]],
+    ]
+    assert all(c.endpoint is Endpoint.OBJETO for c in entidades.listar_consultas())
+    assert entidades.anuncios.parametros == {"fields": montar_campos(ObjetoApi.ANUNCIO)}
+
+
+def test_pai_comum_a_varios_anuncios_e_lido_uma_vez(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixtures = ler_fixtures_insights()
+    outro = {**fixtures["entidade_anuncio_por_id"]}
+    outro["corpo"] = {**outro["corpo"], "id": "995000000000000029"}
+    anuncio = ler_campos(ObjetoApi.ANUNCIO)
+    simular(api, ID_META_ANUNCIO_AUSENTE, fixtures["entidade_anuncio_por_id"], anuncio)
+    simular(api, "995000000000000029", outro, anuncio)
+    simular(
+        api,
+        "995000000000000025",
+        fixtures["entidade_conjunto_por_id"],
+        ler_campos(ObjetoApi.CONJUNTO),
+    )
+    simular(
+        api,
+        "995000000000000026",
+        fixtures["entidade_campanha_por_id"],
+        ler_campos(ObjetoApi.CAMPANHA),
+    )
+
+    entidades = extrair_entidades_por_id(
+        cliente, [ID_META_ANUNCIO_AUSENTE, "995000000000000029"]
+    )
+
+    assert len(entidades.anuncios.paginas) == 2
+    assert len(entidades.conjuntos.paginas) == 1
+    assert len(entidades.campanhas.paginas) == 1
+
+
+def test_sem_anuncio_ausente_nao_chama_a_api(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    entidades = extrair_entidades_por_id(cliente, [])
+
+    assert all(not c.paginas for c in entidades.listar_consultas())
+    assert not api.calls
+
+
+def test_anuncio_sem_conjunto_e_resposta_invalida(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixture = ler_fixtures_insights()["entidade_anuncio_por_id"]
+    del fixture["corpo"]["adset_id"]
+    simular(api, ID_META_ANUNCIO_AUSENTE, fixture, ler_campos(ObjetoApi.ANUNCIO))
+
+    with pytest.raises(ErroRespostaInvalida):
+        extrair_entidades_por_id(cliente, [ID_META_ANUNCIO_AUSENTE])
+
+
+def test_pagina_de_insights_sem_lista_de_linhas_e_resposta_invalida() -> None:
+    with pytest.raises(ErroRespostaInvalida):
+        listar_anuncios_insights([{"paging": {}}])

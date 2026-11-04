@@ -39,6 +39,10 @@ TEMPO_MAXIMO_RELATORIO_SEGUNDOS = 3600
 # Tamanho de página das arestas de cadastro. Com o criativo expandido, a de
 # anúncios recusa páginas maiores com o código 1 (R-42).
 LIMITE_PAGINA_CADASTRO = 100
+# Tamanho de página dos insights diários por anúncio. Uma página maior
+# gasta menos chamadas da cota por conta (R-15); páginas cheias de 500, com
+# actions e action_values, vieram sem erro (R-21).
+LIMITE_PAGINA_INSIGHTS = 500
 
 # Limites da Marketing API (RF-08; R-15). Com estas esperas, a soma mínima
 # entre a primeira e a última tentativa (360 s) passa do bloqueio de 300 s do
