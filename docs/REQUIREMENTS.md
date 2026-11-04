@@ -75,6 +75,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 | Combinação | Tratamento |
 |---|---|
 | Alcance e frequência em semana ISO, mês ou ano | Valor extraído da API para aquele período e entidade (ADR-0006) |
+| Alcance e frequência em semana ISO, mês ou ano que começa antes do limite de 37 meses (R-19) | "Não disponível", com explicação: a Meta não entrega o período inteiro (ADR-0006) |
 | Alcance e frequência em período livre | "Não disponível", com explicação, salvo quando o intervalo coincide exatamente com uma semana ISO, um mês ou um ano |
 | Alcance e frequência na visão Geral com mais de uma conta | "Não disponível": a Meta não deduplica pessoas entre contas |
 | Alcance e frequência em quebras agregadas por mais de um dia | Não exibidos |
@@ -86,7 +87,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026, e as R-37 a R-39 e a revisão da R-14, consultadas em 04/11/2026. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026, e as R-37 a R-39 e as revisões das R-14 e R-18 a R-20, consultadas em 04/11/2026. Restrições que dependem de confirmação estão marcadas.
 
 "Verificado por experimento" indica chamadas à Marketing API v26.0 em 04/11/2026, com o token do System User e o app no nível Limited, sem publicação, em contas de anúncio de uma BM cliente compartilhadas com a BM do operador como parceira. Os scripts ficaram fora do repositório, e só as conclusões e os formatos estão aqui, sem IDs, nomes ou valores das contas.
 
@@ -109,9 +110,9 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, 
 | R-15 | Meta, limites de taxa por conta e por hora. Insights: 600 (dev) ou 190.000 (Full) + 400 × anúncios ativos − 0,001 × erros. Pontuação: leitura vale 1 ponto, com teto de 60 (dev) ou 9.000 (Full), decaimento de 300 s e bloqueio de 300 s (dev) ou 60 s (Full) | [M4] |
 | R-16 | Meta: o token de System User pode não ter validade ou valer 60 dias (renovável; a Meta recomenda o de 60 dias) | [M5] |
 | R-17 | Meta Insights: dados no fuso horário da conta; atualizados a cada 15 min; "não mudam após 28 dias" | [M6] |
-| R-18 | Meta Insights: desde 10/06/2025, consultas padrão com quebras e data inicial a mais de 13 meses não retornam alcance. Jobs assíncronos podem levar até 1 h, e o `report_run_id` expira em 30 dias | [M6] |
-| R-19 | Meta Insights: no máximo 37 meses de dados (`date_preset=maximum`) | [M7] |
-| R-20 | Meta Insights: `time_increment` aceita 1 a 90 dias, `monthly` (mês de calendário) ou `all_days`. *A confirmar*: como os períodos de N dias se alinham e se o alcance vem deduplicado por período | [M7] |
+| R-18 | Meta Insights: desde 10/06/2025, consultas padrão com quebras e data inicial a mais de 13 meses não retornam alcance. Desde 12/01/2026, quebras de contagem única ficam limitadas a 13 meses, e os totais seguem disponíveis por 37 meses. Jobs assíncronos podem levar até 1 h, e o `report_run_id` expira em 30 dias. Verificado por experimento: sem quebra, semanas de até 36 meses atrás vêm com `reach`; com `age`+`gender`, uma semana de 20 meses atrás vem sem `reach` | [M6], [M21] |
+| R-19 | Meta Insights: no máximo 37 meses de dados (`date_preset=maximum`). Verificado por experimento: um `time_range` que começa antes disso falha com o erro `#3018`, cuja mensagem, em parte das contas, informa a data inicial mais antiga aceita | [M7] |
+| R-20 | Meta Insights: `time_increment` aceita 1 a 90 dias, `monthly` (mês de calendário) ou `all_days`. Verificado por experimento, nos níveis de conta, campanha e anúncio: com `time_increment=7`, os blocos começam no `since` e seguem de 7 em 7 dias, e o último é cortado no `until`; outros valores de N não foram testados. Com `monthly`, o primeiro bloco vai do `since` ao fim do mês, e os seguintes são meses de calendário. O alcance de cada bloco é deduplicado no bloco: é igual ao de um `time_range` só daquele bloco e menor que a soma dos alcances diários. Blocos sem entrega não vêm na resposta | [M7] |
 | R-21 | Meta Insights: `actions`, `action_values` e `cost_per_action_type` são listas de `AdsActionStats` (`action_type`, `value`). Tipos documentados: `onsite_conversion.messaging_conversation_started_7d`, `lead`, `onsite_conversion.lead_grouped`, `offsite_conversion.fb_pixel_purchase`, `omni_purchase`, `link_click`, `landing_page_view` | [M7], [M8] |
 | R-22 | Meta Insights: a janela `default` equivale a `7d_click` + `1d_view`. Com `use_unified_attribution_setting=true`, vale a configuração do conjunto de anúncios. *A confirmar*: a referência ainda lista `7d_view` e `28d_view`, que fontes não oficiais dizem ter sido removidas em janeiro de 2026 | [M7] |
 | R-23 | Meta Insights, combinações de quebra disponíveis: `age`, `gender`, `age`+`gender`, `region`, `publisher_platform`+`platform_position`, entre outras. `region` é do "Tipo 1" e não retorna métricas de ações fora da Meta | [M9] |
@@ -158,7 +159,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 | RF-01 | O sistema deve extrair, para cada conta ativa de cada empresa ativa, o cadastro de campanhas, conjuntos de anúncios, anúncios e criativos. Isso inclui nome, status, objetivo, meta de otimização, título, texto, chamada para ação, miniatura e identificadores do post. | Must | Após a carga diária, todo anúncio com entrega nos últimos 28 dias existe em `normalizado` com campanha, conjunto e criativo válidos. A consulta de órfãos retorna 0 linhas. | Objetivo central; R-38 |
 | RF-02 | O sistema deve extrair insights diários (`time_increment=1`) no nível de anúncio: investimento, impressões, alcance diário, cliques no link, `actions` e `action_values`. | Must | Para um dia já fechado, a soma do investimento por conta no banco difere em no máximo R$ 0,01 do valor retornado pela API no nível de conta para o mesmo dia. | Objetivo central |
 | RF-03 | O sistema deve extrair quebras por campanha e dia nas combinações idade+gênero, plataforma+posicionamento e região, com as métricas-base e as ações do resultado principal. | Must | Para uma campanha e um dia, a soma do investimento entre as categorias de cada quebra difere em no máximo 1% do investimento da campanha no dia. | Decisão de produto |
-| RF-04 | O sistema deve extrair alcance e impressões já agregados pela API por conta, campanha e anúncio, para cada semana ISO, mês e ano com dados. | Must | O alcance de uma campanha em março de 2026 no banco é igual ao retornado pela API para o intervalo 01/03–31/03/2026 sem quebra diária. | ADR-0006 |
+| RF-04 | O sistema deve extrair alcance e impressões já agregados pela API por conta, campanha e anúncio, para cada semana ISO, mês e ano com dados que comece dentro do limite de 37 meses. | Must | O alcance de uma campanha em março de 2026 no banco é igual ao retornado pela API para o intervalo 01/03–31/03/2026 sem quebra diária. | ADR-0006 |
 | RF-05 | O sistema deve reprocessar os últimos 28 dias a cada execução diária. | Must | Se a Meta revisar as conversões de um dia dentro da janela, após a execução diária seguinte o valor no banco é igual ao retornado pela API. | Restrição da API (R-17) |
 | RF-06 | O sistema deve executar uma carga a cada hora com os dados de hoje e de ontem. | Must | Após uma execução horária, os dados de hoje e de ontem de cada empresa ativa no banco são iguais aos retornados pela API no momento da extração. | Decisão de produto |
 | RF-07 | O sistema deve importar até 37 meses de histórico ao cadastrar uma conta, fatiando a carga por mês e permitindo retomá-la. | Must | Uma carga histórica interrompida, ao ser executada de novo, continua da última fatia concluída. O estado final é igual ao de uma execução sem interrupção. | Decisão de produto; R-19 |
@@ -376,7 +377,6 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 | ID | Questão | Impacto de deixar em aberto |
 |---|---|---|
 | Q-01 | O uso do Vercel Hobby continua permitido? Os termos (R-04) proíbem uso comercial, incluindo ganho de quem desenvolve ou opera o projeto. | Suspensão do painel. A migração para o Pro (US$ 20/mês) passa a ser obrigatória (ADR-0001). |
-| Q-03 | Com `time_increment` de N dias, os períodos começam no `since`? O alcance vem deduplicado por período (R-20)? | Alcance semanal errado. Enquanto não houver resposta, cada semana é extraída com `time_range` próprio (ADR-0006). |
 | Q-04 | Quais janelas de atribuição estão de fato disponíveis (R-22)? | Números diferentes do Gerenciador de Anúncios. |
 | Q-05 | Qual é o formato de `results`/`AdsInsightsResult` e ele reproduz a coluna "Resultados" do Gerenciador (R-24)? | RF-16 fica sem implementação; o catálogo continua sendo a fonte do resultado principal. |
 | Q-06 | O System User com `ads_read` lê o `permalink_url` do post e o `permalink` da mídia do Instagram, ou são necessárias permissões de Página e de Instagram (R-27)? | O link "ver publicação" (RF-39) fica indisponível. |
@@ -390,7 +390,7 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026. As fontes das restrições revistas em 04/11/2026 (§4.1) foram consultadas de novo nessa data.
+Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026, e [M21], consultada em 04/11/2026. As fontes das restrições revistas em 04/11/2026 (§4.1) foram consultadas de novo nessa data.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
@@ -413,6 +413,7 @@ Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8
 - [M18] Ad (referência): https://developers.facebook.com/docs/marketing-api/reference/adgroup/
 - [M19] Ad Account (referência): https://developers.facebook.com/docs/marketing-api/reference/ad-account/
 - [M20] Page (referência): https://developers.facebook.com/docs/graph-api/reference/page/
+- [M21] Ads Insights API Metric Availability Updates (16/10/2025): https://developers.facebook.com/blog/post/2025/10/16/ads-insights-api-metric-availability-updates/
 
 **Supabase**
 - [S1] Pricing: https://supabase.com/pricing
