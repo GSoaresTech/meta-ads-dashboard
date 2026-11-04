@@ -2,8 +2,8 @@
 cadastro de uma conta, com a conta, as campanhas, os conjuntos com as janelas
 de atribuição, as Páginas, os criativos e os anúncios (RF-01), e os insights
 diários por anúncio, com as métricas e a tabela longa das ações (RF-02,
-RF-12). Os nomes e os tipos vêm do mapa de campos (RF-11, RF-13). Sem rede,
-banco nem relógio (CLAUDE.md §8).
+RF-12), e o alcance por período (RF-04). Os nomes e os tipos vêm do mapa de
+campos (RF-11, RF-13). Sem rede, banco nem relógio (CLAUDE.md §8).
 
 As linhas apontam para o pai pelo ID da Meta (id_meta_<entidade>), porque a
 chave interna só existe depois do upsert do pai, na carga. As mensagens de
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Final
 
+from etl.extracao import NivelAlcance, TipoPeriodo
 from etl.mapa_campos import ObjetoApi, RegistroTraduzido, traduzir_registro
 from etl.padronizacao import ErroPadronizacao
 
@@ -40,6 +41,15 @@ COLUNAS_CRIATIVO = (
 # quantidade vem de actions, e o valor, de action_values.
 MEDIDAS_ACAO: Final = (("acoes", "quantidade"), ("valores_acoes", "valor"))
 
+# A entidade de cada nível do alcance por período, pelo ID da Meta; a linha
+# da conta não tem nenhuma, porque é da própria conta consultada.
+ENTIDADES_ALCANCE: Final = ("id_meta_campanha", "id_meta_anuncio")
+ENTIDADE_POR_NIVEL: Final[Mapping[NivelAlcance, str | None]] = {
+    NivelAlcance.CONTA: None,
+    NivelAlcance.CAMPANHA: "id_meta_campanha",
+    NivelAlcance.ANUNCIO: "id_meta_anuncio",
+}
+
 
 class ErroCadastro(ValueError):
     """Cadastro da API incoerente, que a carga não pode gravar."""
@@ -47,6 +57,11 @@ class ErroCadastro(ValueError):
 
 class ErroInsights(ValueError):
     """Insights da API fora do grão anúncio × dia, que a carga não pode
+    gravar."""
+
+
+class ErroAlcance(ValueError):
+    """Alcance da API fora do grão entidade × período, que a carga não pode
     gravar."""
 
 
@@ -274,3 +289,51 @@ def combinar_acoes(linha: RegistroTraduzido) -> list[LinhaCadastro]:
             )
             acao[medida] = item[medida]
     return list(por_tipo.values())
+
+
+def transformar_alcance_periodo(
+    paginas: Sequence[Mapping[str, object]], nivel: NivelAlcance, tipo: TipoPeriodo
+) -> list[LinhaCadastro]:
+    """Uma linha por entidade e período da resposta de um nível, com o
+    alcance e as impressões como a API os agregou (RF-04; ADR-0006).
+
+    O período sem entrega não vem na resposta e não gera linha (R-20). Uma
+    entidade e período repetidos são recusados: a carga substitui o conjunto
+    completo, e uma das duas linhas se perderia.
+    """
+    linhas = [
+        transformar_linha_alcance(registro, nivel, tipo)
+        for registro in ler_registros(paginas)
+    ]
+    repetidos = len(linhas) - len(
+        {
+            (*(linha[coluna] for coluna in ENTIDADES_ALCANCE), linha["inicio_periodo"])
+            for linha in linhas
+        }
+    )
+    if repetidos:
+        raise ErroAlcance(f"{repetidos} linha(s) de entidade e período repetidas")
+    return linhas
+
+
+def transformar_linha_alcance(
+    registro: object, nivel: NivelAlcance, tipo: TipoPeriodo
+) -> LinhaCadastro:
+    """A linha traz o ID da entidade do nível consultado, e só ele, e um
+    período que não termina antes de começar."""
+    linha = traduzir_registro(ObjetoApi.INSIGHTS, registro)
+    entidade = ENTIDADE_POR_NIVEL[nivel]
+    ids = {coluna: linha[coluna] for coluna in ENTIDADES_ALCANCE}
+    if any((ids[coluna] is None) == (coluna == entidade) for coluna in ids):
+        raise ErroAlcance("linha de alcance fora do nível consultado")
+    inicio, fim = linha["inicio_periodo"], linha["fim_periodo"]
+    if not isinstance(inicio, date) or not isinstance(fim, date) or fim < inicio:
+        raise ErroAlcance("linha de alcance sem período válido")
+    return {
+        **ids,
+        "tipo_periodo": str(tipo),
+        "inicio_periodo": inicio,
+        "fim_periodo": fim,
+        "alcance": linha["alcance"],
+        "impressoes": linha["impressoes"],
+    }
