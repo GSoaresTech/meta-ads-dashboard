@@ -256,6 +256,23 @@ def test_registra_campos_completos_em_json(saida: io.StringIO) -> None:
     assert str(linha["instante"]).endswith("+00:00")
 
 
+def test_registra_a_retencao_so_com_a_contagem(saida: io.StringIO) -> None:
+    with contexto_execucao(EXECUCAO_ID, EMPRESA_ID, "diaria"):
+        registrar_evento("em_andamento", etapa="reter", linhas=3)
+
+    [linha] = ler_linhas(saida)
+    assert linha == {
+        "instante": linha["instante"],
+        "nivel": "INFO",
+        "execucao_id": str(EXECUCAO_ID),
+        "empresa_id": str(EMPRESA_ID),
+        "tipo_execucao": "diaria",
+        "etapa": "reter",
+        "status": "em_andamento",
+        "linhas": 3,
+    }
+
+
 @pytest.mark.parametrize(
     ("argumentos", "campo"),
     [

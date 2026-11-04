@@ -44,10 +44,11 @@ CAMPOS_PERMITIDOS: Final = frozenset(
 )
 
 # Os domínios de tipo e status repetem os CHECKs de execucao_carga
-# (ADR-0009 §2); as etapas são as do CLAUDE.md §3.
+# (ADR-0009 §2); as etapas são as do CLAUDE.md §3, mais a retenção de bruto
+# da execução diária (RF-21).
 TIPOS_EXECUCAO: Final = frozenset({"horaria", "diaria", "historica"})
 DOMINIOS_REGISTRO: Final = {
-    "etapa": frozenset({"extrair", "transformar", "carregar"}),
+    "etapa": frozenset({"extrair", "transformar", "carregar", "reter"}),
     "status": frozenset({"em_andamento", "sucesso", "falha", "ignorada"}),
 }
 CAMPOS_INTEIROS: Final = (

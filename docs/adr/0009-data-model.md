@@ -347,6 +347,12 @@ A resolução do resultado principal de cada campanha, com a precedência do ADR
   - `contagem_linhas_execucao` é gravada com o registro de fim.
   - `aviso_execucao` entra na transação da carga, porque o aviso de uma carga desfeita não vale.
 - **Retenção**: a execução diária apaga de `bruto.resposta_api` as linhas com `data_referencia` anterior a hoje menos `RETENCAO_BRUTO_DIAS` (RF-21).
+  - Roda por empresa, na transação da carga diária dela, com o lock, antes da carga: uma resposta gravada pela própria execução nunca sai nela. Uma falha na retenção desfaz também a carga, e a execução fica como falha.
+  - Uma execução diária que falha ou fica `ignorada` não apaga nada, e o bruto da empresa espera a próxima diária bem-sucedida. A falha repetida já aparece como carga parada (RNF-13).
+  - O hoje é o do fuso de cada conta, o mesmo da `data_referencia`. A conta sem fuso, que ainda não teve a primeira extração, usa o dia em UTC.
+  - A data de gravação não conta: a resposta da carga histórica, com a data de um mês antigo, sai na execução diária seguinte.
+  - O log registra só quantas linhas saíram, na etapa `reter` (RNF-17). As linhas apagadas não entram em `contagem_linhas_execucao`, cuja linha `resposta_api` conta as respostas gravadas pela execução.
+  - A empresa inativa não entra nas execuções (RF-48), e o bruto dela fica até ela voltar a ser carregada ou ser excluída (RNF-25).
 - **Leitura concorrente**: o painel lê pelo MVCC do Postgres e vê o estado anterior ou o posterior à transação da carga, nunca uma carga parcial (RNF-09).
 
 ### 6. Revisão de dados pessoais (RNF-24)

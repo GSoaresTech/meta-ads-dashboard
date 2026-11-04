@@ -10,6 +10,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -18,7 +19,9 @@ import pytest
 
 from etl.carga import Contagens
 from etl.cliente_api_meta import ErroApiMeta, ErroAutenticacao
+from etl.configuracao import RETENCAO_BRUTO_DIAS
 from etl.execucao import StatusExecucao, executar_empresa, executar_empresas
+from etl.log_estruturado import montar_campos
 from tests.carga_exemplo import (
     COLUNAS_NEGOCIO,
     CargaExemplo,
@@ -26,6 +29,7 @@ from tests.carga_exemplo import (
     carregar_hierarquia,
     ler_estado,
     montar_carga,
+    montar_dias,
     trocar_dia,
 )
 from tests.conftest import EmpresaTeste
@@ -331,7 +335,9 @@ def test_log_da_execucao_nao_traz_a_mensagem_do_erro(
     assert {
         r.getMessage() for r in caplog.records if r.name == "etl.log_estruturado"
     } == {"evento"}
+    # Extrair, carregar e, na diária, reter, que roda antes da carga falhar.
     assert [r.status for r in caplog.records if r.name == "etl.log_estruturado"] == [
+        "em_andamento",
         "em_andamento",
         "em_andamento",
         "falha",
@@ -526,3 +532,159 @@ def test_carga_sem_resposta_bruta_falha_sem_gravar_nada(
     [(_, _, status, terminou, erro)] = ler_execucoes(conexao_operador, empresa_a)
     assert (status, terminou) == ("falha", True)
     assert erro.startswith("ErroSemRespostaBruta")
+
+
+def inserir_resposta_antiga(
+    conexao: psycopg.Connection, empresa: EmpresaTeste, dias_atras: int
+) -> None:
+    """Uma resposta de uma execução passada, com a data de referência a
+    tantos dias de hoje em UTC, o dia da conta sem fuso."""
+    with conexao.transaction():
+        execucao_id = conexao.execute(
+            "INSERT INTO normalizado.execucao_carga (empresa_id, tipo)"
+            " VALUES (%s, 'diaria') RETURNING id",
+            (empresa.empresa_id,),
+        ).fetchone()[0]
+        conexao.execute(
+            "INSERT INTO bruto.resposta_api (empresa_id, execucao_id,"
+            " conta_anuncio_id, endpoint, parametros, data_referencia, resposta)"
+            " VALUES (%s, %s, %s, 'insights', '{}',"
+            " (now() AT TIME ZONE 'UTC')::date - %s::integer, '{}')",
+            (empresa.empresa_id, execucao_id, empresa.conta_id, dias_atras),
+        )
+
+
+def ler_hoje_utc(conexao: psycopg.Connection) -> date:
+    return conexao.execute("SELECT (now() AT TIME ZONE 'UTC')::date").fetchone()[0]
+
+
+def contar_respostas_vencidas(conexao: psycopg.Connection, empresa_id: UUID) -> int:
+    """O critério do RF-21: respostas anteriores a hoje menos a retenção."""
+    limite = ler_hoje_utc(conexao) - timedelta(days=RETENCAO_BRUTO_DIAS)
+    return conexao.execute(
+        "SELECT count(*) FROM bruto.resposta_api"
+        " WHERE empresa_id = %s AND data_referencia < %s",
+        (empresa_id, limite),
+    ).fetchone()[0]
+
+
+def contar_respostas(conexao: psycopg.Connection, empresa_id: UUID) -> int:
+    return conexao.execute(
+        "SELECT count(*) FROM bruto.resposta_api WHERE empresa_id = %s",
+        (empresa_id,),
+    ).fetchone()[0]
+
+
+def test_execucao_diaria_apaga_o_bruto_vencido_e_registra_so_a_contagem(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for empresa in empresas:
+        for dias_atras in (RETENCAO_BRUTO_DIAS + 30, RETENCAO_BRUTO_DIAS + 1):
+            inserir_resposta_antiga(conexao_operador, empresa, dias_atras)
+        inserir_resposta_antiga(conexao_operador, empresa, RETENCAO_BRUTO_DIAS)
+    empresa_ids = [empresa.empresa_id for empresa in empresas]
+    # Dias recentes, para que a resposta da própria execução fique dentro da
+    # retenção em qualquer data em que o teste rodar.
+    dias = montar_dias(inicio=ler_hoje_utc(conexao_operador) - timedelta(days=5))
+    tarefa = TarefaExemplo(
+        {
+            empresa.empresa_id: montar_carga(
+                empresa.empresa_id, empresa.conta_id, prefixo, dias
+            )
+            for empresa, prefixo in zip(empresas, PREFIXOS_ID_META, strict=True)
+        }
+    )
+
+    with caplog.at_level(logging.INFO):
+        codigo = executar_empresas(conectar_etl, empresa_ids, "diaria", tarefa)
+
+    assert codigo == 0
+    for empresa_id in empresa_ids:
+        assert contar_respostas_vencidas(conexao_operador, empresa_id) == 0
+        # A do limite e a da própria execução ficam.
+        assert contar_respostas(conexao_operador, empresa_id) == 2
+        assert (
+            ler_contagens(conexao_operador, tarefa.execucoes[empresa_id])
+            == CONTAGENS_CARGA_EXEMPLO
+        )
+    retencoes = [
+        r
+        for r in caplog.records
+        if r.name == "etl.log_estruturado" and getattr(r, "etapa", None) == "reter"
+    ]
+    assert [montar_campos(r, None) for r in retencoes] == [
+        {
+            "instante": montar_campos(r, None)["instante"],
+            "nivel": "INFO",
+            "etapa": "reter",
+            "status": "em_andamento",
+            "linhas": 2,
+        }
+        for r in retencoes
+    ]
+    assert len(retencoes) == len(empresa_ids)
+
+
+def test_execucao_horaria_nao_aplica_a_retencao(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+) -> None:
+    empresa = empresas[0]
+    inserir_resposta_antiga(conexao_operador, empresa, RETENCAO_BRUTO_DIAS + 1)
+    tarefa = TarefaExemplo(montar_cargas(empresas))
+
+    codigo = executar_empresas(conectar_etl, [empresa.empresa_id], "horaria", tarefa)
+
+    assert codigo == 0
+    assert contar_respostas_vencidas(conexao_operador, empresa.empresa_id) == 1
+
+
+def test_falha_na_retencao_desfaz_a_carga_da_execucao_diaria(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+) -> None:
+    empresa = empresas[0]
+    inserir_resposta_antiga(conexao_operador, empresa, RETENCAO_BRUTO_DIAS + 1)
+    estado = ler_estado(conexao_operador, [empresa.empresa_id])
+    # Sem o DELETE em bruto, a retenção falha depois de toda a carga.
+    conexao_operador.execute("REVOKE DELETE ON bruto.resposta_api FROM etl_carga")
+    try:
+        tarefa = TarefaExemplo(montar_cargas(empresas))
+        codigo = executar_empresas(conectar_etl, [empresa.empresa_id], "diaria", tarefa)
+    finally:
+        conexao_operador.execute("GRANT DELETE ON bruto.resposta_api TO etl_carga")
+
+    assert codigo == 1
+    assert ler_estado(conexao_operador, [empresa.empresa_id]) == estado
+    assert contar_respostas(conexao_operador, empresa.empresa_id) == 1
+    [_, (_, _, status, _, erro)] = ler_execucoes(conexao_operador, empresa.empresa_id)
+    assert status == "falha"
+    assert erro.startswith("InsufficientPrivilege")
+
+
+def test_retencao_nao_apaga_o_bruto_da_propria_execucao_diaria(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresas: tuple[EmpresaTeste, EmpresaTeste],
+) -> None:
+    empresa = empresas[0]
+    # A janela da carga termina antes do limite da retenção.
+    antiga = ler_hoje_utc(conexao_operador) - timedelta(days=RETENCAO_BRUTO_DIAS + 30)
+    carga = montar_carga(
+        empresa.empresa_id,
+        empresa.conta_id,
+        PREFIXOS_ID_META[0],
+        montar_dias(inicio=antiga),
+    )
+    tarefa = TarefaExemplo({empresa.empresa_id: carga})
+
+    codigo = executar_empresas(conectar_etl, [empresa.empresa_id], "diaria", tarefa)
+
+    assert codigo == 0
+    assert contar_respostas(conexao_operador, empresa.empresa_id) == 1
+    assert contar_linhas_sem_bruto(conexao_operador, empresa.empresa_id) == 0

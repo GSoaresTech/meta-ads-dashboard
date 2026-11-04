@@ -11,7 +11,12 @@ from uuid import UUID, uuid4
 
 import psycopg
 
-from etl.carga import Contagens, contar_respostas_brutas, executar_com_lock
+from etl.carga import (
+    Contagens,
+    apagar_respostas_vencidas,
+    contar_respostas_brutas,
+    executar_com_lock,
+)
 from etl.cliente_api_meta import ErroApiMeta
 from etl.configuracao import (
     ESPERA_MAXIMA_LOCK_SEGUNDOS,
@@ -30,6 +35,8 @@ CODIGO_SAIDA_FALHA: Final = 1
 
 # A chave das respostas brutas nas linhas por tabela do registro de fim.
 TABELA_BRUTO: Final = "resposta_api"
+# Só a execução diária aplica a retenção de bruto (ADR-0005).
+TIPO_COM_RETENCAO: Final = "diaria"
 
 
 class StatusExecucao(StrEnum):
@@ -165,8 +172,8 @@ def processar_execucao[D](
         contagens = executar_com_lock(
             conexao,
             empresa_id,
-            lambda conexao_carga: carregar_com_rastreio(
-                conexao_carga, empresa_id, execucao_id, tarefa, dados
+            lambda conexao_carga: carregar_execucao(
+                conexao_carga, empresa_id, execucao_id, tipo, tarefa, dados
             ),
             espera_maxima_segundos=espera_maxima_segundos,
             intervalo_segundos=intervalo_segundos,
@@ -180,6 +187,39 @@ def processar_execucao[D](
             raise ErroRegistroFim from erro
     registrar_evento(status, linhas=sum(contagens.values()) if contagens else None)
     return status
+
+
+def carregar_execucao[D](
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    tipo: str,
+    tarefa: TarefaCarga[D],
+    dados: D,
+) -> Contagens:
+    """Na execução diária, a retenção de bruto da empresa; depois, a carga da
+    tarefa com a conferência do bruto, tudo na mesma transação.
+
+    A retenção vem antes para nunca apagar a resposta que a própria execução
+    acabou de gravar, mesmo com data de referência fora da retenção: as
+    linhas de normalizado da execução ficam com o rastro dela (RF-09).
+    """
+    if tipo == TIPO_COM_RETENCAO:
+        reter_respostas_brutas(conexao, empresa_id)
+    return carregar_com_rastreio(conexao, empresa_id, execucao_id, tarefa, dados)
+
+
+def reter_respostas_brutas(conexao: psycopg.Connection, empresa_id: UUID) -> None:
+    """Aplica a retenção e registra no log só quantas respostas saíram
+    (RF-21; RNF-17).
+
+    A linha sai antes do COMMIT, com status em_andamento: se a transação
+    for desfeita depois, a linha de fim da execução registra a falha, e nada
+    foi apagado. As linhas apagadas não entram no registro de fim, cuja
+    linha resposta_api conta as respostas gravadas pela execução.
+    """
+    apagadas = apagar_respostas_vencidas(conexao, empresa_id)
+    registrar_evento("em_andamento", etapa="reter", linhas=apagadas)
 
 
 def carregar_com_rastreio[D](
