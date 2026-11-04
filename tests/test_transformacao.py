@@ -5,17 +5,21 @@ from decimal import Decimal
 
 import pytest
 
+from etl.extracao import NivelAlcance, TipoPeriodo
 from etl.mapa_campos import ErroCampoNaoMapeado
 from etl.transformacao import (
     CadastroConta,
+    ErroAlcance,
     ErroCadastro,
     ErroInsights,
     InsightsDiarios,
+    transformar_alcance_periodo,
     transformar_cadastro,
     transformar_conjuntos,
     transformar_entidades,
     transformar_insights_diarios,
 )
+from tests import alcance_exemplo
 from tests.cadastro_exemplo import ID_META_CONTA, Fixtures, ler_fixtures
 from tests.insights_exemplo import (
     ID_META_ANUNCIO_AUSENTE,
@@ -421,3 +425,120 @@ def test_campo_de_insights_nao_pedido_e_recusado_pelo_mapa() -> None:
 
     with pytest.raises(ErroCampoNaoMapeado):
         transformar_insights(fixtures)
+
+
+def transformar_alcance(
+    nivel: NivelAlcance, linhas: list[dict], tipo: TipoPeriodo = TipoPeriodo.SEMANA
+) -> list[dict[str, object]]:
+    return transformar_alcance_periodo([{"data": linhas}], nivel, tipo)
+
+
+def ler_linhas_alcance(nivel: str, tipo: str) -> list[dict]:
+    return alcance_exemplo.listar_linhas(alcance_exemplo.ler_fixtures(), nivel, tipo)
+
+
+def test_cada_linha_de_alcance_vira_uma_linha_da_entidade_no_periodo() -> None:
+    linhas = transformar_alcance(
+        NivelAlcance.CAMPANHA, ler_linhas_alcance("campanha", "semana")
+    )
+
+    assert len(linhas) == 6
+    assert linhas[0] == {
+        "id_meta_campanha": "995000000000000002",
+        "id_meta_anuncio": None,
+        "tipo_periodo": "semana",
+        "inicio_periodo": date(2026, 3, 9),
+        "fim_periodo": date(2026, 3, 15),
+        "alcance": 5120,
+        "impressoes": 9010,
+    }
+
+
+def test_alcance_do_anuncio_aponta_para_o_anuncio_pelo_id_da_meta() -> None:
+    linhas = transformar_alcance(
+        NivelAlcance.ANUNCIO, ler_linhas_alcance("anuncio", "ano"), TipoPeriodo.ANO
+    )
+
+    assert [(l["id_meta_campanha"], l["id_meta_anuncio"]) for l in linhas] == [
+        (None, "995000000000000010"),
+        (None, "995000000000000015"),
+        (None, ID_META_ANUNCIO_AUSENTE),
+    ]
+    assert {l["tipo_periodo"] for l in linhas} == {"ano"}
+
+
+def test_alcance_da_conta_fica_sem_campanha_nem_anuncio() -> None:
+    linhas = transformar_alcance(
+        NivelAlcance.CONTA, ler_linhas_alcance("conta", "mes"), TipoPeriodo.MES
+    )
+
+    assert [
+        (l["id_meta_campanha"], l["id_meta_anuncio"], l["inicio_periodo"], l["alcance"])
+        for l in linhas
+    ] == [
+        (None, None, date(2026, 3, 1), 24310),
+        (None, None, date(2026, 4, 1), 6820),
+    ]
+
+
+def test_alcance_ausente_fica_nulo_e_nao_zero() -> None:
+    # Métrica-base ausente é NULL (CLAUDE.md §5).
+    linhas = ler_linhas_alcance("conta", "semana")
+    del linhas[0]["reach"]
+
+    assert transformar_alcance(NivelAlcance.CONTA, linhas)[0]["alcance"] is None
+
+
+@pytest.mark.parametrize(
+    ("nivel", "linha"),
+    [
+        (NivelAlcance.CONTA, {"campaign_id": "995000000000000002"}),
+        (NivelAlcance.CAMPANHA, {}),
+        (NivelAlcance.CAMPANHA, {"ad_id": "995000000000000010"}),
+        (NivelAlcance.ANUNCIO, {"campaign_id": "995000000000000002"}),
+        (
+            NivelAlcance.ANUNCIO,
+            {"ad_id": "995000000000000010", "campaign_id": "995000000000000002"},
+        ),
+    ],
+)
+def test_linha_de_alcance_fora_do_nivel_consultado_e_recusada(
+    nivel: NivelAlcance, linha: dict
+) -> None:
+    periodo = {"reach": "1", "date_start": "2026-03-09", "date_stop": "2026-03-15"}
+
+    with pytest.raises(ErroAlcance, match="fora do nível"):
+        transformar_alcance(nivel, [{**linha, **periodo}])
+
+
+@pytest.mark.parametrize(
+    "periodo",
+    [
+        {"date_start": "2026-03-09"},
+        {"date_stop": "2026-03-15"},
+        {"date_start": "2026-03-15", "date_stop": "2026-03-09"},
+    ],
+)
+def test_linha_de_alcance_sem_periodo_valido_e_recusada(periodo: dict) -> None:
+    with pytest.raises(ErroAlcance, match="período"):
+        transformar_alcance(NivelAlcance.CONTA, [{"reach": "1", **periodo}])
+
+
+def test_entidade_e_periodo_repetidos_sao_recusados_sem_citar_o_id() -> None:
+    # A carga substitui o conjunto completo, e uma das duas linhas se
+    # perderia.
+    linhas = ler_linhas_alcance("anuncio", "semana")
+    linhas.append(copy.deepcopy(linhas[0]))
+
+    with pytest.raises(ErroAlcance, match="1 linha") as erro:
+        transformar_alcance(NivelAlcance.ANUNCIO, linhas)
+
+    assert "995000000000000010" not in str(erro.value)
+
+
+def test_campo_de_alcance_nao_pedido_e_recusado_pelo_mapa() -> None:
+    linhas = ler_linhas_alcance("conta", "ano")
+    linhas[0]["account_id"] = ID_META_CONTA
+
+    with pytest.raises(ErroCampoNaoMapeado):
+        transformar_alcance(NivelAlcance.CONTA, linhas, TipoPeriodo.ANO)
