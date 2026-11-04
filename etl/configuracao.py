@@ -25,6 +25,16 @@ COTA_EGRESS_ORGANIZACAO_GB = 250
 COTA_EGRESS_CACHE_ORGANIZACAO_GB = 250
 PARCELA_COTA_ORGANIZACAO = Decimal("0.3")
 
+# Limites da Marketing API (RF-08; R-15). Com estas esperas, a soma mínima
+# entre a primeira e a última tentativa (360 s) passa do bloqueio de 300 s do
+# nível de desenvolvimento, e a máxima (720 s) cabe na execução horária.
+MAXIMO_TENTATIVAS = 5
+ESPERA_INICIAL_SEGUNDOS = 60
+ESPERA_MAXIMA_SEGUNDOS = 300
+# A partir deste uso informado nos cabeçalhos, a próxima chamada espera antes
+# de sair, em vez de gastar o que resta da cota até o erro de limite.
+LIMITE_USO_PERCENTUAL = 90
+
 
 class ErroConfiguracao(Exception):
     """Variável de ambiente ausente ou inválida na inicialização."""
