@@ -40,6 +40,10 @@ COLUNAS_NEGOCIO: Mapping[str, str] = {
     "anuncio": "id, conjunto_anuncio_id, criativo_id, id_meta, nome, status",
     "metrica_diaria_anuncio": "anuncio_id, data, investimento, impressoes, alcance",
     "acao_diaria_anuncio": "anuncio_id, data, tipo_acao, quantidade, valor",
+    "alcance_periodo": (
+        "conta_anuncio_id, campanha_id, anuncio_id, tipo_periodo, inicio_periodo,"
+        " fim_periodo, alcance, impressoes"
+    ),
 }
 
 
