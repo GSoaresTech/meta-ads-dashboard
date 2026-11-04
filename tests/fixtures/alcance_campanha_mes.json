@@ -1,0 +1,32 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "campaign_id": "995000000000000002",
+        "reach": "9870",
+        "impressions": "16960",
+        "date_start": "2026-03-01",
+        "date_stop": "2026-03-31"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "reach": "18420",
+        "impressions": "54580",
+        "date_start": "2026-03-01",
+        "date_stop": "2026-03-31"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "reach": "6820",
+        "impressions": "12890",
+        "date_start": "2026-04-01",
+        "date_stop": "2026-04-06"
+      }
+    ]
+  }
+}

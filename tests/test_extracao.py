@@ -8,17 +8,24 @@ from responses.registries import OrderedRegistry
 
 from etl.cliente_api_meta import ClienteApiMeta, Endpoint, ErroRespostaInvalida
 from etl.extracao import (
+    CAMPOS_ALCANCE_PERIODO,
     CAMPOS_INSIGHTS_DIARIOS,
     STATUS_EFETIVOS_CADASTRO,
+    NivelAlcance,
+    PeriodoAlcance,
+    TipoPeriodo,
     calcular_data_referencia,
+    extrair_alcance_periodo,
     extrair_cadastro_conta,
     extrair_entidades_por_id,
     extrair_insights_diarios,
     listar_anuncios_insights,
     montar_campos,
+    montar_parametros_alcance,
     montar_parametros_insights_diarios,
 )
 from etl.mapa_campos import MAPA_CAMPOS, ObjetoApi, TipoCampo
+from tests import alcance_exemplo
 from tests.cadastro_exemplo import ID_META_CONTA, ler_fixtures, simular_cadastro
 from tests.insights_exemplo import (
     FIM,
@@ -281,3 +288,71 @@ def test_anuncio_sem_conjunto_e_resposta_invalida(
 def test_pagina_de_insights_sem_lista_de_linhas_e_resposta_invalida() -> None:
     with pytest.raises(ErroRespostaInvalida):
         listar_anuncios_insights([{"paging": {}}])
+
+
+def test_alcance_pede_cada_tipo_de_periodo_com_o_incremento_do_adr_0006() -> None:
+    # Semana em blocos de 7 dias a partir da segunda-feira, mês de
+    # calendário e ano num bloco só, todos cortados no fim da janela (R-20).
+    for tipo, inicio, fim in alcance_exemplo.PERIODOS:
+        for nivel_api, _, _ in alcance_exemplo.NIVEIS:
+            parametros = montar_parametros_alcance(
+                NivelAlcance(nivel_api), PeriodoAlcance(TipoPeriodo(tipo), inicio, fim)
+            )
+
+            assert parametros == alcance_exemplo.montar_parametros_alcance(
+                nivel_api, tipo, inicio, fim
+            )
+
+
+def test_alcance_por_campanha_e_anuncio_inclui_os_excluidos() -> None:
+    # A lista por nível omite os excluídos, cujas métricas entram no total
+    # da conta (R-38; ADR-0006). A conta é uma linha só e vai sem filtro.
+    periodo = PeriodoAlcance(TipoPeriodo.MES, date(2026, 3, 1), date(2026, 4, 6))
+    filtros = {
+        nivel: montar_parametros_alcance(nivel, periodo).get("filtering")
+        for nivel in NivelAlcance
+    }
+
+    assert filtros[NivelAlcance.CONTA] is None
+    for nivel in (NivelAlcance.CAMPANHA, NivelAlcance.ANUNCIO):
+        assert json.loads(filtros[nivel]) == [
+            {
+                "field": "ad.effective_status",
+                "operator": "IN",
+                "value": [*STATUS_EFETIVOS_CADASTRO, "DELETED"],
+            }
+        ]
+
+
+def test_todo_campo_de_alcance_pedido_tem_entrada_no_mapa() -> None:
+    for campos in CAMPOS_ALCANCE_PERIODO.values():
+        assert set(campos) <= set(MAPA_CAMPOS[ObjetoApi.INSIGHTS])
+
+
+def test_alcance_do_periodo_vem_de_uma_consulta_da_conta_por_nivel(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixtures = alcance_exemplo.ler_fixtures()
+    tipo, inicio, fim = alcance_exemplo.PERIODOS[0]
+    for nivel_api, nivel, _ in alcance_exemplo.NIVEIS:
+        simular(
+            api,
+            f"act_{ID_META_CONTA}/insights",
+            fixtures[alcance_exemplo.nomear_fixture(nivel, tipo)],
+            alcance_exemplo.montar_parametros_alcance(nivel_api, tipo, inicio, fim),
+        )
+
+    consultas = extrair_alcance_periodo(
+        cliente, ID_META_CONTA, PeriodoAlcance(TipoPeriodo(tipo), inicio, fim)
+    )
+
+    assert list(consultas) == list(NivelAlcance)
+    for nivel_api, nivel, _ in alcance_exemplo.NIVEIS:
+        consulta = consultas[NivelAlcance(nivel_api)]
+        assert consulta.endpoint is Endpoint.INSIGHTS
+        assert consulta.paginas == [
+            fixtures[alcance_exemplo.nomear_fixture(nivel, tipo)]["corpo"]
+        ]
+    # Uma chamada por nível com todas as entidades, e não uma por entidade
+    # (R-15).
+    assert len(api.calls) == 3
