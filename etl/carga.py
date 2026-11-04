@@ -26,7 +26,7 @@ from etl.configuracao import (
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
     RETENCAO_BRUTO_DIAS,
 )
-from etl.transformacao import CadastroConta, EntidadesConta
+from etl.transformacao import CadastroConta, EntidadesConta, InsightsDiarios
 
 # Linhas gravadas por tabela, para o registro de fim (RF-20).
 type Contagens = dict[str, int]
@@ -110,6 +110,10 @@ WHERE NOT EXISTS (
 )
 """
 
+LER_IDS_ANUNCIOS: Final = """
+SELECT id_meta, id FROM normalizado.anuncio
+WHERE empresa_id = %(empresa_id)s AND id_meta = ANY(%(ids_meta)s)
+"""
 
 ATUALIZAR_CONTA: Final = """
 UPDATE normalizado.conta_anuncio
@@ -158,6 +162,11 @@ class ErroEntidadeDeOutraEmpresa(Exception):
 class ErroLinhaForaDaJanela(ValueError):
     """Um fato com data fora da janela substituída não seria apagado pela
     próxima substituição da mesma janela."""
+
+
+class ErroAnuncioAusente(Exception):
+    """Um anúncio dos insights não existe na empresa: a FK recusaria o fato,
+    e a carga falha antes, sem citar o ID (RNF-17)."""
 
 
 class ErroAnuncioForaDaConta(ValueError):
@@ -502,6 +511,54 @@ def substituir_metricas_diarias(
                 [{**linha, **controle} for linha in linhas],
             )
     return {"metrica_diaria_anuncio": len(metricas), "acao_diaria_anuncio": len(acoes)}
+
+
+def ler_ids_anuncios(
+    conexao: psycopg.Connection, empresa_id: UUID, ids_meta: Sequence[str]
+) -> dict[str, UUID]:
+    """O id interno de cada anúncio da empresa entre os IDs da Meta dados,
+    pelo id_meta. O que não existe na empresa fica de fora."""
+    return dict(
+        conexao.execute(
+            LER_IDS_ANUNCIOS, {"empresa_id": empresa_id, "ids_meta": list(ids_meta)}
+        ).fetchall()
+    )
+
+
+def carregar_insights_diarios(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    inicio: date,
+    fim: date,
+    insights: InsightsDiarios,
+) -> Contagens:
+    """Troca as métricas e as ações da conta de inicio a fim pelas dos
+    insights, com o anúncio pela chave interna (RF-02, RF-12, RF-17).
+
+    Roda na transação da empresa, depois das entidades: todo anúncio dos
+    insights já existe no banco, lido pelo cadastro ou pelo ID (ADR-0009
+    §5).
+    """
+    exigir_transacao(conexao)
+    ids_meta = list(dict.fromkeys(m["id_meta_anuncio"] for m in insights.metricas))
+    ids = ler_ids_anuncios(conexao, empresa_id, ids_meta)
+    if len(ids) != len(ids_meta):
+        raise ErroAnuncioAusente(
+            f"{len(ids_meta) - len(ids)} anúncio(s) dos insights fora da empresa"
+        )
+    referencia = {"anuncio_id": ("id_meta_anuncio", ids)}
+    return substituir_metricas_diarias(
+        conexao,
+        empresa_id,
+        execucao_id,
+        conta_anuncio_id,
+        inicio,
+        fim,
+        trocar_referencias(insights.metricas, referencia),
+        trocar_referencias(insights.acoes, referencia),
+    )
 
 
 def validar_colunas_fato(linhas: Sequence[Linha], esperadas: Sequence[str]) -> None:
