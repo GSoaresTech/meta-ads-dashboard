@@ -303,10 +303,25 @@ class ClienteApiMeta:
 
     def _enviar(self, metodo: str, url: str, parametros: Mapping[str, str]) -> object:
         self._respeitar_pausa()
-        # from None em toda falha: a exceção do requests traz a URL, com o ID
-        # da conta, e não pode ir encadeada para o log.
+        resposta = self._chamar(metodo, url, parametros)
+        if isinstance(resposta, TipoErro):
+            raise FalhaChamada(resposta)
+        uso = ler_uso(resposta.headers)
+        corpo = ler_corpo(resposta)
+        erro = ler_erro_graph(corpo)
+        if resposta.status_code >= STATUS_HTTP_ERRO or erro is not None:
+            raise FalhaChamada(classificar_erro(resposta.status_code, erro), erro, uso)
+        self._pausa = calcular_pausa_preventiva(uso)
+        return corpo
+
+    def _chamar(
+        self, metodo: str, url: str, parametros: Mapping[str, str]
+    ) -> requests.Response | TipoErro:
+        """A falha de rede volta como tipo, e não como exceção relançada: a
+        do requests traz a URL, com o ID da conta, e ficaria no __context__
+        da exceção que chega a quem chamou (RNF-17)."""
         try:
-            resposta = self._sessao.request(
+            return self._sessao.request(
                 metodo,
                 url,
                 params=parametros if metodo == GET else None,
@@ -315,16 +330,9 @@ class ClienteApiMeta:
                 timeout=TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
             )
         except (requests.ConnectionError, requests.exceptions.ChunkedEncodingError):
-            raise FalhaChamada(TipoErro.TRANSITORIO) from None
+            return TipoErro.TRANSITORIO
         except requests.Timeout:
-            raise FalhaChamada(TipoErro.TEMPO_ESGOTADO) from None
-        uso = ler_uso(resposta.headers)
-        corpo = ler_corpo(resposta)
-        erro = ler_erro_graph(corpo)
-        if resposta.status_code >= STATUS_HTTP_ERRO or erro is not None:
-            raise FalhaChamada(classificar_erro(resposta.status_code, erro), erro, uso)
-        self._pausa = calcular_pausa_preventiva(uso)
-        return corpo
+            return TipoErro.TEMPO_ESGOTADO
 
     def _respeitar_pausa(self) -> None:
         if self._pausa > 0:
