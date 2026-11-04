@@ -26,7 +26,7 @@ from etl.configuracao import (
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
     RETENCAO_BRUTO_DIAS,
 )
-from etl.transformacao import CadastroConta
+from etl.transformacao import CadastroConta, EntidadesConta
 
 # Linhas gravadas por tabela, para o registro de fim (RF-20).
 type Contagens = dict[str, int]
@@ -559,9 +559,29 @@ def carregar_cadastro(
     conta_anuncio_id: UUID,
     cadastro: CadastroConta,
 ) -> Contagens:
-    """Grava o cadastro de uma conta de cima para baixo, porque cada filho
-    precisa da chave interna do pai: a conta, as campanhas, os conjuntos com
-    as janelas, as Páginas, os criativos e os anúncios (RF-01).
+    """Grava o cadastro de uma conta: o nome, o fuso e a moeda da conta e,
+    depois, as entidades dela (RF-01, RF-43)."""
+    atualizar_conta_anuncio(
+        conexao, empresa_id, execucao_id, conta_anuncio_id, cadastro.conta
+    )
+    return {
+        "conta_anuncio": 1,
+        **carregar_entidades(
+            conexao, empresa_id, execucao_id, conta_anuncio_id, cadastro
+        ),
+    }
+
+
+def carregar_entidades(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    entidades: EntidadesConta,
+) -> Contagens:
+    """Grava as entidades de uma conta de cima para baixo, porque cada filho
+    precisa da chave interna do pai: as campanhas, os conjuntos com as
+    janelas, as Páginas, os criativos e os anúncios (RF-01).
 
     Roda na transação da empresa. Uma entidade que já não vem da API fica
     como estava: a ETL não apaga entidades (ADR-0009 §2).
@@ -570,20 +590,17 @@ def carregar_cadastro(
     def upsert(tabela: TabelaEntidade, linhas: list[dict[str, object]]) -> dict:
         return upsert_entidades(conexao, tabela, empresa_id, execucao_id, linhas)
 
-    atualizar_conta_anuncio(
-        conexao, empresa_id, execucao_id, conta_anuncio_id, cadastro.conta
-    )
     campanhas = upsert(
         TabelaEntidade.CAMPANHA,
         [
             {**linha, "conta_anuncio_id": conta_anuncio_id}
-            for linha in cadastro.campanhas
+            for linha in entidades.campanhas
         ],
     )
     conjuntos = upsert(
         TabelaEntidade.CONJUNTO_ANUNCIO,
         trocar_referencias(
-            cadastro.conjuntos, {"campanha_id": ("id_meta_campanha", campanhas)}
+            entidades.conjuntos, {"campanha_id": ("id_meta_campanha", campanhas)}
         ),
     )
     janelas = substituir_janelas_atribuicao(
@@ -592,23 +609,23 @@ def carregar_cadastro(
         execucao_id,
         list(conjuntos.values()),
         trocar_referencias(
-            cadastro.janelas, {"conjunto_anuncio_id": ("id_meta_conjunto", conjuntos)}
+            entidades.janelas, {"conjunto_anuncio_id": ("id_meta_conjunto", conjuntos)}
         ),
     )
-    paginas = upsert_paginas(conexao, empresa_id, execucao_id, cadastro.paginas)
+    paginas = upsert_paginas(conexao, empresa_id, execucao_id, entidades.paginas)
     criativos = upsert(
         TabelaEntidade.CRIATIVO,
         [
             {**linha, "conta_anuncio_id": conta_anuncio_id}
             for linha in trocar_referencias(
-                cadastro.criativos, {"pagina_id": ("id_meta_pagina", paginas)}
+                entidades.criativos, {"pagina_id": ("id_meta_pagina", paginas)}
             )
         ],
     )
     anuncios = upsert(
         TabelaEntidade.ANUNCIO,
         trocar_referencias(
-            cadastro.anuncios,
+            entidades.anuncios,
             {
                 "conjunto_anuncio_id": ("id_meta_conjunto", conjuntos),
                 "criativo_id": ("id_meta_criativo", criativos),
@@ -616,7 +633,6 @@ def carregar_cadastro(
         ),
     )
     return {
-        "conta_anuncio": 1,
         "campanha": len(campanhas),
         "conjunto_anuncio": len(conjuntos),
         "janela_atribuicao_conjunto": janelas,
