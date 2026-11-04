@@ -86,7 +86,9 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 
 ### 4.1 Restrições de plataforma verificadas
 
-Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026. Restrições que dependem de confirmação estão marcadas.
+Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, consultadas em 03/11/2026, e as R-37 a R-39 e a revisão da R-14, consultadas em 04/11/2026. Restrições que dependem de confirmação estão marcadas.
+
+"Verificado por experimento" indica chamadas à Marketing API v26.0 em 04/11/2026, com o token do System User e o app no nível Limited, sem publicação, em contas de anúncio de uma BM cliente compartilhadas com a BM do operador como parceira. Os scripts ficaram fora do repositório, e só as conclusões e os formatos estão aqui, sem IDs, nomes ou valores das contas.
 
 | ID | Restrição | Fonte |
 |---|---|---|
@@ -103,7 +105,7 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, 
 | R-11 | GitHub: a varredura de segredos roda gratuitamente em repositórios públicos. A push protection no nível do usuário vem ativada por padrão | [G9], [G10] |
 | R-12 | Meta: a versão mais recente da Graph/Marketing API é a v26.0, de 29/07/2026 | [M1] |
 | R-13 | Meta Marketing API Access Tier: Limited é "fortemente limitado por conta" e "só para desenvolvimento"; Full é "levemente limitado". Permite 1 System User + 1 admin no Limited e 10 + 1 no Full. A promoção exige 500 chamadas em 15 dias com menos de 15% de erro | [M2] |
-| R-14 | Meta: gerenciar contas de anúncio "de outras pessoas" exige acesso avançado a `ads_read`/`ads_management`, e o acesso avançado exige verificação da empresa. *A confirmar*: se contas compartilhadas com a BM do operador contam como "de outras pessoas" | [M2], [M3] |
+| R-14 | Meta: gerenciar contas de anúncio "de outras pessoas" exige acesso avançado a `ads_read`/`ads_management`, e o acesso avançado exige verificação da empresa. No Limited, quem chama a API são admins ou desenvolvedores do app, em nome dos admins da conta. Verificado por experimento: com o app no Limited (`ads_api_access_tier: development_access`), o System User lê o cadastro e os insights de contas de uma BM cliente compartilhadas com a BM do operador como parceira. Elas aparecem em `client_ad_accounts` da BM do operador. O token do teste tinha, além de `ads_read`, os escopos `ads_management`, `business_management`, `catalog_management`, `pages_manage_ads`, `pages_read_engagement`, `pages_show_list`, `public_profile` e `threads_business_basic`. *A confirmar*: a mesma leitura com um token só com `ads_read` | [M2], [M3] |
 | R-15 | Meta, limites de taxa por conta e por hora. Insights: 600 (dev) ou 190.000 (Full) + 400 × anúncios ativos − 0,001 × erros. Pontuação: leitura vale 1 ponto, com teto de 60 (dev) ou 9.000 (Full), decaimento de 300 s e bloqueio de 300 s (dev) ou 60 s (Full) | [M4] |
 | R-16 | Meta: o token de System User pode não ter validade ou valer 60 dias (renovável; a Meta recomenda o de 60 dias) | [M5] |
 | R-17 | Meta Insights: dados no fuso horário da conta; atualizados a cada 15 min; "não mudam após 28 dias" | [M6] |
@@ -126,6 +128,9 @@ Todas foram consultadas nas fontes da §9 em 29/10/2026, exceto as R-28 a R-36, 
 | R-34 | Postgres 16 ou mais novo: quem cria um papel com `createrole`, sem ser superusuário, não ganha `SET ROLE` nem herança sobre ele (`createrole_self_grant` vem vazio). `GRANT <papel> TO <membro> WITH INHERIT FALSE, SET TRUE` dá só o `SET ROLE` (verificado no banco local) | [P7], [P8] |
 | R-35 | Meta: os IDs de campanha, conjunto, anúncio e criativo e o `account_id` da conta são "numeric string"; o `id` da conta é `act_` seguido do `account_id`. O `status` de campanha, conjunto e anúncio é `ACTIVE`, `PAUSED`, `DELETED` ou `ARCHIVED`. O `objective` da campanha é `string`. O `attribution_spec` do conjunto é uma lista de `event_type` e `window_days`. O `object_story_id` do criativo e o `id` do post são um token "Post ID", não um número. O `id` da Página e o `actor_id` do criativo, que é o ID da Página, são "numeric string" | [M12], [M13], [M16], [M17], [M18], [M19], [M20] |
 | R-36 | Supabase CLI 2.114.0, `db push` no projeto ligado: com a senha do banco, conecta como `postgres`. Sem ela, usa um papel temporário `cli_login_*`, criado pela Management API, e executa `SET SESSION ROLE postgres` ao conectar. O `RESET ALL` que roda antes de cada migration não desfaz essa troca (verificado no banco local). Nos dois casos, os objetos das migrations ficam com o `postgres` como dono | [S17], [S20] |
+| R-37 | Meta, cabeçalhos de uso: `X-Business-Use-Case-Usage` traz, por BM e por tipo (`ads_insights`, `ads_management`), `call_count`, `total_cputime`, `total_time`, `estimated_time_to_regain_access` e `ads_api_access_tier`. `X-FB-Ads-Insights-Throttle` traz `app_id_util_pct`, `acc_id_util_pct` e `ads_api_access_tier`. `X-Ad-Account-Usage` traz `acc_id_util_pct`, `reset_time_duration` e `ads_api_access_tier`. O nível padrão é `development_access`. Verificado por experimento: as respostas trouxeram `X-Business-Use-Case-Usage` e, nos insights, `X-FB-Ads-Insights-Throttle`; o `X-Ad-Account-Usage` não veio em nenhuma resposta observada. Depois de algumas centenas de chamadas na sessão de testes, nenhum indicador de uso passou de 2%, e não houve erro de limite | [M4] |
+| R-38 | Meta, verificado por experimento: as arestas `/campaigns`, `/adsets` e `/ads` da conta omitem os objetos `ARCHIVED`, que só vêm com `filtering` em `effective_status`. Os insights, em qualquer nível, incluem os arquivados: a soma do investimento por anúncio, por conjunto e por campanha é igual à da conta ao centavo, em amostras de até 35 meses atrás, e, nas contas conferidas, todo anúncio com insights aparece na aresta `/ads` com o filtro | Experimento |
+| R-39 | Meta Insights, verificado por experimento: uma consulta síncrona de 30 dias no nível de anúncio, com `filtering` por status, falhou numa conta com milhares de anúncios com o código 100 e o subcódigo 1487534 (`error_user_title` "Número excessivo de linhas"). O limite de linhas não é documentado; a saída é fatiar o intervalo ou usar job assíncrono | [M6] |
 
 ### 4.2 Estimativa de volume
 
@@ -150,14 +155,14 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 
 | ID | Descrição | Prioridade | Critério de aceite | Origem |
 |---|---|---|---|---|
-| RF-01 | O sistema deve extrair, para cada conta ativa de cada empresa ativa, o cadastro de campanhas, conjuntos de anúncios, anúncios e criativos. Isso inclui nome, status, objetivo, meta de otimização, título, texto, chamada para ação, miniatura e identificadores do post. | Must | Após a carga diária, todo anúncio com entrega nos últimos 28 dias existe em `normalizado` com campanha, conjunto e criativo válidos. A consulta de órfãos retorna 0 linhas. | Objetivo central |
+| RF-01 | O sistema deve extrair, para cada conta ativa de cada empresa ativa, o cadastro de campanhas, conjuntos de anúncios, anúncios e criativos. Isso inclui nome, status, objetivo, meta de otimização, título, texto, chamada para ação, miniatura e identificadores do post. | Must | Após a carga diária, todo anúncio com entrega nos últimos 28 dias existe em `normalizado` com campanha, conjunto e criativo válidos. A consulta de órfãos retorna 0 linhas. | Objetivo central; R-38 |
 | RF-02 | O sistema deve extrair insights diários (`time_increment=1`) no nível de anúncio: investimento, impressões, alcance diário, cliques no link, `actions` e `action_values`. | Must | Para um dia já fechado, a soma do investimento por conta no banco difere em no máximo R$ 0,01 do valor retornado pela API no nível de conta para o mesmo dia. | Objetivo central |
 | RF-03 | O sistema deve extrair quebras por campanha e dia nas combinações idade+gênero, plataforma+posicionamento e região, com as métricas-base e as ações do resultado principal. | Must | Para uma campanha e um dia, a soma do investimento entre as categorias de cada quebra difere em no máximo 1% do investimento da campanha no dia. | Decisão de produto |
 | RF-04 | O sistema deve extrair alcance e impressões já agregados pela API por conta, campanha e anúncio, para cada semana ISO, mês e ano com dados. | Must | O alcance de uma campanha em março de 2026 no banco é igual ao retornado pela API para o intervalo 01/03–31/03/2026 sem quebra diária. | ADR-0006 |
 | RF-05 | O sistema deve reprocessar os últimos 28 dias a cada execução diária. | Must | Se a Meta revisar as conversões de um dia dentro da janela, após a execução diária seguinte o valor no banco é igual ao retornado pela API. | Restrição da API (R-17) |
 | RF-06 | O sistema deve executar uma carga a cada hora com os dados de hoje e de ontem. | Must | Após uma execução horária, os dados de hoje e de ontem de cada empresa ativa no banco são iguais aos retornados pela API no momento da extração. | Decisão de produto |
 | RF-07 | O sistema deve importar até 37 meses de histórico ao cadastrar uma conta, fatiando a carga por mês e permitindo retomá-la. | Must | Uma carga histórica interrompida, ao ser executada de novo, continua da última fatia concluída. O estado final é igual ao de uma execução sem interrupção. | Decisão de produto; R-19 |
-| RF-08 | O sistema deve respeitar os limites de taxa da Meta: ler os cabeçalhos de uso, esperar e tentar de novo com backoff exponencial, e usar jobs assíncronos quando a consulta síncrona falhar por volume ou tempo. | Must | Em teste com resposta simulada de limite (códigos 4, 17, 613 ou 80000–80014), a ETL espera e tenta de novo até `MAXIMO_TENTATIVAS`. Ao esgotar as tentativas, registra a falha da empresa e segue para a próxima. | R-15; R-18 |
+| RF-08 | O sistema deve respeitar os limites de taxa da Meta: ler os cabeçalhos de uso, esperar e tentar de novo com backoff exponencial, e usar jobs assíncronos quando a consulta síncrona falhar por volume ou tempo. | Must | Em teste com resposta simulada de limite (códigos 4, 17, 613 ou 80000–80014), a ETL espera e tenta de novo até `MAXIMO_TENTATIVAS`. Ao esgotar as tentativas, registra a falha da empresa e segue para a próxima. Em teste com resposta simulada de excesso de linhas (código 100, subcódigo 1487534), a ETL refaz a consulta fatiada ou por job assíncrono. | R-15; R-18; R-39 |
 | RF-09 | O sistema deve gravar cada resposta da API na camada `bruto` antes de transformá-la. | Must | Toda linha carregada em `normalizado` numa execução tem resposta bruta da mesma execução, rastreável pelo `execucao_id`. | ADR-0005 |
 | RF-10 | O sistema deve usar uma única constante para a versão da API da Meta. | Should | Uma busca no código encontra a versão (ex.: `v26.0`) em exatamente um lugar. | R-12 |
 
@@ -371,7 +376,6 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 | ID | Questão | Impacto de deixar em aberto |
 |---|---|---|
 | Q-01 | O uso do Vercel Hobby continua permitido? Os termos (R-04) proíbem uso comercial, incluindo ganho de quem desenvolve ou opera o projeto. | Suspensão do painel. A migração para o Pro (US$ 20/mês) passa a ser obrigatória (ADR-0001). |
-| Q-02 | O app em nível Limited, sem publicação, consegue ler em produção as contas compartilhadas com a BM do operador? A Meta descreve o Limited como "só para desenvolvimento" e exige acesso avançado para contas "de outras pessoas" (R-13, R-14). | Extração bloqueada ou limitada a 60 pontos por conta. O histórico de 37 meses pode levar dias. |
 | Q-03 | Com `time_increment` de N dias, os períodos começam no `since`? O alcance vem deduplicado por período (R-20)? | Alcance semanal errado. Enquanto não houver resposta, cada semana é extraída com `time_range` próprio (ADR-0006). |
 | Q-04 | Quais janelas de atribuição estão de fato disponíveis (R-22)? | Números diferentes do Gerenciador de Anúncios. |
 | Q-05 | Qual é o formato de `results`/`AdsInsightsResult` e ele reproduz a coluna "Resultados" do Gerenciador (R-24)? | RF-16 fica sem implementação; o catálogo continua sendo a fonte do resultado principal. |
@@ -386,7 +390,7 @@ O resultado principal de cada campanha é resolvido pela precedência do ADR-000
 
 ## 9. Referências consultadas
 
-Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026.
+Todas consultadas em 29/10/2026, exceto [M16] a [M20], [S7] a [S20] e [P1] a [P8], consultadas em 03/11/2026. As fontes das restrições revistas em 04/11/2026 (§4.1) foram consultadas de novo nessa data.
 
 **Meta**
 - [M1] Marketing API changelog: https://developers.facebook.com/docs/marketing-api/marketing-api-changelog
