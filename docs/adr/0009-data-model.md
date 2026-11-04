@@ -168,7 +168,7 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
   - `meta_otimizacao` nula significa "qualquer". `objetivo` nulo é a linha única de "Não classificado", que guarda o rótulo e as métricas de apoio do caso sem catálogo. Um `CHECK` impede objetivo nulo com meta preenchida.
   - A precedência do ADR-0007 resolve "qualquer, exceto `CONVERSATIONS`": a linha específica vence a genérica.
 - **`metrica_apoio_resultado`**: uma linha por resultado × métrica de apoio. PK `(resultado_objetivo_id, metrica)`. `UNIQUE (resultado_objetivo_id, ordem)`.
-- **`objetivo_equivalente`**: uma linha por objetivo legado. PK `objetivo_legado`. Coluna `objetivo`, o objetivo atual equivalente (*a confirmar* pela Q-10).
+- **`objetivo_equivalente`**: uma linha por objetivo legado. PK `objetivo_legado`. Coluna `objetivo`, o objetivo atual equivalente, pela tabela oficial resumida no `docs/REQUIREMENTS.md` §7.2. Os legados com mais de um equivalente (`CONVERSIONS`, `VIDEO_VIEWS`) seguem *a confirmar*, e os sem equivalente oficial (`LOCAL_AWARENESS`, `OFFER_CLAIMS`) não têm o que gravar até a Q-10 ser resolvida.
 - **`rotulo_valor_api`**: uma linha por domínio × valor de enum da API. PK `(dominio, valor)`. Coluna `rotulo`.
   - Domínios: `status`, `chamada_acao`, `genero`, `plataforma` e `posicionamento`.
   - Um valor sem rótulo aparece no painel como "Não identificado", e o rótulo dessa situação também mora no catálogo.
