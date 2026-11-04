@@ -67,19 +67,19 @@ class TarefaInsightsDiarios:
         self, empresa_id: UUID, conta_anuncio_id: UUID, id_meta_conta: str
     ) -> InsightsContaExtraidos:
         """Os insights da conta e, pelo ID, os anúncios deles que o banco
-        ainda não tem. Um anúncio carregado entre esta leitura e a carga é
-        só atualizado pelo upsert."""
+        ainda não tem."""
         insights = extrair_insights_diarios(
             self.cliente, id_meta_conta, self.inicio, self.fim
         )
-        ids_meta = listar_anuncios_insights(insights.paginas)
-        with self.conectar() as conexao:
-            existentes = ler_ids_anuncios(conexao, empresa_id, ids_meta)
-        ausentes = [id_meta for id_meta in ids_meta if id_meta not in existentes]
         return InsightsContaExtraidos(
             conta_anuncio_id,
             insights,
-            extrair_entidades_por_id(self.cliente, ausentes),
+            extrair_anuncios_ausentes(
+                self.conectar,
+                self.cliente,
+                empresa_id,
+                listar_anuncios_insights(insights.paginas),
+            ),
         )
 
     def carregar(
@@ -99,6 +99,21 @@ class TarefaInsightsDiarios:
         return dict(contagens)
 
 
+def extrair_anuncios_ausentes(
+    conectar: Callable[[], psycopg.Connection],
+    cliente: ClienteApiMeta,
+    empresa_id: UUID,
+    ids_meta: Sequence[str],
+) -> EntidadesExtraidas:
+    """Lê pelo ID os anúncios dados que o banco ainda não tem, com o conjunto
+    e a campanha de cada um. Um anúncio carregado entre esta leitura e a
+    carga é só atualizado pelo upsert."""
+    with conectar() as conexao:
+        existentes = ler_ids_anuncios(conexao, empresa_id, ids_meta)
+    ausentes = [id_meta for id_meta in ids_meta if id_meta not in existentes]
+    return extrair_entidades_por_id(cliente, ausentes)
+
+
 def carregar_insights_conta(
     conexao: psycopg.Connection,
     empresa_id: UUID,
@@ -107,29 +122,16 @@ def carregar_insights_conta(
     fim: date,
     conta: InsightsContaExtraidos,
 ) -> Contagens:
-    """Grava as respostas em bruto com o fim do intervalo como data de
-    referência, que a retenção usa (RF-21), e carrega as entidades lidas pelo
-    ID antes dos fatos, que dependem delas pela FK."""
-    for consulta in (conta.insights, *conta.entidades.listar_consultas()):
-        gravar_respostas_brutas(
-            conexao,
-            empresa_id,
-            execucao_id,
-            conta.conta_anuncio_id,
-            consulta.endpoint,
-            consulta.parametros,
-            fim,
-            consulta.paginas,
-        )
-    entidades = transformar_entidades(
-        conta.entidades.campanhas.paginas,
-        conta.entidades.conjuntos.paginas,
-        conta.entidades.anuncios.paginas,
+    contagens = carregar_bruto_e_entidades(
+        conexao,
+        empresa_id,
+        execucao_id,
+        conta.conta_anuncio_id,
+        fim,
+        [conta.insights],
+        conta.entidades,
     )
     insights = transformar_insights_diarios(conta.insights.paginas)
-    contagens = carregar_entidades(
-        conexao, empresa_id, execucao_id, conta.conta_anuncio_id, entidades
-    )
     return contagens | carregar_insights_diarios(
         conexao,
         empresa_id,
@@ -138,4 +140,38 @@ def carregar_insights_conta(
         inicio,
         fim,
         insights,
+    )
+
+
+def carregar_bruto_e_entidades(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    data_referencia: date,
+    consultas: Sequence[Consulta],
+    entidades: EntidadesExtraidas,
+) -> Contagens:
+    """Grava em bruto as consultas de insights e as das entidades lidas pelo
+    ID, com o fim do intervalo como data de referência, que a retenção usa
+    (RF-21), e carrega essas entidades, das quais os fatos dependem pela FK
+    (ADR-0009 §5)."""
+    for consulta in (*consultas, *entidades.listar_consultas()):
+        gravar_respostas_brutas(
+            conexao,
+            empresa_id,
+            execucao_id,
+            conta_anuncio_id,
+            consulta.endpoint,
+            consulta.parametros,
+            data_referencia,
+            consulta.paginas,
+        )
+    linhas = transformar_entidades(
+        entidades.campanhas.paginas,
+        entidades.conjuntos.paginas,
+        entidades.anuncios.paginas,
+    )
+    return carregar_entidades(
+        conexao, empresa_id, execucao_id, conta_anuncio_id, linhas
     )
