@@ -22,6 +22,7 @@ import requests
 
 from etl.configuracao import (
     INTERVALO_CONSULTA_RELATORIO_SEGUNDOS,
+    MAXIMO_TENTATIVAS,
     TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
     TEMPO_MAXIMO_RELATORIO_SEGUNDOS,
     URL_BASE_API_META,
@@ -74,7 +75,9 @@ PADRAO_ID_RELATORIO: Final = re.compile(r"[0-9]+")
 # Estados do job assíncrono, conferidos em 04/11/2026 em
 # https://developers.facebook.com/docs/marketing-api/insights/best-practices.
 STATUS_JOB_CONCLUIDO: Final = "Job Completed"
-STATUS_JOB_SEM_CONCLUSAO: Final = frozenset({"Job Failed", "Job Skipped"})
+STATUS_JOB_FALHO: Final = "Job Failed"
+# A Meta pede para reenviar o job expirado.
+STATUS_JOB_EXPIRADO: Final = "Job Skipped"
 PERCENTUAL_JOB_CONCLUIDO: Final = 100
 # Só os códigos do erro do job: a mensagem e o título podem trazer nome de
 # campanha (RNF-17).
@@ -138,7 +141,8 @@ class ErroPermissao(ErroApiMeta):
 
 
 class ErroJobAssincrono(ErroApiMeta):
-    """Job falho, expirado ou sem conclusão até TEMPO_MAXIMO_RELATORIO_SEGUNDOS."""
+    """Job falho, expirado em todos os envios ou sem conclusão até
+    TEMPO_MAXIMO_RELATORIO_SEGUNDOS."""
 
     TIPO = "job assíncrono sem conclusão"
 
@@ -237,19 +241,28 @@ class ClienteApiMeta:
         e gastar a cota com páginas pequenas.
         """
         url = montar_url(objeto_id, Endpoint.INSIGHTS)
-        relatorio_id = ler_id_relatorio(self._requisitar(POST, url, parametros))
-        self._aguardar_relatorio(relatorio_id)
-        leitura = {"limit": parametros["limit"]} if "limit" in parametros else {}
-        return self._paginar(montar_url(relatorio_id, Endpoint.INSIGHTS), leitura)
+        for envio in range(1, MAXIMO_TENTATIVAS + 1):
+            relatorio_id = ler_id_relatorio(self._requisitar(POST, url, parametros))
+            if self._aguardar_relatorio(relatorio_id):
+                leitura = (
+                    {"limit": parametros["limit"]} if "limit" in parametros else {}
+                )
+                url_resultado = montar_url(relatorio_id, Endpoint.INSIGHTS)
+                return self._paginar(url_resultado, leitura)
+        raise ErroJobAssincrono(tentativas=envio)
 
-    def _aguardar_relatorio(self, relatorio_id: str) -> None:
+    def _aguardar_relatorio(self, relatorio_id: str) -> bool:
+        """True quando o job conclui; False quando expira e precisa de novo
+        envio."""
         url = montar_url(relatorio_id, Endpoint.OBJETO)
         inicio = self._relogio()
         while True:
             estado = self._requisitar(GET, url, {"fields": CAMPOS_ESTADO_RELATORIO})
             if relatorio_concluido(estado):
-                return
-            if estado.get("async_status") in STATUS_JOB_SEM_CONCLUSAO:
+                return True
+            if estado.get("async_status") == STATUS_JOB_EXPIRADO:
+                return False
+            if estado.get("async_status") == STATUS_JOB_FALHO:
                 raise montar_excecao_job(estado)
             if self._relogio() - inicio >= TEMPO_MAXIMO_RELATORIO_SEGUNDOS:
                 raise ErroJobAssincrono()
