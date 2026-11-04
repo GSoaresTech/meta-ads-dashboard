@@ -454,6 +454,41 @@ def test_recusa_endpoint_fora_da_lista_sem_chamar_a_api(
 
 
 @pytest.mark.parametrize(
+    "campos",
+    [
+        "id,leads",
+        "id,leads{field_data}",
+        "name,leadgen_forms.limit(10){id}",
+        "creative{id},leadgen_forms",
+        " Leads ",
+    ],
+)
+def test_recusa_expansao_de_campo_para_leads_sem_chamar_a_api(
+    api: responses.RequestsMock, cliente: ClienteApiMeta, campos: str
+) -> None:
+    """RNF-24: a expansão de campo leria a aresta de leads por um endpoint
+    da lista."""
+    with pytest.raises(ValueError, match="fields"):
+        cliente.paginar(CONTA, Endpoint.ANUNCIOS, {"fields": campos})
+
+    assert len(api.calls) == 0
+
+
+def test_aceita_campos_sem_aresta_de_leads(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    """O tipo de ação lead é métrica agregada (R-21), não a aresta de leads."""
+    pagina = ler_fixture("insights_anuncio_dia_pagina_2")
+    parametros = {
+        "fields": "ad_id,spend,actions,cost_per_action_type",
+        "filtering": '[{"field":"action_type","operator":"IN","value":["lead"]}]',
+    }
+    simular(api, f"{CONTA}/insights", pagina)
+
+    assert cliente.paginar(CONTA, Endpoint.INSIGHTS, parametros) == [pagina["corpo"]]
+
+
+@pytest.mark.parametrize(
     "objeto_id",
     [
         "990000000000301/leads",
