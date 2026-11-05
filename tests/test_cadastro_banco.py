@@ -4,7 +4,7 @@ ponta, pela execução por empresa (RF-01, RF-09, RF-17, RF-43). Exige o banco
 local de pé.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from uuid import UUID
 
 import psycopg
@@ -12,7 +12,8 @@ import pytest
 import responses
 from responses.registries import OrderedRegistry
 
-from etl.cadastro import TarefaCadastro
+from etl.cadastro import CadastroContaExtraido, TarefaCadastro
+from etl.carga import Contagens
 from etl.cliente_api_meta import ClienteApiMeta
 from etl.execucao import StatusExecucao, executar_empresa
 from tests.cadastro_exemplo import (
@@ -349,3 +350,43 @@ def test_objetivo_fora_do_catalogo_gera_aviso_sem_falhar_a_carga(
         (empresa.empresa_id,),
     ).fetchall()
     assert avisos == [("objetivo_nao_classificado", campanha["id"], 1)]
+
+
+class TarefaCadastroDuasVezes(TarefaCadastro):
+    """Carrega o mesmo cadastro duas vezes na mesma execução."""
+
+    def carregar(
+        self,
+        conexao: psycopg.Connection,
+        empresa_id: UUID,
+        execucao_id: UUID,
+        dados: Sequence[CadastroContaExtraido],
+    ) -> Contagens:
+        super().carregar(conexao, empresa_id, execucao_id, dados)
+        return super().carregar(conexao, empresa_id, execucao_id, dados)
+
+
+def test_campanha_gravada_duas_vezes_na_execucao_gera_um_so_aviso(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa: EmpresaTeste,
+) -> None:
+    # Na rotina diária, a mesma campanha pode ser gravada pelo cadastro e de
+    # novo pelo ID, como pai de um anúncio excluído: o aviso do RF-15 é um
+    # por campanha em cada execução.
+    fixtures = ler_fixtures()
+    fixtures["cadastro_campanhas"]["corpo"]["data"][0]["objective"] = (
+        "OUTCOME_OBJETIVO_FUTURO"
+    )
+
+    with responses.RequestsMock(registry=OrderedRegistry) as api:
+        simular_cadastro(api, fixtures)
+        tarefa = TarefaCadastroDuasVezes(
+            conectar_etl, ClienteApiMeta(TOKEN, dormir=lambda segundos: None)
+        )
+        status = executar_empresa(
+            conectar_etl, empresa.empresa_id, TIPO_EXECUCAO, tarefa
+        )
+
+    assert status is StatusExecucao.SUCESSO
+    assert contar(conexao_operador, "aviso_execucao", empresa.empresa_id) == 1
