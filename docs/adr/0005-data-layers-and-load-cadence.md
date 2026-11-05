@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 30/10/2026
-- Atualizado em: 04/11/2026, com a expiração da URL da miniatura
+- Atualizado em: 04/11/2026, com a expiração da URL da miniatura, e 05/11/2026, com o horário da execução diária
 
 ## Contexto
 
@@ -33,7 +33,7 @@ O tratamento de dados é intensivo. A Meta revisa conversões de dias passados (
 
 **Cadência**
 - **Horária**, em minuto quebrado (ex.: `17 * * * *`) para fugir do pico do início da hora (R-08): hoje e ontem, com métricas e ações no nível de anúncio e quebras por campanha.
-- **Diária**, de madrugada, também em minuto quebrado. Executa:
+- **Diária**, de madrugada, também em minuto quebrado: `43 6 * * *`, 03:43 em Brasília, porque o cron do GitHub usa UTC. Executa:
   - reprocessamento dos **28 dias** anteriores (R-17);
   - alcance e impressões por semana ISO, mês e ano (ADR-0006);
   - cadastro de entidades e criativos;
