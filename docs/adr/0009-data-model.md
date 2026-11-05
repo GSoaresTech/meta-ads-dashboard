@@ -327,6 +327,11 @@ As credenciais seguem estas regras:
   - Como o token nasce no banco, ele não aparece no texto de nenhum comando de geração, e assim não vai ao histórico do `psql` nem ao log do banco.
   - Cada geração cria uma credencial nova, sem revogar as anteriores da empresa.
 - **Exigência do operador**: fica em `normalizado.exigir_operador(p_credencial text)`, também interna, que levanta o `42501` com a mensagem `acesso negado` quando a credencial não resolve para o escopo `operador`.
+- **Revogação**: a `revogar_credencial` grava `revogado_em` e mantém a linha, e a resolução deixa de achar a credencial já na chamada seguinte (RF-45).
+  - Revogar de novo mantém a data da primeira revogação.
+  - A data é o `now()` da transação que revoga ou, se a credencial foi criada depois do início dela, o `criado_em`. Assim, o `CHECK (revogado_em >= criado_em)` nunca recusa a revogação, o que levaria a linha, com o hash, à mensagem de erro e ao log.
+  - Um ID que não é de nenhuma credencial levanta o `P0002` (`no_data_found`), para que um engano não passe por revogação feita.
+  - O operador também revoga credenciais de operador, inclusive a própria.
 
 A resolução do resultado principal de cada campanha, com a precedência do ADR-0007, é uma função interna, `normalizado.resolver_resultado_campanha(p_empresa_id uuid)`, sem credencial. As funções de `analitico` a usam, e a `etl_carga` a executa para os avisos do RF-15 e a comparação do RF-16, para que a regra exista num só lugar. Ela é `SECURITY INVOKER` e devolve uma linha por campanha da empresa, com `campanha_id`; `resultado_objetivo_id`, a regra do catálogo, de onde vêm o nome do objetivo e as métricas de apoio mesmo com sobrescrita; `metrica_resultado` e `metrica_kpi`, já com a sobrescrita aplicada; e `sobrescrita`, que diz se o par veio dela. A campanha "Não classificado" é a que resolve para a regra sem objetivo.
 
