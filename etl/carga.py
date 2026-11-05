@@ -200,6 +200,18 @@ WHERE empresa_id = %(empresa_id)s AND conjunto_anuncio_id = ANY(%(conjuntos)s)
 """
 COLUNAS_JANELA: Final = ("conjunto_anuncio_id", "tipo_evento", "janela_dias")
 
+# As campanhas dadas cujo objetivo cai em "Não classificado", a regra sem
+# objetivo do catálogo, pela mesma resolução que o painel usa (RF-15;
+# ADR-0009 §4).
+REGISTRAR_AVISOS_NAO_CLASSIFICADO: Final = """
+INSERT INTO normalizado.aviso_execucao (empresa_id, execucao_id, tipo, campanha_id)
+SELECT %(empresa_id)s, %(execucao_id)s, 'objetivo_nao_classificado', resolvido.campanha_id
+FROM normalizado.resolver_resultado_campanha(%(empresa_id)s) AS resolvido
+JOIN normalizado.resultado_objetivo AS regra ON regra.id = resolvido.resultado_objetivo_id
+WHERE regra.objetivo IS NULL
+  AND resolvido.campanha_id = ANY(%(campanhas)s)
+"""
+
 
 class ErroContaAusente(Exception):
     """A conta do cadastro não existe na empresa."""
@@ -706,7 +718,9 @@ def carregar_entidades(
 ) -> Contagens:
     """Grava as entidades de uma conta de cima para baixo, porque cada filho
     precisa da chave interna do pai: as campanhas, os conjuntos com as
-    janelas, as Páginas, os criativos e os anúncios (RF-01).
+    janelas, as Páginas, os criativos e os anúncios (RF-01). Por fim,
+    registra o aviso das campanhas gravadas com objetivo fora do catálogo
+    (RF-15).
 
     Roda na transação da empresa. Uma entidade que já não vem da API fica
     como estava: a ETL não apaga entidades (ADR-0009 §2).
@@ -764,7 +778,30 @@ def carregar_entidades(
         "pagina": len(paginas),
         "criativo": len(criativos),
         "anuncio": len(anuncios),
+        "aviso_execucao": registrar_avisos_nao_classificado(
+            conexao, empresa_id, execucao_id, list(campanhas.values())
+        ),
     }
+
+
+def registrar_avisos_nao_classificado(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    campanhas: Sequence[UUID],
+) -> int:
+    """Grava um aviso por campanha dada que fica "Não classificado", e
+    devolve quantos gravou. O objetivo desconhecido não falha a carga: a
+    campanha entra, e o aviso aponta para ela pelo id interno (RF-15).
+
+    Só as campanhas desta carga, e não todas as da empresa, para que cada
+    conta da execução avise apenas das próprias. O aviso entra na transação
+    da carga, porque o de uma carga desfeita não vale (ADR-0009 §5)."""
+    exigir_transacao(conexao)
+    return conexao.execute(
+        REGISTRAR_AVISOS_NAO_CLASSIFICADO,
+        {"empresa_id": empresa_id, "execucao_id": execucao_id, "campanhas": campanhas},
+    ).rowcount
 
 
 def trocar_referencias(
