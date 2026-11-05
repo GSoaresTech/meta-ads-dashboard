@@ -1,0 +1,623 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "9.87",
+        "impressions": "1430",
+        "reach": "1238",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "237"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "237"
+          },
+          {
+            "action_type": "video_view",
+            "value": "231"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "6.23",
+        "impressions": "900",
+        "reach": "779",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "148"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "148"
+          },
+          {
+            "action_type": "video_view",
+            "value": "144"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "3.65",
+        "impressions": "527",
+        "reach": "456",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "87"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "87"
+          },
+          {
+            "action_type": "video_view",
+            "value": "84"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "1.72",
+        "impressions": "248",
+        "reach": "215",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "40"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "40"
+          },
+          {
+            "action_type": "video_view",
+            "value": "39"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "16.06",
+        "impressions": "1897",
+        "reach": "1554",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "29"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "31"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "31"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "10.12",
+        "impressions": "1194",
+        "reach": "979",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "16"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "19"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "19"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "5.93",
+        "impressions": "700",
+        "reach": "574",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "9"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "11"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "11"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "2.79",
+        "impressions": "329",
+        "reach": "270",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "4"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "5"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "5"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "19",
+        "reach": "18",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "3"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "3"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "10",
+        "reach": "10",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "1"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "6",
+        "reach": "5",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "2",
+        "reach": "2",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "22.15",
+        "impressions": "2399",
+        "reach": "2026",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "36"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "13.96",
+        "impressions": "1510",
+        "reach": "1276",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "21"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "8.19",
+        "impressions": "885",
+        "reach": "748",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "12"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "3.85",
+        "impressions": "416",
+        "reach": "352",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "5"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "2.77",
+        "impressions": "375",
+        "reach": "364",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "4"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.75",
+        "impressions": "235",
+        "reach": "229",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "2"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.02",
+        "impressions": "137",
+        "reach": "134",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "0.48",
+        "impressions": "64",
+        "reach": "63",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "9.14",
+        "impressions": "1324",
+        "reach": "1151",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "2"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "218"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "218"
+          },
+          {
+            "action_type": "video_view",
+            "value": "211"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "5.77",
+        "impressions": "833",
+        "reach": "725",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "136"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "136"
+          },
+          {
+            "action_type": "video_view",
+            "value": "131"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "3.38",
+        "impressions": "488",
+        "reach": "425",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "79"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "79"
+          },
+          {
+            "action_type": "video_view",
+            "value": "77"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "1.59",
+        "impressions": "229",
+        "reach": "200",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "37"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "37"
+          },
+          {
+            "action_type": "video_view",
+            "value": "36"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "14.31",
+        "impressions": "1786",
+        "reach": "1468",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "24"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "27"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "27"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "9",
+        "impressions": "1125",
+        "reach": "925",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "14"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "15"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "15"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "5.28",
+        "impressions": "659",
+        "reach": "542",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "8"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "9"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "9"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "2.48",
+        "impressions": "310",
+        "reach": "255",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "4"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "4"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Unknown"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "20.58",
+        "impressions": "2296",
+        "reach": "1940",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "31"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "São Paulo (state)"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "12.97",
+        "impressions": "1446",
+        "reach": "1222",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "19"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Rio de Janeiro (state)"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "7.6",
+        "impressions": "847",
+        "reach": "716",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "11"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Minas Gerais"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "3.58",
+        "impressions": "398",
+        "reach": "337",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "5"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "region": "Unknown"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUlF1ZWJyYUluaWNpb0V4ZW1wbG8",
+        "after": "QVFIUlF1ZWJyYUZpbmFsRXhlbXBsbw"
+      }
+    }
+  }
+}
