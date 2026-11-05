@@ -10,22 +10,29 @@ from etl.cliente_api_meta import ClienteApiMeta, Endpoint, ErroRespostaInvalida
 from etl.extracao import (
     CAMPOS_ALCANCE_PERIODO,
     CAMPOS_INSIGHTS_DIARIOS,
+    CAMPOS_QUEBRAS,
+    DIMENSOES_QUEBRA,
     STATUS_EFETIVOS_CADASTRO,
     NivelAlcance,
     PeriodoAlcance,
     TipoPeriodo,
+    TipoQuebra,
     calcular_data_referencia,
     extrair_alcance_periodo,
     extrair_cadastro_conta,
+    extrair_campanhas_por_id,
     extrair_entidades_por_id,
     extrair_insights_diarios,
+    extrair_quebras_campanha,
     listar_anuncios_insights,
+    listar_ids_insights,
     montar_campos,
     montar_parametros_alcance,
     montar_parametros_insights_diarios,
+    montar_parametros_quebra,
 )
 from etl.mapa_campos import MAPA_CAMPOS, ObjetoApi, TipoCampo
-from tests import alcance_exemplo
+from tests import alcance_exemplo, quebras_exemplo
 from tests.cadastro_exemplo import ID_META_CONTA, ler_fixtures, simular_cadastro
 from tests.insights_exemplo import (
     FIM,
@@ -356,3 +363,93 @@ def test_alcance_do_periodo_vem_de_uma_consulta_da_conta_por_nivel(
     # Uma chamada por nível com todas as entidades, e não uma por entidade
     # (R-15).
     assert len(api.calls) == 3
+
+
+def test_quebras_pedem_o_nivel_de_campanha_dia_a_dia_nas_combinacoes_do_rf_03() -> None:
+    # Só as três combinações do RF-03, todas entre as que aceitam action_type
+    # (R-23), e o mesmo filtro dos insights diários, porque a lista por
+    # nível omite os objetos excluídos (R-38).
+    assert [str(tipo) for tipo in TipoQuebra] == [
+        tipo for tipo, _, _ in quebras_exemplo.QUEBRAS
+    ]
+    for tipo, quebras, _ in quebras_exemplo.QUEBRAS:
+        parametros = montar_parametros_quebra(TipoQuebra(tipo), INICIO, FIM)
+
+        assert parametros == quebras_exemplo.montar_parametros_quebra(quebras)
+
+
+def test_quebras_ficam_na_janela_de_atribuicao_padrao() -> None:
+    # A mesma janela dos insights diários (ADR-0007; R-22).
+    for tipo in TipoQuebra:
+        parametros = montar_parametros_quebra(tipo, INICIO, FIM)
+
+        assert "use_unified_attribution_setting" not in parametros
+        assert "action_attribution_windows" not in parametros
+        assert "action_breakdowns" not in parametros
+
+
+def test_todo_campo_e_dimensao_de_quebra_tem_entrada_no_mapa() -> None:
+    dimensoes = {d for por_tipo in DIMENSOES_QUEBRA.values() for d in por_tipo}
+
+    assert {*CAMPOS_QUEBRAS, *dimensoes} <= set(MAPA_CAMPOS[ObjetoApi.INSIGHTS])
+
+
+def test_quebras_vem_de_uma_consulta_da_conta_por_combinacao(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    fixtures = quebras_exemplo.ler_fixtures()
+    quebras_exemplo.simular_quebras(api, fixtures, com_campanha=False)
+
+    consultas = extrair_quebras_campanha(cliente, ID_META_CONTA, INICIO, FIM)
+
+    assert list(consultas) == list(TipoQuebra)
+    for tipo, quebras, nome in quebras_exemplo.QUEBRAS:
+        consulta = consultas[TipoQuebra(tipo)]
+        assert consulta.endpoint is Endpoint.INSIGHTS
+        assert consulta.parametros == quebras_exemplo.montar_parametros_quebra(quebras)
+        assert consulta.paginas == [fixtures[nome]["corpo"]]
+    # Uma chamada por combinação com todas as campanhas, e não uma por
+    # campanha (R-15).
+    assert len(api.calls) == 3
+
+
+def test_lista_as_campanhas_das_quebras_sem_repeticao() -> None:
+    linhas = quebras_exemplo.listar_linhas(quebras_exemplo.ler_fixtures(), "regiao")
+
+    assert listar_ids_insights([{"data": linhas}], "campaign_id") == [
+        "995000000000000002",
+        "995000000000000003",
+        "995000000000000004",
+        "995000000000000005",
+        quebras_exemplo.ID_META_CAMPANHA_AUSENTE,
+    ]
+
+
+def test_le_pelo_id_so_as_campanhas(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    # A campanha das quebras que o banco não tem, como a criada depois do
+    # cadastro ou a excluída, legível pelo ID (R-38). Não há anúncio nem
+    # conjunto a ler: as quebras só referenciam a campanha.
+    quebras_exemplo.simular_campanha_ausente(api)
+
+    entidades = extrair_campanhas_por_id(
+        cliente, [quebras_exemplo.ID_META_CAMPANHA_AUSENTE]
+    )
+
+    assert entidades.campanhas.paginas == [
+        ler_fixtures_insights()["entidade_campanha_por_id"]["corpo"]
+    ]
+    assert entidades.campanhas.parametros == ler_campos(ObjetoApi.CAMPANHA)
+    assert not entidades.anuncios.paginas
+    assert not entidades.conjuntos.paginas
+    assert len(api.calls) == 1
+
+
+def test_sem_campanha_ausente_nao_chama_a_api(
+    api: responses.RequestsMock, cliente: ClienteApiMeta
+) -> None:
+    entidades = extrair_campanhas_por_id(cliente, [])
+
+    assert all(not c.paginas for c in entidades.listar_consultas())
+    assert not api.calls

@@ -1,0 +1,783 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "8.15",
+        "impressions": "1181",
+        "reach": "1023",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "196"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "196"
+          },
+          {
+            "action_type": "video_view",
+            "value": "191"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "5.8",
+        "impressions": "838",
+        "reach": "725",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "138"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "138"
+          },
+          {
+            "action_type": "video_view",
+            "value": "134"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "4.51",
+        "impressions": "652",
+        "reach": "564",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "107"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "107"
+          },
+          {
+            "action_type": "video_view",
+            "value": "104"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "3.01",
+        "impressions": "434",
+        "reach": "376",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "71"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "71"
+          },
+          {
+            "action_type": "video_view",
+            "value": "69"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "13.26",
+        "impressions": "1567",
+        "reach": "1285",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "17"
+          },
+          {
+            "action_type": "lead",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "23"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "27"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "27"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "9.42",
+        "impressions": "1112",
+        "reach": "911",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "11"
+          },
+          {
+            "action_type": "lead",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "15"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "1"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "17"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "17"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "7.33",
+        "impressions": "865",
+        "reach": "709",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "8"
+          },
+          {
+            "action_type": "lead",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "12"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "1"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "13"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "13"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "4.89",
+        "impressions": "576",
+        "reach": "472",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "5"
+          },
+          {
+            "action_type": "link_click",
+            "value": "8"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "9"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "9"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "16",
+        "reach": "15",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "3"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "3"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "9",
+        "reach": "9",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "1"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "7",
+        "reach": "7",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "5",
+        "reach": "4",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "18.29",
+        "impressions": "1981",
+        "reach": "1674",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "30"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "purchase",
+            "value": "2"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "purchase",
+            "value": "259.8"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "13",
+        "impressions": "1406",
+        "reach": "1188",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "19"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "10.11",
+        "impressions": "1094",
+        "reach": "924",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "15"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "6.74",
+        "impressions": "729",
+        "reach": "616",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "10"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "2.29",
+        "impressions": "310",
+        "reach": "302",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "5"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.63",
+        "impressions": "218",
+        "reach": "213",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.26",
+        "impressions": "170",
+        "reach": "165",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "0.84",
+        "impressions": "113",
+        "reach": "110",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "7.56",
+        "impressions": "1094",
+        "reach": "951",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "2"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "181"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "181"
+          },
+          {
+            "action_type": "video_view",
+            "value": "175"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "5.37",
+        "impressions": "775",
+        "reach": "675",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "126"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "126"
+          },
+          {
+            "action_type": "video_view",
+            "value": "122"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "4.17",
+        "impressions": "603",
+        "reach": "525",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "98"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "98"
+          },
+          {
+            "action_type": "video_view",
+            "value": "95"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "2.78",
+        "impressions": "402",
+        "reach": "350",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "65"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "65"
+          },
+          {
+            "action_type": "video_view",
+            "value": "63"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "11.8",
+        "impressions": "1476",
+        "reach": "1214",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "15"
+          },
+          {
+            "action_type": "lead",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "20"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "23"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "23"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "8.38",
+        "impressions": "1047",
+        "reach": "861",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "9"
+          },
+          {
+            "action_type": "link_click",
+            "value": "13"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "14"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "14"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "6.52",
+        "impressions": "814",
+        "reach": "669",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "7"
+          },
+          {
+            "action_type": "link_click",
+            "value": "10"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "11"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "11"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "4.35",
+        "impressions": "543",
+        "reach": "446",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "5"
+          },
+          {
+            "action_type": "link_click",
+            "value": "6"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "7"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "7"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "18-24",
+        "gender": "not specified"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "17",
+        "impressions": "1896",
+        "reach": "1602",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "27"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "purchase",
+            "value": "1"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "purchase",
+            "value": "129.9"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "12.08",
+        "impressions": "1346",
+        "reach": "1138",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "17"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "25-34",
+        "gender": "male"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "9.39",
+        "impressions": "1047",
+        "reach": "885",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "13"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "35-44",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "6.26",
+        "impressions": "698",
+        "reach": "590",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "9"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "age": "18-24",
+        "gender": "not specified"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUlF1ZWJyYUluaWNpb0V4ZW1wbG8",
+        "after": "QVFIUlF1ZWJyYUZpbmFsRXhlbXBsbw"
+      }
+    }
+  }
+}

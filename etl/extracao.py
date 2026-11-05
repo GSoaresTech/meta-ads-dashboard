@@ -1,8 +1,10 @@
 """Extração de uma conta de anúncios: o cadastro, com a própria conta, as
 campanhas, os conjuntos e os anúncios, com o criativo de cada anúncio expandido
 (RF-01, RF-43), os insights diários por anúncio, com as entidades que eles
-referenciam lidas pelo ID (RF-02; ADR-0009 §5), e o alcance por período, por
-conta, campanha e anúncio (RF-04; ADR-0006). Só faz o I/O de rede, fora de
+referenciam lidas pelo ID (RF-02; ADR-0009 §5), as quebras diárias por
+campanha, com as campanhas que elas referenciam lidas pelo ID (RF-03), e o
+alcance por período, por conta, campanha e anúncio (RF-04; ADR-0006). Só faz
+o I/O de rede, fora de
 transação, e devolve as páginas como a Meta as entregou, para a gravação em
 bruto antes da transformação (RF-09; CLAUDE.md §3).
 """
@@ -84,6 +86,35 @@ FILTRO_STATUS_INSIGHTS: Final = json.dumps(
         }
     ]
 )
+
+
+class TipoQuebra(StrEnum):
+    """Os tipos de quebra do CHECK de quebra_diaria_campanha."""
+
+    IDADE_GENERO = "idade_genero"
+    PLATAFORMA_POSICIONAMENTO = "plataforma_posicionamento"
+    REGIAO = "regiao"
+
+
+# As combinações do RF-03, todas entre as que aceitam action_type (R-23). A
+# ordem das dimensões é a da categoria e da subcategoria.
+DIMENSOES_QUEBRA: Final[Mapping[TipoQuebra, tuple[str, ...]]] = {
+    TipoQuebra.IDADE_GENERO: ("age", "gender"),
+    TipoQuebra.PLATAFORMA_POSICIONAMENTO: ("publisher_platform", "platform_position"),
+    TipoQuebra.REGIAO: ("region",),
+}
+# As métricas-base e as ações, como nos insights diários, sem janela pedida
+# (ADR-0007; R-22). Sem action_breakdowns, a API acrescenta action_type
+# sozinha (R-23); as dimensões da quebra vêm em toda linha sem ser pedidas.
+CAMPOS_QUEBRAS: Final = (
+    "campaign_id",
+    "spend",
+    "impressions",
+    "reach",
+    "actions",
+    "action_values",
+)
+NIVEL_CAMPANHA: Final = "campaign"
 
 
 class TipoPeriodo(StrEnum):
@@ -264,6 +295,40 @@ def extrair_insights_diarios(
     return Consulta(Endpoint.INSIGHTS, parametros, paginas)
 
 
+def montar_parametros_quebra(
+    tipo: TipoQuebra, inicio: date, fim: date
+) -> dict[str, str]:
+    """No nível de campanha, o filtro dos insights diários, porque a lista
+    por nível omite os objetos excluídos (R-38)."""
+    return {
+        "level": NIVEL_CAMPANHA,
+        "time_increment": INCREMENTO_DIARIO,
+        "time_range": json.dumps(
+            {"since": inicio.isoformat(), "until": fim.isoformat()}
+        ),
+        "breakdowns": ",".join(DIMENSOES_QUEBRA[tipo]),
+        "fields": ",".join(CAMPOS_QUEBRAS),
+        "filtering": FILTRO_STATUS_INSIGHTS,
+        "limit": str(LIMITE_PAGINA_INSIGHTS),
+    }
+
+
+def extrair_quebras_campanha(
+    cliente: ClienteApiMeta, id_meta_conta: str, inicio: date, fim: date
+) -> dict[TipoQuebra, Consulta]:
+    """As quebras de cada campanha e dia de inicio a fim, inclusive, numa
+    consulta paginada da conta por combinação, com todas as campanhas, em
+    vez de uma consulta por campanha (R-15). As datas são as do fuso da
+    conta, como a API as entrega (R-17)."""
+    objeto_conta = f"{PREFIXO_ID_CONTA}{id_meta_conta}"
+    consultas = {}
+    for tipo in TipoQuebra:
+        parametros = montar_parametros_quebra(tipo, inicio, fim)
+        paginas = cliente.ler_insights(objeto_conta, parametros)
+        consultas[tipo] = Consulta(Endpoint.INSIGHTS, parametros, paginas)
+    return consultas
+
+
 def listar_anuncios_insights(paginas: Sequence[Mapping[str, object]]) -> list[str]:
     """Os IDs dos anúncios das linhas de insights, sem repetição e na ordem,
     para a conferência das entidades ausentes do banco."""
@@ -302,6 +367,22 @@ def extrair_entidades_por_id(
         cliente, ObjetoApi.CAMPANHA, listar_referencias(conjuntos, "campaign_id")
     )
     return EntidadesExtraidas(anuncios, conjuntos, campanhas)
+
+
+def extrair_campanhas_por_id(
+    cliente: ClienteApiMeta, ids_campanhas: Sequence[str]
+) -> EntidadesExtraidas:
+    """Lê pelo ID cada campanha dada, sem anúncios nem conjuntos.
+
+    Serve às campanhas das quebras que ainda não estão no banco: criadas
+    depois do último cadastro ou excluídas, que continuam legíveis pelo ID
+    (R-38). As quebras só referenciam a campanha.
+    """
+    return EntidadesExtraidas(
+        ler_objetos(cliente, ObjetoApi.ANUNCIO, []),
+        ler_objetos(cliente, ObjetoApi.CONJUNTO, []),
+        ler_objetos(cliente, ObjetoApi.CAMPANHA, ids_campanhas),
+    )
 
 
 def ler_objetos(

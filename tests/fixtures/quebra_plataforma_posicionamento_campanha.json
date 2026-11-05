@@ -1,0 +1,637 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "8.8",
+        "impressions": "1274",
+        "reach": "1103",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "211"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "211"
+          },
+          {
+            "action_type": "video_view",
+            "value": "205"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "7.09",
+        "impressions": "1024",
+        "reach": "887",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "168"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "168"
+          },
+          {
+            "action_type": "video_view",
+            "value": "164"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "5.58",
+        "impressions": "807",
+        "reach": "698",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "133"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "133"
+          },
+          {
+            "action_type": "video_view",
+            "value": "129"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "14.31",
+        "impressions": "1690",
+        "reach": "1385",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "18"
+          },
+          {
+            "action_type": "lead",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "24"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "28"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "28"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "11.52",
+        "impressions": "1359",
+        "reach": "1114",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "13"
+          },
+          {
+            "action_type": "lead",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "19"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "1"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "21"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "21"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "9.07",
+        "impressions": "1071",
+        "reach": "878",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "10"
+          },
+          {
+            "action_type": "lead",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "15"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "1"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "17"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "17"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "16",
+        "reach": "15",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "2"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "2"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "12",
+        "reach": "11",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "1"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000004",
+        "spend": "0",
+        "impressions": "9",
+        "reach": "9",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "1"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "19.74",
+        "impressions": "2137",
+        "reach": "1806",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "31"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "purchase",
+            "value": "2"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "259.8"
+          },
+          {
+            "action_type": "purchase",
+            "value": "259.8"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "15.89",
+        "impressions": "1719",
+        "reach": "1452",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "24"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "12.52",
+        "impressions": "1354",
+        "reach": "1144",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "19"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "2.46",
+        "impressions": "334",
+        "reach": "325",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "4"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.99",
+        "impressions": "267",
+        "reach": "260",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "2"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000026",
+        "spend": "1.57",
+        "impressions": "210",
+        "reach": "205",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "1"
+          },
+          {
+            "action_type": "link_click",
+            "value": "1"
+          }
+        ],
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "8.15",
+        "impressions": "1179",
+        "reach": "1026",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "2"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "193"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "193"
+          },
+          {
+            "action_type": "video_view",
+            "value": "187"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "6.56",
+        "impressions": "948",
+        "reach": "825",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "155"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "155"
+          },
+          {
+            "action_type": "video_view",
+            "value": "150"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000002",
+        "spend": "5.17",
+        "impressions": "747",
+        "reach": "650",
+        "actions": [
+          {
+            "action_type": "page_engagement",
+            "value": "122"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "122"
+          },
+          {
+            "action_type": "video_view",
+            "value": "118"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "12.73",
+        "impressions": "1592",
+        "reach": "1309",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "16"
+          },
+          {
+            "action_type": "lead",
+            "value": "3"
+          },
+          {
+            "action_type": "link_click",
+            "value": "21"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_lead",
+            "value": "3"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "23"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "23"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "10.25",
+        "impressions": "1280",
+        "reach": "1052",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "11"
+          },
+          {
+            "action_type": "link_click",
+            "value": "16"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "18"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "18"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000003",
+        "spend": "8.07",
+        "impressions": "1008",
+        "reach": "829",
+        "actions": [
+          {
+            "action_type": "landing_page_view",
+            "value": "9"
+          },
+          {
+            "action_type": "link_click",
+            "value": "12"
+          },
+          {
+            "action_type": "page_engagement",
+            "value": "14"
+          },
+          {
+            "action_type": "post_engagement",
+            "value": "14"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "18.34",
+        "impressions": "2046",
+        "reach": "1730",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "28"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "purchase",
+            "value": "1"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "129.9"
+          },
+          {
+            "action_type": "purchase",
+            "value": "129.9"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "14.76",
+        "impressions": "1645",
+        "reach": "1390",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "21"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "facebook",
+        "platform_position": "feed"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "11.63",
+        "impressions": "1296",
+        "reach": "1095",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "17"
+          }
+        ],
+        "date_start": "2026-10-02",
+        "date_stop": "2026-10-02",
+        "publisher_platform": "instagram",
+        "platform_position": "instagram_stories"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUlF1ZWJyYUluaWNpb0V4ZW1wbG8",
+        "after": "QVFIUlF1ZWJyYUZpbmFsRXhlbXBsbw"
+      }
+    }
+  }
+}
