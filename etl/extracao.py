@@ -267,12 +267,19 @@ def extrair_insights_diarios(
 def listar_anuncios_insights(paginas: Sequence[Mapping[str, object]]) -> list[str]:
     """Os IDs dos anúncios das linhas de insights, sem repetição e na ordem,
     para a conferência das entidades ausentes do banco."""
+    return listar_ids_insights(paginas, "ad_id")
+
+
+def listar_ids_insights(
+    paginas: Sequence[Mapping[str, object]], campo: str
+) -> list[str]:
+    """Os IDs do campo em cada linha de insights, sem repetição e na ordem."""
     ids = []
     for pagina in paginas:
         linhas = pagina.get("data")
         if not isinstance(linhas, list):
             raise ErroRespostaInvalida()
-        ids.extend(ler_id_referenciado(linha, "ad_id") for linha in linhas)
+        ids.extend(ler_id_referenciado(linha, campo) for linha in linhas)
     return list(dict.fromkeys(ids))
 
 
