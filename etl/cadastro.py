@@ -21,6 +21,10 @@ from etl.cliente_api_meta import ClienteApiMeta, Endpoint
 from etl.extracao import CadastroExtraido, agora_utc, extrair_cadastro_conta
 from etl.transformacao import transformar_cadastro
 
+LISTAR_EMPRESAS_ATIVAS: Final = """
+SELECT id FROM normalizado.empresa WHERE situacao = 'ativa' ORDER BY id
+"""
+
 LISTAR_CONTAS_ATIVAS: Final = """
 SELECT id, id_meta FROM normalizado.conta_anuncio
 WHERE empresa_id = %s AND situacao = 'ativa'
@@ -72,6 +76,15 @@ class TarefaCadastro:
                 )
             )
         return dict(contagens)
+
+
+def listar_empresas_ativas(conexao: psycopg.Connection) -> list[UUID]:
+    """O id interno de cada empresa ativa. A inativa não entra nas execuções
+    (RF-48)."""
+    return [
+        empresa_id
+        for (empresa_id,) in conexao.execute(LISTAR_EMPRESAS_ATIVAS).fetchall()
+    ]
 
 
 def listar_contas_ativas(

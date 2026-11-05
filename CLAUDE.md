@@ -46,6 +46,7 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/python -m pytest -m integracao`: roda só os testes de integração, que exigem o banco local de pé (`supabase start`).
 - `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
 - `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
+- `.venv/bin/python -m etl.rotina_diaria`: roda a rotina diária para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente.
 
 Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
 - `npm ci`: instala as dependências exatamente como fixadas no `package-lock.json`.

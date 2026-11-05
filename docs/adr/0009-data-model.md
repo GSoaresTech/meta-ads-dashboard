@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011 e a rotina diária na §5
 
 ## Contexto
 
@@ -342,6 +342,10 @@ A resolução do resultado principal de cada campanha, com a precedência do ADR
   | Diária | os 28 dias anteriores de cada conta (RF-05): métricas, ações e quebras; em `alcance_periodo`, as semanas, os meses e o ano que tocam a janela (ADR-0006) |
   | Histórica | o mês da fatia, para a conta da fatia; em `alcance_periodo`, os períodos que começam no mês |
 
+- **Rotina diária**: é uma execução por empresa, com uma só transação para todas as contas dela (RF-18). Uma falha em qualquer etapa desfaz a empresa inteira, e a execução seguinte recarrega a janela.
+  - A extração de cada conta começa pelo cadastro. O dia lido nele, no fuso da conta, dá a janela: os 28 dias anteriores, sem hoje, que é da execução horária. Assim, cada conta tem a própria janela, mesmo que as contas da empresa estejam em fusos diferentes, e a conta sem fuso já a tem na primeira execução.
+  - O cadastro lido ainda não foi carregado quando as outras consultas terminam. Por isso, a leitura pelo ID deixa de fora, além do que está no banco, o que o cadastro da mesma execução trouxe. Sem isso, a primeira execução de uma conta leria pelo ID cada anúncio com entrega no ano.
+  - A carga de cada conta segue a ordem cadastro, insights, quebras e alcance. As entidades vêm antes dos fatos, pela FK, e os insights antes das quebras (ADR-0011).
 - **Idempotência**: o "estado idêntico" do RF-17 compara as colunas de negócio, que são o grão e as medidas. Ficam de fora `execucao_id`, as colunas `*_em` e as chaves substitutas (`quebra_diaria_campanha.id`), que mudam a cada execução por definição.
 - **Fatia histórica**: a marca `concluida` em `fatia_historica` é gravada na mesma transação dos dados da fatia. Uma fatia interrompida nunca aparece como concluída, e a retomada começa pela primeira fatia não concluída (RF-07).
 - **Controle**:
