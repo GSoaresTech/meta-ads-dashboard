@@ -320,3 +320,32 @@ def test_conta_inativa_nao_e_extraida(
 
     assert status is StatusExecucao.SUCESSO
     assert contar(conexao_operador, "campanha", empresa.empresa_id) == 0
+
+
+def test_objetivo_fora_do_catalogo_gera_aviso_sem_falhar_a_carga(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa: EmpresaTeste,
+) -> None:
+    # RF-15: as outras três campanhas têm objetivo do catálogo e não geram
+    # aviso.
+    fixtures = ler_fixtures()
+    campanha = fixtures["cadastro_campanhas"]["corpo"]["data"][0]
+    campanha["objective"] = "OUTCOME_OBJETIVO_FUTURO"
+
+    status = executar_cadastro(conectar_etl, empresa.empresa_id, fixtures)
+
+    assert status is StatusExecucao.SUCESSO
+    avisos = conexao_operador.execute(
+        "SELECT aviso.tipo, campanha.id_meta, contagem.linhas"
+        " FROM normalizado.aviso_execucao AS aviso"
+        " JOIN normalizado.campanha AS campanha"
+        "  ON campanha.empresa_id = aviso.empresa_id AND campanha.id = aviso.campanha_id"
+        " JOIN normalizado.contagem_linhas_execucao AS contagem"
+        "  ON contagem.empresa_id = aviso.empresa_id"
+        "  AND contagem.execucao_id = aviso.execucao_id"
+        "  AND contagem.tabela = 'aviso_execucao'"
+        " WHERE aviso.empresa_id = %s",
+        (empresa.empresa_id,),
+    ).fetchall()
+    assert avisos == [("objetivo_nao_classificado", campanha["id"], 1)]
