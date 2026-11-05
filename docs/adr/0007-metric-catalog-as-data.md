@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 29/10/2026
-- Atualizado em: 04/11/2026, com a janela de atribuição e o formato de `results` verificados na API
+- Atualizado em: 04/11/2026, com a janela de atribuição e o formato de `results` verificados na API, e em 05/11/2026, com a janela e o desempate do critério de conjuntos divergentes
 
 ## Contexto
 
@@ -36,7 +36,7 @@ A referência diz que `use_unified_attribution_setting=true` reproduz o Gerencia
 - **Tabela de resultado por objetivo**: objetivo da API, meta de otimização (ou "qualquer"), nome do objetivo no painel, métrica de resultado principal, KPI principal e métricas de apoio.
 - **Tabela de sobrescrita por campanha**: campanha, métrica de resultado principal e KPI, mantida pelo operador (RF-49).
 - **Precedência**: sobrescrita > objetivo + meta de otimização do conjunto > objetivo + "qualquer" > "Não classificado".
-- **Conjuntos divergentes**: o resultado é resolvido por conjunto de anúncios. Se os conjuntos de uma campanha divergirem, a campanha usa o do conjunto com maior investimento nos últimos 28 dias (Q-08).
+- **Conjuntos divergentes**: o resultado é resolvido por conjunto de anúncios. Se os conjuntos de uma campanha divergirem, a campanha usa o do conjunto com maior investimento nos últimos 28 dias (Q-08). Os 28 dias vão até hoje, inclusive, no fuso da conta. No empate, inclusive quando nenhum conjunto investiu na janela, vence o conjunto de menor ID da Meta, em ordem numérica, para que a escolha não mude entre execuções. A campanha sem conjunto usa a regra de "qualquer" do objetivo.
 - **Atribuição**: os resultados usam a janela padrão da API, `7d_click` + `1d_view`, o mesmo valor de `results` (R-22, R-24). A ETL não envia `use_unified_attribution_setting` nem `action_attribution_windows`. Se esse valor bate com o Gerenciador nos conjuntos com outra configuração é *a confirmar* (Q-04).
 - **Seed**: o catálogo global inicial é o do `docs/REQUIREMENTS.md` §7, carregado por migration. Mudanças no catálogo global também entram por migration, como dado versionado. Depois do seed, ele é a fonte da verdade, e o §7 passa a apontar para ele. Sobrescritas e metas são dados operacionais, fora do repositório.
 - **Validação**: quando o `indicator` de `results` é `actions:<tipo>` e o tipo tem métrica no catálogo, a ETL compara o resultado do catálogo com o valor de `results` e registra divergências (RF-16, R-24). Os indicadores de pixel (`offsite_conversion.fb_pixel_lead`, `offsite_conversion.fb_pixel_purchase`) não têm métrica própria no catálogo, e compará-los com `lead` e `omni_purchase`, iguais nas campanhas observadas (R-21), depende da Q-10.

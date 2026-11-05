@@ -318,7 +318,7 @@ As funções da área do operador exigem escopo `operador` e seguem o mesmo padr
 
 A primeira credencial de operador é criada por uma função de `normalizado` executável só pelo `postgres`, pelo runbook.
 
-A resolução do resultado principal de cada campanha, com a precedência do ADR-0007, é uma função interna, `normalizado.resolver_resultado_campanha(p_empresa_id uuid)`, sem credencial. As funções de `analitico` a usam, e a `etl_carga` a executa para os avisos do RF-15 e a comparação do RF-16, para que a regra exista num só lugar.
+A resolução do resultado principal de cada campanha, com a precedência do ADR-0007, é uma função interna, `normalizado.resolver_resultado_campanha(p_empresa_id uuid)`, sem credencial. As funções de `analitico` a usam, e a `etl_carga` a executa para os avisos do RF-15 e a comparação do RF-16, para que a regra exista num só lugar. Ela é `SECURITY INVOKER` e devolve uma linha por campanha da empresa, com `campanha_id`; `resultado_objetivo_id`, a regra do catálogo, de onde vêm o nome do objetivo e as métricas de apoio mesmo com sobrescrita; `metrica_resultado` e `metrica_kpi`, já com a sobrescrita aplicada; e `sobrescrita`, que diz se o par veio dela. A campanha "Não classificado" é a que resolve para a regra sem objetivo.
 
 ### 5. Carga e substituição da janela
 
