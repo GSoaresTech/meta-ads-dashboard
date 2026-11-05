@@ -4,7 +4,7 @@
 -- os casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
 -- ADR-0007; ADR-0009 §2).
 BEGIN;
-SELECT plan(19);
+SELECT plan(21);
 
 SELECT isnt_empty('SELECT 1 FROM normalizado.metrica', 'o catálogo de métricas está carregado');
 SELECT isnt_empty('SELECT 1 FROM normalizado.resultado_objetivo', 'o catálogo de resultado por objetivo está carregado');
@@ -62,6 +62,53 @@ SELECT results_eq(
   $$,
   $$ VALUES ('Não classificado', NULL::text, NULL::text, NULL::text) $$,
   'existe uma única linha sem objetivo, "Não classificado", sem resultado nem KPI'
+);
+
+-- O mapa inteiro, como transcrito do REQUIREMENTS §7.2 da migration de
+-- carga. Uma mudança no catálogo global entra por migration e atualiza esta
+-- conferência no mesmo commit (ADR-0007).
+SELECT results_eq(
+  $$
+  SELECT r.objetivo, r.meta_otimizacao, r.nome_objetivo, r.metrica_resultado, r.metrica_kpi,
+         array_agg(a.metrica ORDER BY a.ordem)
+  FROM normalizado.resultado_objetivo AS r
+  JOIN normalizado.metrica_apoio_resultado AS a ON a.resultado_objetivo_id = r.id
+  GROUP BY r.id
+  ORDER BY r.objetivo NULLS LAST, r.meta_otimizacao NULLS FIRST
+  $$,
+  $$
+  VALUES
+    ('OUTCOME_APP_PROMOTION', NULL, 'Promoção de app', NULL, NULL, ARRAY['investimento', 'cliques_link']),
+    ('OUTCOME_AWARENESS', NULL, 'Reconhecimento', 'alcance', 'custo_mil_alcance', ARRAY['frequencia', 'impressoes', 'cpm']),
+    ('OUTCOME_ENGAGEMENT', NULL, 'Engajamento', 'interacoes_publicacao', 'custo_interacao', ARRAY['alcance', 'ctr', 'cpm']),
+    ('OUTCOME_ENGAGEMENT', 'CONVERSATIONS', 'Conversas', 'conversas_iniciadas', 'custo_conversa', ARRAY['cliques_link', 'ctr', 'cpm']),
+    ('OUTCOME_LEADS', NULL, 'Cadastros', 'cadastros', 'custo_cadastro', ARRAY['cliques_link', 'ctr', 'cpm']),
+    ('OUTCOME_LEADS', 'CONVERSATIONS', 'Cadastros por conversa', 'conversas_iniciadas', 'custo_conversa', ARRAY['cadastros', 'ctr']),
+    ('OUTCOME_SALES', NULL, 'Vendas', 'compras', 'custo_compra', ARRAY['valor_compras', 'roas', 'cliques_link']),
+    ('OUTCOME_SALES', 'CONVERSATIONS', 'Vendas por conversa', 'conversas_iniciadas', 'custo_conversa', ARRAY['compras', 'valor_compras']),
+    ('OUTCOME_TRAFFIC', NULL, 'Tráfego', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'visualizacoes_pagina_destino']),
+    ('OUTCOME_TRAFFIC', 'LANDING_PAGE_VIEWS', 'Tráfego', 'visualizacoes_pagina_destino', 'custo_visualizacao_pagina', ARRAY['cliques_link', 'ctr', 'cpc']),
+    (NULL, NULL, 'Não classificado', NULL, NULL, ARRAY['investimento', 'impressoes', 'cliques_link'])
+  $$,
+  'cada regra tem o nome, o resultado, o KPI e as métricas de apoio, em ordem, do REQUIREMENTS §7.2'
+);
+SELECT results_eq(
+  'SELECT objetivo_legado, objetivo FROM normalizado.objetivo_equivalente ORDER BY objetivo_legado',
+  $$
+  VALUES
+    ('APP_INSTALLS', 'OUTCOME_APP_PROMOTION'),
+    ('BRAND_AWARENESS', 'OUTCOME_AWARENESS'),
+    ('EVENT_RESPONSES', 'OUTCOME_ENGAGEMENT'),
+    ('LEAD_GENERATION', 'OUTCOME_LEADS'),
+    ('LINK_CLICKS', 'OUTCOME_TRAFFIC'),
+    ('MESSAGES', 'OUTCOME_ENGAGEMENT'),
+    ('PAGE_LIKES', 'OUTCOME_ENGAGEMENT'),
+    ('POST_ENGAGEMENT', 'OUTCOME_ENGAGEMENT'),
+    ('PRODUCT_CATALOG_SALES', 'OUTCOME_SALES'),
+    ('REACH', 'OUTCOME_AWARENESS'),
+    ('STORE_VISITS', 'OUTCOME_AWARENESS')
+  $$,
+  'cada objetivo legado de equivalente único leva ao objetivo atual da tabela oficial (R-40)'
 );
 
 -- Os critérios do RF-14 e do RF-31, na parte do catálogo: o rótulo exibido
