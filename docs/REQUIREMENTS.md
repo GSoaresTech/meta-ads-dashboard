@@ -321,33 +321,14 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 
 ## 7. Catálogo de métricas por objetivo
 
-Conteúdo inicial do catálogo, carregado por migration (ADR-0007). Os itens *a confirmar* dependem da Q-10.
+O catálogo é dado no banco (ADR-0007), nas tabelas `metrica`, `resultado_objetivo`, `metrica_apoio_resultado` e `objetivo_equivalente` de `normalizado` (ADR-0009 §2). A fonte da verdade do conteúdo é o seed `supabase/migrations/20261105095539_carrega_catalogo_metricas.sql`, junto com as migrations que o alterarem depois. Rótulos, explicações, fórmulas, unidades, aditividade, origem das métricas e o mapa objetivo → resultado principal existem só lá. Esta seção guarda as regras que o catálogo segue e o que ainda depende da Q-10.
 
 ### 7.1 Métricas
 
-| Código | Rótulo no painel | Explicação curta | Fórmula | Origem na API | Aditiva |
-|---|---|---|---|---|---|
-| `investimento` | Investimento | Quanto foi gasto em anúncios no período. | soma do investimento | `spend` | Sim |
-| `impressoes` | Impressões | Quantas vezes os anúncios apareceram na tela das pessoas. | soma das impressões | `impressions` | Sim |
-| `alcance` | Pessoas alcançadas | Quantas pessoas diferentes viram os anúncios pelo menos uma vez. Não pode ser somado entre dias. | valor extraído por período | `reach` | Não |
-| `frequencia` | Frequência | Em média, quantas vezes cada pessoa alcançada viu os anúncios. | impressões ÷ alcance, do mesmo período | `impressions`, `reach` | Não |
-| `cliques_link` | Cliques no link | Cliques que levaram a pessoa para fora do anúncio: site, WhatsApp, formulário ou loja. | soma | `actions` → `link_click` | Sim |
-| `ctr` | Taxa de cliques | De cada 100 vezes que o anúncio apareceu, quantas viraram clique no link. | cliques no link ÷ impressões × 100 | derivada | Não |
-| `cpc` | Custo por clique | Quanto custou, em média, cada clique no link. | investimento ÷ cliques no link | derivada | Não |
-| `cpm` | Custo por mil impressões | Quanto custou fazer os anúncios aparecerem mil vezes. | investimento ÷ impressões × 1000 | derivada | Não |
-| `custo_mil_alcance` | Custo por mil pessoas alcançadas | Quanto custou alcançar mil pessoas diferentes no período. | investimento ÷ alcance × 1000, do mesmo período | derivada | Não |
-| `visualizacoes_pagina_destino` | Visitas ao site | Quantas vezes alguém clicou e o site carregou de fato. | soma | `actions` → `landing_page_view` | Sim |
-| `custo_visualizacao_pagina` | Custo por visita ao site | Quanto custou, em média, cada visita ao site. | investimento ÷ visualizações da página de destino | derivada | Não |
-| `conversas_iniciadas` | Conversas iniciadas | Quantas conversas começaram no WhatsApp, Messenger ou Direct a partir do anúncio. | soma | `actions` → `onsite_conversion.messaging_conversation_started_7d` | Sim |
-| `custo_conversa` | Custo por conversa | Quanto custou, em média, cada conversa iniciada. | investimento ÷ conversas iniciadas | derivada | Não |
-| `cadastros` | Cadastros | Quantas pessoas deixaram seus dados num formulário do anúncio ou no site. | soma | `actions` → `lead` | Sim |
-| `custo_cadastro` | Custo por cadastro | Quanto custou, em média, cada cadastro. | investimento ÷ cadastros | derivada | Não |
-| `compras` | Compras | Quantas compras foram registradas e atribuídas aos anúncios. | soma | `actions` → `omni_purchase` | Sim |
-| `valor_compras` | Valor das compras | Soma do valor das compras atribuídas aos anúncios. | soma | `action_values` → `omni_purchase` | Sim |
-| `custo_compra` | Custo por compra | Quanto custou, em média, cada compra. | investimento ÷ compras | derivada | Não |
-| `roas` | Retorno sobre o investimento | Quantos reais em vendas voltaram para cada real investido. | valor das compras ÷ investimento | derivada | Não |
-| `interacoes_publicacao` | Interações com a publicação | Curtidas, comentários, compartilhamentos e cliques na publicação. | soma | `actions` → `post_engagement` | Sim |
-| `custo_interacao` | Custo por interação | Quanto custou, em média, cada interação. | investimento ÷ interações | derivada | Não |
+Cada métrica tem código, rótulo no painel, explicação curta (RNF-01), fórmula, unidade e aditividade. A origem depende do tipo:
+- **base**: uma coluna das métricas diárias, como investimento e impressões;
+- **ação**: a quantidade ou o valor de um tipo de ação da API (R-21);
+- **derivada**: calculada a partir das outras, sem origem própria.
 
 Regras de agregação:
 - Métricas aditivas somam entre dias e entre entidades.
@@ -357,23 +338,13 @@ Regras de agregação:
 
 ### 7.2 Resultado principal por objetivo
 
-O resultado principal de cada campanha é resolvido pela precedência do ADR-0007.
+O resultado principal de cada campanha é resolvido pela precedência do ADR-0007. Cada regra do catálogo liga um objetivo atual da API e uma meta de otimização do conjunto a um nome no painel, ao resultado principal, ao KPI e às métricas de apoio. A meta pode ser "qualquer", e a regra com meta específica vence a genérica do mesmo objetivo. Um objetivo legado passa pelo objetivo atual equivalente. A campanha com objetivo fora do catálogo é "Não classificado" e exibe só as métricas-base.
 
-| Objetivo na API | Legados equivalentes | Nome no painel | Meta de otimização do conjunto | Resultado principal | KPI principal | Métricas de apoio |
-|---|---|---|---|---|---|---|
-| `OUTCOME_AWARENESS` | `BRAND_AWARENESS`, `REACH`, `STORE_VISITS` | Reconhecimento | qualquer | `alcance` | `custo_mil_alcance` | `frequencia`, `impressoes`, `cpm` |
-| `OUTCOME_TRAFFIC` | `LINK_CLICKS` | Tráfego | `LANDING_PAGE_VIEWS` | `visualizacoes_pagina_destino` | `custo_visualizacao_pagina` | `cliques_link`, `ctr`, `cpc` |
-| `OUTCOME_TRAFFIC` | `LINK_CLICKS` | Tráfego | qualquer outra | `cliques_link` | `cpc` | `ctr`, `cpm`, `visualizacoes_pagina_destino` |
-| `OUTCOME_ENGAGEMENT` | `MESSAGES` | Conversas | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `cliques_link`, `ctr`, `cpm` |
-| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT`, `EVENT_RESPONSES`, `PAGE_LIKES` | Engajamento | qualquer outra | `interacoes_publicacao` | `custo_interacao` | `alcance`, `ctr`, `cpm` |
-| `OUTCOME_LEADS` | `LEAD_GENERATION` | Cadastros | qualquer, exceto `CONVERSATIONS` | `cadastros` | `custo_cadastro` | `cliques_link`, `ctr`, `cpm` |
-| `OUTCOME_LEADS` | — | Cadastros por conversa | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `cadastros`, `ctr` |
-| `OUTCOME_SALES` | `PRODUCT_CATALOG_SALES`, `CONVERSIONS` (*a confirmar*) | Vendas | qualquer, exceto `CONVERSATIONS` | `compras` | `custo_compra` | `valor_compras`, `roas`, `cliques_link` |
-| `OUTCOME_SALES` | — | Vendas por conversa | `CONVERSATIONS` | `conversas_iniciadas` | `custo_conversa` | `compras`, `valor_compras` |
-| `OUTCOME_APP_PROMOTION` | `APP_INSTALLS` | Promoção de app | qualquer | *a confirmar* | — | `investimento`, `cliques_link` |
-| fora do catálogo | — | Não classificado | — | nenhum; exibe só as métricas-base | — | `investimento`, `impressoes`, `cliques_link` |
+Itens que dependem da Q-10:
+- o resultado principal e o KPI de `OUTCOME_APP_PROMOTION` ficam vazios no catálogo;
+- os legados com mais de um equivalente ou sem equivalente oficial ficam sem equivalência, conforme a lista abaixo.
 
-Equivalência oficial dos objetivos legados (R-40):
+Equivalência oficial dos objetivos legados (R-40). O catálogo grava só os de equivalente único:
 - `APP_INSTALLS` → `OUTCOME_APP_PROMOTION`;
 - `BRAND_AWARENESS`, `REACH` e `STORE_VISITS` → `OUTCOME_AWARENESS`;
 - `LINK_CLICKS` → `OUTCOME_TRAFFIC`;
@@ -383,22 +354,22 @@ Equivalência oficial dos objetivos legados (R-40):
 - com mais de um equivalente, conforme a meta de otimização e o objeto promovido: `CONVERSIONS` (`OUTCOME_ENGAGEMENT`, `OUTCOME_LEADS` ou `OUTCOME_SALES`) e `VIDEO_VIEWS` (`OUTCOME_AWARENESS` ou `OUTCOME_ENGAGEMENT`);
 - sem linha na tabela oficial: `LOCAL_AWARENESS` e `OFFER_CLAIMS`.
 
-Combinações observadas nas contas verificadas (R-40, R-41), com o resultado que a Meta usa em `results` (R-24). As marcadas como "não coberta" caem numa linha genérica da tabela acima e recebem um resultado principal diferente do da Meta (Q-10).
+Combinações observadas nas contas verificadas (R-40, R-41), com o resultado que a Meta usa em `results` (R-24). As marcadas como "não coberta" caem na regra genérica do objetivo e recebem um resultado principal diferente do da Meta (Q-10).
 
-| Objetivo | Meta de otimização do conjunto | `indicator` em `results` | Resolução pela tabela acima |
+| Objetivo | Meta de otimização do conjunto | `indicator` em `results` | Resultado principal no catálogo |
 |---|---|---|---|
-| `OUTCOME_AWARENESS` | `REACH` | `reach` | Reconhecimento: `alcance` |
-| `OUTCOME_ENGAGEMENT` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | Conversas: `conversas_iniciadas` |
-| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT` | `actions:post_engagement` | Engajamento: `interacoes_publicacao` |
-| `OUTCOME_ENGAGEMENT` | `THRUPLAY` | `video_thruplay_watched_actions` | não coberta: Engajamento, `interacoes_publicacao` |
-| `OUTCOME_ENGAGEMENT` | `OFFSITE_CONVERSIONS`, com evento `CONTACT` | `conversions:contact_website` | não coberta: Engajamento, `interacoes_publicacao` |
-| `OUTCOME_LEADS` | `OFFSITE_CONVERSIONS` | `actions:offsite_conversion.fb_pixel_lead` | Cadastros: `cadastros`, igual pelo R-21 |
-| `OUTCOME_LEADS`, `OUTCOME_SALES` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | Cadastros por conversa e Vendas por conversa: `conversas_iniciadas` |
-| `OUTCOME_SALES` | `OFFSITE_CONVERSIONS`, `VALUE` | `actions:offsite_conversion.fb_pixel_purchase` | Vendas: `compras`, igual pelo R-21 |
-| `OUTCOME_TRAFFIC` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | não coberta: Tráfego, `cliques_link` |
-| `OUTCOME_TRAFFIC` | `PROFILE_VISIT`, `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: Tráfego, `cliques_link` |
-| `LINK_CLICKS` | `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: Tráfego, `cliques_link` |
-| `LINK_CLICKS` | `AUTOMATIC_OBJECTIVE` | `actions:visit_instagram_profile` | não coberta: Tráfego, `cliques_link` |
+| `OUTCOME_AWARENESS` | `REACH` | `reach` | `alcance` |
+| `OUTCOME_ENGAGEMENT` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | `conversas_iniciadas` |
+| `OUTCOME_ENGAGEMENT` | `POST_ENGAGEMENT` | `actions:post_engagement` | `interacoes_publicacao` |
+| `OUTCOME_ENGAGEMENT` | `THRUPLAY` | `video_thruplay_watched_actions` | não coberta: `interacoes_publicacao`, da regra genérica |
+| `OUTCOME_ENGAGEMENT` | `OFFSITE_CONVERSIONS`, com evento `CONTACT` | `conversions:contact_website` | não coberta: `interacoes_publicacao`, da regra genérica |
+| `OUTCOME_LEADS` | `OFFSITE_CONVERSIONS` | `actions:offsite_conversion.fb_pixel_lead` | `cadastros`, igual pelo R-21 |
+| `OUTCOME_LEADS`, `OUTCOME_SALES` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | `conversas_iniciadas` |
+| `OUTCOME_SALES` | `OFFSITE_CONVERSIONS`, `VALUE` | `actions:offsite_conversion.fb_pixel_purchase` | `compras`, igual pelo R-21 |
+| `OUTCOME_TRAFFIC` | `CONVERSATIONS` | `actions:onsite_conversion.messaging_conversation_started_7d` | não coberta: `cliques_link`, da regra genérica |
+| `OUTCOME_TRAFFIC` | `PROFILE_VISIT`, `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: `cliques_link`, da regra genérica |
+| `LINK_CLICKS` | `VISIT_INSTAGRAM_PROFILE` | `profile_visit_view` | não coberta: `cliques_link`, da regra genérica de `OUTCOME_TRAFFIC` |
+| `LINK_CLICKS` | `AUTOMATIC_OBJECTIVE` | `actions:visit_instagram_profile` | não coberta: `cliques_link`, da regra genérica de `OUTCOME_TRAFFIC` |
 
 ---
 
