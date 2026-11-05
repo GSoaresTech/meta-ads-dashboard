@@ -155,6 +155,10 @@ MAPA_CAMPOS: Final[Mapping[ObjetoApi, Mapping[str, Campo]]] = {
     # As quebras saem com o nome da dimensão, e a transformação delas decide a
     # categoria e a subcategoria.
     ObjetoApi.INSIGHTS: {
+        # Não é pedido: vem em toda linha do resultado do job assíncrono
+        # (R-39), e a transformação não o usa, porque a consulta já é da
+        # conta.
+        "account_id": Campo("id_meta_conta", TipoCampo.TEXTO),
         "ad_id": Campo("id_meta_anuncio", TipoCampo.TEXTO),
         "campaign_id": Campo("id_meta_campanha", TipoCampo.TEXTO),
         "date_start": Campo("inicio_periodo", TipoCampo.DATA),

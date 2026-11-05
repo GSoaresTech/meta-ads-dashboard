@@ -1,4 +1,5 @@
 import copy
+import json
 from collections import Counter
 from datetime import date
 from decimal import Decimal
@@ -541,10 +542,29 @@ def test_entidade_e_periodo_repetidos_sao_recusados_sem_citar_o_id() -> None:
 
 def test_campo_de_alcance_nao_pedido_e_recusado_pelo_mapa() -> None:
     linhas = ler_linhas_alcance("conta", "ano")
-    linhas[0]["account_id"] = ID_META_CONTA
+    linhas[0]["clicks"] = "98765"
 
     with pytest.raises(ErroCampoNaoMapeado):
         transformar_alcance(NivelAlcance.CONTA, linhas, TipoPeriodo.ANO)
+
+
+def test_resultado_assincrono_com_account_id_vira_as_linhas_da_consulta_sincrona() -> (
+    None
+):
+    # O resultado do job assíncrono traz o account_id em toda linha, sem ser
+    # pedido (R-39), e o alcance do ano por campanha cai sempre nele.
+    assincrono = json.loads(
+        (
+            alcance_exemplo.PASTA_FIXTURES / "alcance_campanha_ano_assincrono.json"
+        ).read_text(encoding="utf-8")
+    )["corpo"]["data"]
+    assert {linha["account_id"] for linha in assincrono} == {ID_META_CONTA}
+
+    assert transformar_alcance(
+        NivelAlcance.CAMPANHA, assincrono, TipoPeriodo.ANO
+    ) == transformar_alcance(
+        NivelAlcance.CAMPANHA, ler_linhas_alcance("campanha", "ano"), TipoPeriodo.ANO
+    )
 
 
 def transformar_quebra(
