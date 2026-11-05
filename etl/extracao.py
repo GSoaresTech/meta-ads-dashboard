@@ -56,7 +56,7 @@ ARESTAS_CADASTRO: Final[Mapping[Endpoint, ObjetoApi]] = {
 
 
 # Os campos de AdsInsights do RF-02. Os cliques no link vêm de actions, pelo
-# tipo link_click (docs/REQUIREMENTS.md §7.1), e date_start e date_stop vêm
+# tipo link_click (métrica cliques_link do catálogo), e date_start e date_stop vêm
 # em toda linha sem ser pedidos. Sem use_unified_attribution_setting nem
 # action_attribution_windows: os resultados ficam na janela padrão da API
 # (ADR-0007; R-22).
