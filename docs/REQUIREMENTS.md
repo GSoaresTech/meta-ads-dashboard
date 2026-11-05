@@ -338,11 +338,12 @@ Regras de agregação:
 
 ### 7.2 Resultado principal por objetivo
 
-O resultado principal de cada campanha é resolvido pela precedência do ADR-0007. Cada regra do catálogo liga um objetivo atual da API e uma meta de otimização do conjunto a um nome no painel, ao resultado principal, ao KPI e às métricas de apoio. A meta pode ser "qualquer", e a regra com meta específica vence a genérica do mesmo objetivo. Um objetivo legado passa pelo objetivo atual equivalente. A campanha com objetivo fora do catálogo é "Não classificado" e exibe só as métricas-base.
+O resultado principal de cada campanha é resolvido pela precedência do ADR-0007. Cada regra do catálogo liga um objetivo atual da API e uma meta de otimização do conjunto a um nome no painel, ao resultado principal, ao KPI e às métricas de apoio. A meta pode ser "qualquer", e a regra com meta específica vence a genérica do mesmo objetivo. Um objetivo legado passa pelo objetivo atual equivalente. A campanha com objetivo fora do catálogo é "Não classificado": não tem resultado principal e exibe só as métricas de apoio da regra própria do catálogo.
 
 Itens que dependem da Q-10:
 - o resultado principal e o KPI de `OUTCOME_APP_PROMOTION` ficam vazios no catálogo;
-- os legados com mais de um equivalente ou sem equivalente oficial ficam sem equivalência, conforme a lista abaixo.
+- os legados com mais de um equivalente ou sem equivalente oficial ficam sem equivalência, conforme a lista abaixo;
+- a equivalência vai do legado ao objetivo atual, e a meta de otimização do conjunto escolhe a regra. Por isso, uma campanha `MESSAGES` cujo conjunto não otimiza para `CONVERSATIONS` cai na regra genérica de `OUTCOME_ENGAGEMENT`, com `interacoes_publicacao`, e não em `conversas_iniciadas`. As metas dos conjuntos dessas campanhas não foram verificadas.
 
 Equivalência oficial dos objetivos legados (R-40). O catálogo grava só os de equivalente único:
 - `APP_INSTALLS` → `OUTCOME_APP_PROMOTION`;

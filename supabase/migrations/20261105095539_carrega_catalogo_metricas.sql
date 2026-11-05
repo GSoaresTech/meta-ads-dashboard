@@ -80,7 +80,8 @@ VALUES
 -- apoio na ordem de exibição. Meta nula é "qualquer", e a linha específica
 -- (CONVERSATIONS, LANDING_PAGE_VIEWS) vence a genérica do mesmo objetivo. O
 -- resultado de OUTCOME_APP_PROMOTION é a confirmar (Q-10) e fica nulo, e a
--- linha sem objetivo é "Não classificado", que exibe só as métricas-base.
+-- linha sem objetivo é "Não classificado", sem resultado principal e só com
+-- as métricas de apoio.
 WITH regra (objetivo, meta_otimizacao, nome_objetivo, metrica_resultado, metrica_kpi, apoio) AS (
   VALUES
     ('OUTCOME_AWARENESS', NULL, 'Reconhecimento', 'alcance', 'custo_mil_alcance',
