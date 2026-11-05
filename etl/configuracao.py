@@ -61,6 +61,10 @@ LIMITE_USO_PERCENTUAL = 90
 ESPERA_MAXIMA_LOCK_SEGUNDOS = 900
 INTERVALO_TENTATIVA_LOCK_SEGUNDOS = 10
 
+# A Meta revisa os dados por até 28 dias (R-17): a execução diária recarrega
+# os dias anteriores a hoje nessa janela (RF-05).
+JANELA_REPROCESSAMENTO_DIAS = 28
+
 # Retenção de bruto pela data de referência (RF-21): a janela de
 # reprocessamento de 28 dias mais uma margem (ADR-0005).
 RETENCAO_BRUTO_DIAS = 35

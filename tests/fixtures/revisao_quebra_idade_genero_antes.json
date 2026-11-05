@@ -1,0 +1,119 @@
+{
+  "status": 200,
+  "cabecalhos": {
+    "X-Business-Use-Case-Usage": "{\"995000000000001\":[{\"type\":\"ads_insights\",\"call_count\":1,\"total_cputime\":1,\"total_time\":1,\"estimated_time_to_regain_access\":0,\"ads_api_access_tier\":\"development_access\"}]}",
+    "X-FB-Ads-Insights-Throttle": "{\"app_id_util_pct\":0.5,\"acc_id_util_pct\":1,\"ads_api_access_tier\":\"development_access\"}"
+  },
+  "corpo": {
+    "data": [
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "42.10",
+        "impressions": "4810",
+        "reach": "4102",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "18"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "1"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "99.10"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "99.10"
+          }
+        ],
+        "date_start": "2026-03-10",
+        "date_stop": "2026-03-10",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "30.10",
+        "impressions": "3320",
+        "reach": "2841",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "18"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "2"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "2"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "198.20"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "198.20"
+          }
+        ],
+        "date_start": "2026-03-20",
+        "date_stop": "2026-03-20",
+        "age": "25-34",
+        "gender": "female"
+      },
+      {
+        "campaign_id": "995000000000000005",
+        "spend": "21.70",
+        "impressions": "2220",
+        "reach": "1893",
+        "actions": [
+          {
+            "action_type": "link_click",
+            "value": "18"
+          },
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "1"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "1"
+          }
+        ],
+        "action_values": [
+          {
+            "action_type": "offsite_conversion.fb_pixel_purchase",
+            "value": "99.10"
+          },
+          {
+            "action_type": "omni_purchase",
+            "value": "99.10"
+          }
+        ],
+        "date_start": "2026-03-20",
+        "date_stop": "2026-03-20",
+        "age": "35-44",
+        "gender": "male"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "QVFIUmV2aXNhb0luaWNpbw",
+        "after": "QVFIUmV2aXNhb0ZpbmFs"
+      }
+    }
+  }
+}

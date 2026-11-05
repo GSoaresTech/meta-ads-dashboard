@@ -16,6 +16,7 @@ e o teste falha.
 """
 
 import json
+from datetime import date
 from pathlib import Path
 
 import responses
@@ -59,12 +60,14 @@ def ler_fixtures() -> Fixtures:
     }
 
 
-def montar_parametros_quebra(quebras: str) -> dict[str, str]:
+def montar_parametros_quebra(
+    quebras: str, inicio: date = INICIO, fim: date = FIM
+) -> dict[str, str]:
     return {
         "level": "campaign",
         "time_increment": "1",
         "time_range": json.dumps(
-            {"since": INICIO.isoformat(), "until": FIM.isoformat()}
+            {"since": inicio.isoformat(), "until": fim.isoformat()}
         ),
         "breakdowns": quebras,
         "fields": "campaign_id,spend,impressions,reach,actions,action_values",
