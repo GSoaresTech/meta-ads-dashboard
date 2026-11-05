@@ -38,6 +38,16 @@ QUEBRAS = (
     ),
     ("regiao", "region", "quebra_regiao_campanha"),
 )
+# O tipo de ação do resultado principal de cada campanha das fixtures, pelo
+# catálogo: Engajamento (ThruPlay cai na regra de "qualquer"), Cadastros e
+# Vendas.
+TIPOS_ACAO_RESULTADO = {
+    "995000000000000002": "post_engagement",
+    "995000000000000003": "lead",
+    "995000000000000004": "post_engagement",
+    "995000000000000005": "omni_purchase",
+    ID_META_CAMPANHA_AUSENTE: "omni_purchase",
+}
 type Fixtures = dict[str, dict]
 
 
