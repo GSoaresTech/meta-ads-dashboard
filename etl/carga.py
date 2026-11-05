@@ -1,8 +1,8 @@
 """Carga de bruto e de normalizado: a transação por empresa ou por fatia, com o
 lock que põe em série as execuções da mesma empresa, a gravação das respostas
 da API como recebidas, o upsert das entidades pela chave natural e a
-substituição da janela dos fatos e dos períodos do alcance (CLAUDE.md §6;
-ADR-0009 §5).
+substituição da janela dos fatos, das quebras e dos períodos do alcance
+(CLAUDE.md §6; ADR-0009 §5).
 
 A conexão é direta, por psycopg, e em autocommit: cada bloco transaction() é
 uma transação real, com BEGIN e COMMIT, e não um savepoint dentro de uma
@@ -27,7 +27,13 @@ from etl.configuracao import (
     INTERVALO_TENTATIVA_LOCK_SEGUNDOS,
     RETENCAO_BRUTO_DIAS,
 )
-from etl.transformacao import CadastroConta, EntidadesConta, InsightsDiarios
+from etl.transformacao import (
+    GRAO_QUEBRA,
+    CadastroConta,
+    EntidadesConta,
+    InsightsDiarios,
+    QuebrasCampanha,
+)
 
 # Linhas gravadas por tabela, para o registro de fim (RF-20).
 type Contagens = dict[str, int]
@@ -58,6 +64,25 @@ COLUNAS_METRICA_DIARIA: Final = (
     "alcance",
 )
 COLUNAS_ACAO_DIARIA: Final = ("anuncio_id", "data", "tipo_acao", "quantidade", "valor")
+COLUNAS_QUEBRA: Final = (
+    "campanha_id",
+    "data",
+    "tipo_quebra",
+    "categoria",
+    "subcategoria",
+    "investimento",
+    "impressoes",
+    "alcance",
+)
+# O grão da quebra com a campanha pela chave interna, que liga cada ação à
+# quebra dela antes de a quebra ter o id.
+GRAO_QUEBRA_CARGA: Final = ("campanha_id", *GRAO_QUEBRA[1:])
+COLUNAS_ACAO_QUEBRA: Final = (
+    "quebra_diaria_campanha_id",
+    "tipo_acao",
+    "quantidade",
+    "valor",
+)
 COLUNAS_ALCANCE_PERIODO: Final = (
     "conta_anuncio_id",
     "campanha_id",
@@ -100,6 +125,32 @@ WHERE metrica.empresa_id = %(empresa_id)s
   AND campanha.empresa_id = conjunto.empresa_id
   AND campanha.id = conjunto.campanha_id
   AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
+"""
+
+# As quebras não guardam a conta: o DELETE chega a ela pela campanha, e as
+# ações saem junto pelo ON DELETE CASCADE. Uma categoria que sumiu na revisão
+# da Meta some também do banco (RF-17).
+APAGAR_QUEBRAS: Final = """
+DELETE FROM normalizado.quebra_diaria_campanha AS quebra
+USING normalizado.campanha AS campanha
+WHERE quebra.empresa_id = %(empresa_id)s
+  AND quebra.data BETWEEN %(inicio)s AND %(fim)s
+  AND campanha.empresa_id = quebra.empresa_id
+  AND campanha.id = quebra.campanha_id
+  AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
+"""
+
+# O tipo de ação do resultado principal de cada campanha da conta, pela
+# mesma resolução que o painel usa (ADR-0009 §4; ADR-0011). A campanha cujo
+# resultado não é métrica de ação, ou que não tem resultado, fica de fora.
+LER_TIPOS_ACAO_RESULTADO: Final = """
+SELECT campanha.id_meta, metrica.tipo_acao
+FROM normalizado.resolver_resultado_campanha(%(empresa_id)s) AS resolvido
+JOIN normalizado.campanha AS campanha
+  ON campanha.empresa_id = %(empresa_id)s AND campanha.id = resolvido.campanha_id
+JOIN normalizado.metrica AS metrica ON metrica.codigo = resolvido.metrica_resultado
+WHERE campanha.conta_anuncio_id = %(conta_anuncio_id)s
+  AND metrica.tipo = 'acao'
 """
 
 # Os anúncios do lote que não são da conta pelo mesmo caminho do DELETE.
@@ -169,6 +220,11 @@ JOIN normalizado.campanha AS campanha
 WHERE anuncio.empresa_id = %(empresa_id)s
   AND campanha.conta_anuncio_id = %(conta_anuncio_id)s
   AND anuncio.id_meta = ANY(%(ids_meta)s)
+"""
+
+LER_IDS_CAMPANHAS: Final = """
+SELECT id_meta, id FROM normalizado.campanha
+WHERE empresa_id = %(empresa_id)s AND id_meta = ANY(%(ids_meta)s)
 """
 
 LER_IDS_ANUNCIOS: Final = """
@@ -928,3 +984,144 @@ def substituir_alcance_periodo(
             [{**linha, **controle} for linha in linhas],
         )
     return {"alcance_periodo": len(linhas)}
+
+
+def ler_ids_campanhas(
+    conexao: psycopg.Connection, empresa_id: UUID, ids_meta: Sequence[str]
+) -> dict[str, UUID]:
+    """O id interno de cada campanha da empresa entre os IDs da Meta dados,
+    pelo id_meta. A que não existe na empresa fica de fora."""
+    return dict(
+        conexao.execute(
+            LER_IDS_CAMPANHAS, {"empresa_id": empresa_id, "ids_meta": list(ids_meta)}
+        ).fetchall()
+    )
+
+
+def ler_tipos_acao_resultado(
+    conexao: psycopg.Connection, empresa_id: UUID, conta_anuncio_id: UUID
+) -> dict[str, str]:
+    """O tipo de ação do resultado principal de cada campanha da conta, pelo
+    id_meta, resolvido agora (ADR-0011). Roda na transação da carga, depois
+    das entidades, para que a campanha lida pelo ID já tenha resultado."""
+    exigir_transacao(conexao)
+    return dict(
+        conexao.execute(
+            LER_TIPOS_ACAO_RESULTADO,
+            {"empresa_id": empresa_id, "conta_anuncio_id": conta_anuncio_id},
+        ).fetchall()
+    )
+
+
+def carregar_quebras_campanha(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    inicio: date,
+    fim: date,
+    quebras: QuebrasCampanha,
+) -> Contagens:
+    """Troca as quebras da conta de inicio a fim, inclusive, pelas dadas, com
+    a campanha pela chave interna (RF-03, RF-17).
+
+    Roda na transação da empresa, depois das entidades lidas pelo ID: toda
+    campanha das quebras já existe na conta (ADR-0009 §5).
+    """
+    exigir_transacao(conexao)
+    escopo = {"empresa_id": empresa_id, "conta_anuncio_id": conta_anuncio_id}
+    ids = ler_ids_da_conta(
+        conexao, LER_IDS_CAMPANHAS_DA_CONTA, escopo, quebras.quebras, "id_meta_campanha"
+    )
+    referencia = {"campanha_id": ("id_meta_campanha", ids)}
+    return substituir_quebras_campanha(
+        conexao,
+        empresa_id,
+        execucao_id,
+        conta_anuncio_id,
+        inicio,
+        fim,
+        trocar_referencias(quebras.quebras, referencia),
+        trocar_referencias(quebras.acoes, referencia),
+    )
+
+
+def substituir_quebras_campanha(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    conta_anuncio_id: UUID,
+    inicio: date,
+    fim: date,
+    quebras: Sequence[Linha],
+    acoes: Sequence[Linha],
+) -> Contagens:
+    """Apaga as quebras da conta de inicio a fim, com as ações delas, e
+    inclui o conjunto completo devolvido pela API. Cada ação traz o grão da
+    quebra dela e entra com o id que a quebra recebeu no INSERT.
+
+    O leitor vê o conjunto anterior ou o novo, nunca o vazio entre o DELETE
+    e o INSERT (RNF-09).
+    """
+    exigir_transacao(conexao)
+    validar_colunas_fato(quebras, COLUNAS_QUEBRA)
+    validar_colunas_fato(acoes, (*GRAO_QUEBRA_CARGA, *COLUNAS_ACAO_QUEBRA[1:]))
+    validar_janela(inicio, fim, [*quebras, *acoes])
+    conexao.execute(
+        APAGAR_QUEBRAS,
+        {
+            "empresa_id": empresa_id,
+            "inicio": inicio,
+            "fim": fim,
+            "conta_anuncio_id": conta_anuncio_id,
+        },
+    )
+    controle = {"empresa_id": empresa_id, "execucao_id": execucao_id}
+    ids = inserir_quebras(conexao, controle, quebras)
+    linhas_acoes = []
+    for acao in acoes:
+        grao = tuple(acao[coluna] for coluna in GRAO_QUEBRA_CARGA)
+        if grao not in ids:
+            raise ValueError("ação de quebra fora do lote substituído")
+        linhas_acoes.append(
+            {
+                "quebra_diaria_campanha_id": ids[grao],
+                **{coluna: acao[coluna] for coluna in COLUNAS_ACAO_QUEBRA[1:]},
+                **controle,
+            }
+        )
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            montar_insercao_fato("acao_quebra_diaria_campanha", COLUNAS_ACAO_QUEBRA),
+            linhas_acoes,
+        )
+    return {
+        "quebra_diaria_campanha": len(quebras),
+        "acao_quebra_diaria_campanha": len(acoes),
+    }
+
+
+def inserir_quebras(
+    conexao: psycopg.Connection,
+    controle: Mapping[str, object],
+    quebras: Sequence[Linha],
+) -> dict[tuple[object, ...], int]:
+    """Inclui as quebras e devolve o id de cada uma pelo grão."""
+    # Sem linhas, o executemany não deixa resultado para ler.
+    if not quebras:
+        return {}
+    consulta = sql.SQL("{insercao} RETURNING id, {grao}").format(
+        insercao=montar_insercao_fato("quebra_diaria_campanha", COLUNAS_QUEBRA),
+        grao=sql.SQL(", ").join(map(sql.Identifier, GRAO_QUEBRA_CARGA)),
+    )
+    ids: dict[tuple[object, ...], int] = {}
+    with conexao.cursor() as cursor:
+        cursor.executemany(
+            consulta, [{**quebra, **controle} for quebra in quebras], returning=True
+        )
+        while True:
+            ids.update(
+                (tuple(grao), id_quebra) for id_quebra, *grao in cursor.fetchall()
+            )
+            if not cursor.nextset():
+                return ids
