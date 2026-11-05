@@ -248,7 +248,7 @@ class ErroAnuncioForaDaConta(ValueError):
 
 
 class ErroEntidadeForaDaConta(Exception):
-    """Uma campanha ou um anúncio do alcance não existe na conta: a FK
+    """Uma campanha ou um anúncio de um fato não existe na conta: a FK
     recusaria a entidade ausente, e a linha de outra conta não seria apagada
     pela próxima substituição desta. A carga falha antes, sem citar o ID
     (RNF-17)."""
@@ -878,7 +878,7 @@ def ler_ids_da_conta(
     ids = dict(conexao.execute(consulta, {**escopo, "ids_meta": ids_meta}).fetchall())
     if len(ids) != len(ids_meta):
         raise ErroEntidadeForaDaConta(
-            f"{len(ids_meta) - len(ids)} entidade(s) do alcance fora da conta"
+            f"{len(ids_meta) - len(ids)} entidade(s) fora da conta"
         )
     return ids
 
