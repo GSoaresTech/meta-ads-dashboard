@@ -2,7 +2,8 @@
 cadastro de uma conta, com a conta, as campanhas, os conjuntos com as janelas
 de atribuição, as Páginas, os criativos e os anúncios (RF-01), e os insights
 diários por anúncio, com as métricas e a tabela longa das ações (RF-02,
-RF-12), e o alcance por período (RF-04). Os nomes e os tipos vêm do mapa de
+RF-12), as quebras diárias por campanha, com a ação do resultado principal
+(RF-03), e o alcance por período (RF-04). Os nomes e os tipos vêm do mapa de
 campos (RF-11, RF-13). Sem rede, banco nem relógio (CLAUDE.md §8).
 
 As linhas apontam para o pai pelo ID da Meta (id_meta_<entidade>), porque a
@@ -16,8 +17,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Final
 
-from etl.extracao import NivelAlcance, TipoPeriodo
-from etl.mapa_campos import ObjetoApi, RegistroTraduzido, traduzir_registro
+from etl.extracao import DIMENSOES_QUEBRA, NivelAlcance, TipoPeriodo, TipoQuebra
+from etl.mapa_campos import (
+    MAPA_CAMPOS,
+    ObjetoApi,
+    RegistroTraduzido,
+    traduzir_registro,
+)
 from etl.padronizacao import ErroPadronizacao
 
 type LinhaCadastro = dict[str, object]
@@ -60,6 +66,27 @@ class ErroInsights(ValueError):
     gravar."""
 
 
+# O grão de uma linha de quebra, com a campanha pelo ID da Meta.
+GRAO_QUEBRA: Final = (
+    "id_meta_campanha",
+    "data",
+    "tipo_quebra",
+    "categoria",
+    "subcategoria",
+)
+# As dimensões de cada tipo de quebra com o nome em português, pelo mapa de
+# campos (RF-11).
+COLUNAS_DIMENSAO: Final[Mapping[TipoQuebra, tuple[str, ...]]] = {
+    tipo: tuple(MAPA_CAMPOS[ObjetoApi.INSIGHTS][nome].nome for nome in dimensoes)
+    for tipo, dimensoes in DIMENSOES_QUEBRA.items()
+}
+
+
+class ErroQuebra(ValueError):
+    """Quebra da API fora do grão campanha × dia × categoria, que a carga não
+    pode gravar."""
+
+
 class ErroAlcance(ValueError):
     """Alcance da API fora do grão entidade × período, que a carga não pode
     gravar."""
@@ -84,6 +111,15 @@ class InsightsDiarios:
     tipo, com o anúncio pelo ID da Meta."""
 
     metricas: list[LinhaCadastro]
+    acoes: list[LinhaCadastro]
+
+
+@dataclass(frozen=True)
+class QuebrasCampanha:
+    """As linhas de uma quebra e a ação do resultado principal de cada uma,
+    com a campanha pelo ID da Meta."""
+
+    quebras: list[LinhaCadastro]
     acoes: list[LinhaCadastro]
 
 
@@ -289,6 +325,74 @@ def combinar_acoes(linha: RegistroTraduzido) -> list[LinhaCadastro]:
             )
             acao[medida] = item[medida]
     return list(por_tipo.values())
+
+
+def transformar_quebras_campanha(
+    paginas: Sequence[Mapping[str, object]],
+    tipo: TipoQuebra,
+    tipos_acao_resultado: Mapping[str, str],
+) -> QuebrasCampanha:
+    """Uma linha por campanha, dia e categoria da resposta de uma quebra, com
+    as métricas-base, e a ação do resultado principal da campanha, se veio
+    na linha (RF-03).
+
+    tipos_acao_resultado leva o ID da Meta da campanha ao tipo de ação do
+    resultado principal dela; a campanha sem resultado de ação fica fora e
+    sem ações (ADR-0011). Um tipo ausente não vira zero: na região, a API
+    omite as ações de fora da Meta (R-23). Uma categoria repetida na mesma
+    campanha e dia é recusada: a carga substitui o conjunto completo, e uma
+    das duas linhas se perderia.
+    """
+    quebras: list[LinhaCadastro] = []
+    acoes: list[LinhaCadastro] = []
+    for registro in ler_registros(paginas):
+        linha = traduzir_registro(ObjetoApi.INSIGHTS, registro)
+        grao = ler_grao_quebra(linha, tipo)
+        quebras.append(
+            {
+                **grao,
+                "investimento": linha["investimento"],
+                "impressoes": linha["impressoes"],
+                "alcance": linha["alcance"],
+            }
+        )
+        tipo_acao = tipos_acao_resultado.get(grao["id_meta_campanha"])
+        acoes.extend(
+            {**grao, **acao}
+            for acao in combinar_acoes(linha)
+            if acao["tipo_acao"] == tipo_acao
+        )
+    repetidas = len(quebras) - len(
+        {tuple(quebra[coluna] for coluna in GRAO_QUEBRA) for quebra in quebras}
+    )
+    if repetidas:
+        raise ErroQuebra(f"{repetidas} linha(s) de categoria repetidas")
+    return QuebrasCampanha(quebras=quebras, acoes=acoes)
+
+
+def ler_grao_quebra(linha: RegistroTraduzido, tipo: TipoQuebra) -> LinhaCadastro:
+    """A campanha, o dia e a categoria da linha. As dimensões da combinação
+    consultada vêm todas, e as das outras combinações, nenhuma: uma dimensão
+    a mais ou a menos mudaria o grão."""
+    if linha["id_meta_campanha"] is None:
+        raise ErroQuebra("linha de quebra sem campanha")
+    inicio = linha["inicio_periodo"]
+    if not isinstance(inicio, date) or inicio != linha["fim_periodo"]:
+        raise ErroQuebra("linha de quebra que não é de um dia")
+    colunas = COLUNAS_DIMENSAO[tipo]
+    if any(linha[coluna] is None for coluna in colunas):
+        raise ErroQuebra("linha de quebra sem categoria")
+    outras = {c for por_tipo in COLUNAS_DIMENSAO.values() for c in por_tipo}
+    if any(linha[coluna] is not None for coluna in outras - set(colunas)):
+        raise ErroQuebra("linha de quebra fora da combinação consultada")
+    categoria, *subcategoria = (linha[coluna] for coluna in colunas)
+    return {
+        "id_meta_campanha": linha["id_meta_campanha"],
+        "data": inicio,
+        "tipo_quebra": str(tipo),
+        "categoria": categoria,
+        "subcategoria": subcategoria[0] if subcategoria else None,
+    }
 
 
 def transformar_alcance_periodo(

@@ -5,21 +5,24 @@ from decimal import Decimal
 
 import pytest
 
-from etl.extracao import NivelAlcance, TipoPeriodo
+from etl.extracao import NivelAlcance, TipoPeriodo, TipoQuebra
 from etl.mapa_campos import ErroCampoNaoMapeado
 from etl.transformacao import (
     CadastroConta,
     ErroAlcance,
     ErroCadastro,
     ErroInsights,
+    ErroQuebra,
     InsightsDiarios,
+    QuebrasCampanha,
     transformar_alcance_periodo,
     transformar_cadastro,
     transformar_conjuntos,
     transformar_entidades,
     transformar_insights_diarios,
+    transformar_quebras_campanha,
 )
-from tests import alcance_exemplo
+from tests import alcance_exemplo, quebras_exemplo
 from tests.cadastro_exemplo import ID_META_CONTA, Fixtures, ler_fixtures
 from tests.insights_exemplo import (
     ID_META_ANUNCIO_AUSENTE,
@@ -542,3 +545,221 @@ def test_campo_de_alcance_nao_pedido_e_recusado_pelo_mapa() -> None:
 
     with pytest.raises(ErroCampoNaoMapeado):
         transformar_alcance(NivelAlcance.CONTA, linhas, TipoPeriodo.ANO)
+
+
+def transformar_quebra(
+    tipo: TipoQuebra,
+    linhas: list[dict],
+    tipos_acao: dict[str, str] = quebras_exemplo.TIPOS_ACAO_RESULTADO,
+) -> QuebrasCampanha:
+    return transformar_quebras_campanha([{"data": linhas}], tipo, tipos_acao)
+
+
+def ler_linhas_quebra(tipo: TipoQuebra) -> list[dict]:
+    return quebras_exemplo.listar_linhas(quebras_exemplo.ler_fixtures(), tipo)
+
+
+@pytest.mark.parametrize(
+    ("tipo", "categoria", "subcategoria", "investimento", "impressoes", "alcance"),
+    [
+        (TipoQuebra.IDADE_GENERO, "25-34", "female", "8.15", 1181, 1023),
+        (TipoQuebra.PLATAFORMA_POSICIONAMENTO, "instagram", "feed", "8.8", 1274, 1103),
+        (TipoQuebra.REGIAO, "São Paulo (state)", None, "9.87", 1430, 1238),
+    ],
+)
+def test_cada_linha_de_quebra_vira_uma_linha_da_campanha_no_dia_e_categoria(
+    tipo: TipoQuebra,
+    categoria: str,
+    subcategoria: str | None,
+    investimento: str,
+    impressoes: int,
+    alcance: int,
+) -> None:
+    # Idade e plataforma são a categoria; gênero e posicionamento, a
+    # subcategoria. A região tem uma dimensão só (ADR-0009 §2).
+    linhas = ler_linhas_quebra(tipo)
+
+    quebras = transformar_quebra(tipo, linhas).quebras
+
+    assert len(quebras) == len(linhas)
+    assert quebras[0] == {
+        "id_meta_campanha": "995000000000000002",
+        "data": date(2026, 10, 1),
+        "tipo_quebra": str(tipo),
+        "categoria": categoria,
+        "subcategoria": subcategoria,
+        "investimento": Decimal(investimento),
+        "impressoes": impressoes,
+        "alcance": alcance,
+    }
+
+
+@pytest.mark.parametrize("tipo", list(TipoQuebra))
+def test_so_a_acao_do_resultado_principal_de_cada_campanha_vira_linha(
+    tipo: TipoQuebra,
+) -> None:
+    # A resposta traz cliques, interações e eventos do pixel; só o tipo do
+    # resultado principal da campanha fica (RF-03; ADR-0011).
+    linhas = ler_linhas_quebra(tipo)
+
+    acoes = transformar_quebra(tipo, linhas).acoes
+
+    esperadas = Counter(
+        linha["campaign_id"]
+        for linha in linhas
+        for item in linha.get("actions", [])
+        if item["action_type"]
+        == quebras_exemplo.TIPOS_ACAO_RESULTADO[linha["campaign_id"]]
+    )
+    assert Counter(acao["id_meta_campanha"] for acao in acoes) == esperadas
+    assert all(
+        acao["tipo_acao"]
+        == quebras_exemplo.TIPOS_ACAO_RESULTADO[acao["id_meta_campanha"]]
+        for acao in acoes
+    )
+
+
+def test_acao_do_resultado_traz_quantidade_e_valor_com_o_grao_da_quebra() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+
+    acoes = transformar_quebra(TipoQuebra.IDADE_GENERO, linhas).acoes
+
+    compras = [a for a in acoes if a["id_meta_campanha"] == "995000000000000005"]
+    assert compras[0] == {
+        "id_meta_campanha": "995000000000000005",
+        "data": date(2026, 10, 1),
+        "tipo_quebra": "idade_genero",
+        "categoria": "25-34",
+        "subcategoria": "female",
+        "tipo_acao": "omni_purchase",
+        "quantidade": 2,
+        "valor": Decimal("259.8"),
+    }
+
+
+def test_regiao_sem_acao_de_fora_da_meta_fica_sem_linha_e_nao_com_zero() -> None:
+    # A região não devolve cadastros nem compras pelo pixel (R-23). A falta
+    # não vira linha com zero: é "não disponível" na leitura (ADR-0011).
+    linhas = ler_linhas_quebra(TipoQuebra.REGIAO)
+
+    quebras = transformar_quebra(TipoQuebra.REGIAO, linhas)
+
+    campanhas = {acao["id_meta_campanha"] for acao in quebras.acoes}
+    assert campanhas == {"995000000000000002", "995000000000000004"}
+    assert all(acao["quantidade"] > 0 for acao in quebras.acoes)
+    assert {"995000000000000003", "995000000000000005"} <= {
+        quebra["id_meta_campanha"] for quebra in quebras.quebras
+    }
+
+
+def test_campanha_sem_resultado_de_acao_fica_so_com_as_metricas_base() -> None:
+    # Alcance, "Não classificado" e o resultado a confirmar não são tipos de
+    # ação: a campanha não entra no mapa (ADR-0011).
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+
+    quebras = transformar_quebra(TipoQuebra.IDADE_GENERO, linhas, {})
+
+    assert len(quebras.quebras) == len(linhas)
+    assert quebras.acoes == []
+
+
+def test_investimento_zero_e_zero_e_alcance_ausente_e_nulo() -> None:
+    # Com quebras, a API não devolve alcance de datas a mais de 13 meses
+    # (R-18): ausente é nulo, e não zero.
+    linhas = ler_linhas_quebra(TipoQuebra.REGIAO)
+    sem_entrega = next(i for i, linha in enumerate(linhas) if linha["spend"] == "0")
+    del linhas[0]["reach"]
+
+    quebras = transformar_quebra(TipoQuebra.REGIAO, linhas).quebras
+
+    assert quebras[sem_entrega]["investimento"] == Decimal(0)
+    assert quebras[0]["alcance"] is None
+
+
+def test_categoria_e_aparada_e_vazia_e_recusada() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.REGIAO)
+    linhas[0]["region"] = "  São Paulo (state) "
+
+    assert transformar_quebra(TipoQuebra.REGIAO, linhas).quebras[0]["categoria"] == (
+        "São Paulo (state)"
+    )
+
+    linhas[0]["region"] = " "
+    with pytest.raises(ErroQuebra):
+        transformar_quebra(TipoQuebra.REGIAO, linhas)
+
+
+@pytest.mark.parametrize(
+    ("tipo", "campo"),
+    [
+        (TipoQuebra.IDADE_GENERO, "gender"),
+        (TipoQuebra.PLATAFORMA_POSICIONAMENTO, "platform_position"),
+        (TipoQuebra.REGIAO, "region"),
+    ],
+)
+def test_linha_sem_dimensao_da_combinacao_e_recusada(
+    tipo: TipoQuebra, campo: str
+) -> None:
+    linhas = ler_linhas_quebra(tipo)
+    del linhas[0][campo]
+
+    with pytest.raises(ErroQuebra):
+        transformar_quebra(tipo, linhas)
+
+
+def test_linha_de_outra_combinacao_e_recusada() -> None:
+    # Uma dimensão a mais mudaria o grão: as categorias se repetiriam.
+    linhas = ler_linhas_quebra(TipoQuebra.REGIAO)
+    linhas[0]["age"] = "25-34"
+
+    with pytest.raises(ErroQuebra):
+        transformar_quebra(TipoQuebra.REGIAO, linhas)
+
+
+def test_linha_de_quebra_sem_campanha_e_recusada() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+    del linhas[0]["campaign_id"]
+
+    with pytest.raises(ErroQuebra):
+        transformar_quebra(TipoQuebra.IDADE_GENERO, linhas)
+
+
+def test_linha_de_quebra_que_nao_e_de_um_dia_e_recusada() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+    linhas[0]["date_stop"] = "2026-10-02"
+
+    with pytest.raises(ErroQuebra):
+        transformar_quebra(TipoQuebra.IDADE_GENERO, linhas)
+
+
+def test_categoria_repetida_na_campanha_e_dia_e_recusada_sem_citar_o_id() -> None:
+    # A carga substitui o conjunto completo, e uma das duas linhas se
+    # perderia.
+    linhas = ler_linhas_quebra(TipoQuebra.PLATAFORMA_POSICIONAMENTO)
+    linhas.append(copy.deepcopy(linhas[0]))
+
+    with pytest.raises(ErroQuebra) as erro:
+        transformar_quebra(TipoQuebra.PLATAFORMA_POSICIONAMENTO, linhas)
+    assert "995000000000000002" not in str(erro.value)
+
+
+def test_mesma_categoria_em_plataformas_diferentes_nao_e_repetida() -> None:
+    # O feed do Instagram e o do Facebook têm o mesmo posicionamento.
+    linhas = ler_linhas_quebra(TipoQuebra.PLATAFORMA_POSICIONAMENTO)
+
+    quebras = transformar_quebra(TipoQuebra.PLATAFORMA_POSICIONAMENTO, linhas).quebras
+
+    feeds = {
+        q["categoria"]
+        for q in quebras
+        if q["subcategoria"] == "feed" and q["id_meta_campanha"] == "995000000000000002"
+    }
+    assert feeds == {"instagram", "facebook"}
+
+
+def test_campo_de_quebra_nao_pedido_e_recusado_pelo_mapa() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.REGIAO)
+    linhas[0]["cpc"] = "0.37"
+
+    with pytest.raises(ErroCampoNaoMapeado):
+        transformar_quebra(TipoQuebra.REGIAO, linhas)
