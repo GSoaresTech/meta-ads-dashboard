@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011 e a rotina diária na §5
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5 e as regras das credenciais na §4
 
 ## Contexto
 
@@ -318,6 +318,15 @@ As funções da área do operador exigem escopo `operador` e seguem o mesmo padr
 - `excluir_empresa(p_credencial, p_empresa_id, p_confirmacao text)`, para RNF-25. A função apaga as linhas do banco, e as miniaturas no Storage são apagadas pelo servidor do painel pela API do Storage, porque uma função SQL não remove objetos do Storage.
 
 A primeira credencial de operador é criada por uma função de `normalizado` executável só pelo `postgres`, pelo runbook.
+
+As credenciais seguem estas regras:
+- **Geração**: o token nasce no banco, numa só função interna, `normalizado.gerar_credencial(p_escopo text, p_empresa_id uuid) RETURNS text`.
+  - A função sorteia 32 bytes com o `gen_random_bytes` do pgcrypto, codifica em base64url sem preenchimento (43 caracteres), grava `sha256(convert_to(token, 'UTF8'))` e devolve o token. O PostgreSQL 17 não tem `base64url` no `encode`, então ela troca o `+` e a `/` do base64 por `-` e `_` e retira o `=`.
+  - É `SECURITY INVOKER` e executável só pelo `postgres`. A `gerar_credencial_empresa` a chama depois de exigir o operador, e o runbook cria a primeira credencial do operador com `SELECT normalizado.gerar_credencial('operador', NULL)`.
+  - O link de empresa exige empresa ativa, e a função levanta o `P0002` (`no_data_found`) para empresa inexistente, inativa ou nula. Um link de empresa inativa nunca abriria o painel (RF-44, RF-48) e passaria a valer sozinho se a empresa voltasse a ser ativa.
+  - Como o token nasce no banco, ele não aparece no texto de nenhum comando de geração, e assim não vai ao histórico do `psql` nem ao log do banco.
+  - Cada geração cria uma credencial nova, sem revogar as anteriores da empresa.
+- **Exigência do operador**: fica em `normalizado.exigir_operador(p_credencial text)`, também interna, que levanta o `42501` com a mensagem `acesso negado` quando a credencial não resolve para o escopo `operador`.
 
 A resolução do resultado principal de cada campanha, com a precedência do ADR-0007, é uma função interna, `normalizado.resolver_resultado_campanha(p_empresa_id uuid)`, sem credencial. As funções de `analitico` a usam, e a `etl_carga` a executa para os avisos do RF-15 e a comparação do RF-16, para que a regra exista num só lugar. Ela é `SECURITY INVOKER` e devolve uma linha por campanha da empresa, com `campanha_id`; `resultado_objetivo_id`, a regra do catálogo, de onde vêm o nome do objetivo e as métricas de apoio mesmo com sobrescrita; `metrica_resultado` e `metrica_kpi`, já com a sobrescrita aplicada; e `sobrescrita`, que diz se o par veio dela. A campanha "Não classificado" é a que resolve para a regra sem objetivo.
 
