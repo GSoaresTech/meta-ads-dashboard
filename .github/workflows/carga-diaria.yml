@@ -1,0 +1,44 @@
+# Rotina diária da ETL (RF-05; ADR-0005). Uma falha em qualquer empresa faz o
+# job terminar com código diferente de zero, o que dispara a notificação do
+# GitHub (RF-50). Os logs são públicos, e a rotina só escreve os campos da
+# lista permitida (RNF-17).
+name: Carga diária
+
+on:
+  schedule:
+    # 03:43 em Brasília: o cron do GitHub usa UTC, e o horário de Brasília é
+    # UTC−3 o ano inteiro, sem horário de verão. De madrugada, porque ontem
+    # já fechou nas contas do Brasil, e em minuto quebrado, longe do pico do
+    # início da hora (R-08).
+    - cron: "43 6 * * *"
+  # Para a primeira carga de uma empresa e para refazer o dia depois de uma
+  # falha, sem esperar a madrugada seguinte.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Um disparo manual espera a execução em andamento, em vez de gastar a cota
+# da Meta com a mesma leitura. O lock por empresa (RF-19) segue valendo.
+concurrency:
+  group: carga-diaria
+  cancel-in-progress: false
+
+jobs:
+  carga-diaria:
+    name: carga-diaria
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Instalar a ETL
+        run: python -m pip install .
+      - name: Rodar a rotina diária
+        env:
+          TOKEN_SISTEMA_META: ${{ secrets.TOKEN_SISTEMA_META }}
+          URL_BANCO: ${{ secrets.URL_BANCO }}
+        run: python -m etl.rotina_diaria
