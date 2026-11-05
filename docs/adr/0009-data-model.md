@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011
 
 ## Contexto
 
@@ -142,7 +143,7 @@ Detalhes que a tabela não comporta:
 - **Fatos sem colunas de auditoria**: a carga substitui as linhas a cada execução (§5), então `criado_em` repetiria o instante da execução, que já vem por `execucao_id`.
 - **Formato do tipo de ação**: segmentos de letras minúsculas, dígitos e `_`, separados por ponto, o primeiro começando por letra. Cobre os tipos do R-21 e as conversões personalizadas, que a Meta devolve como `offsite_conversion.custom.<id>`. Um tipo fora desse formato faz a carga falhar com `23514` até uma migration ampliar o `CHECK`.
 - **Quebras**: idade+gênero e plataforma+posicionamento têm duas dimensões (`categoria` e `subcategoria`), e região tem uma. Como `subcategoria` é anulável, ela não pode entrar numa PK. Por isso a quebra usa chave substituta, e o grão é garantido pelo `UNIQUE NULLS NOT DISTINCT`, que trata dois `NULL` como iguais. O valor da categoria é o da API; o rótulo vem do catálogo. Como a região chega em texto livre, com espaços e acentos, o formato de `categoria` e `subcategoria` é só o do texto aparado e não vazio (§1).
-- **Ações das quebras**: guardamos os tipos de ação que existem no catálogo de métricas, não só os do resultado principal. Assim, uma sobrescrita do resultado (RF-49) vale também para o histórico das quebras, sem reextração. O resultado principal não é coluna, porque depende do catálogo e da sobrescrita, e por isso é derivado em `analitico`.
+- **Ações das quebras**: substituído pelo ADR-0011, que grava só o tipo de ação do resultado principal de cada campanha. O resultado principal não é coluna, porque depende do catálogo e da sobrescrita, e por isso é derivado em `analitico`.
 - **Alcance por período**:
   - **Entidade**: o `CHECK` de `num_nonnulls` exige exatamente uma entidade por linha, cada uma com sua FK composta. As FKs são `MATCH SIMPLE`, então só a da entidade preenchida é conferida. Como duas das três colunas ficam sempre nulas, a tabela não tem PK, e o grão fica só no `UNIQUE NULLS NOT DISTINCT`.
   - **Fim do período**: `fim_periodo` é guardado porque não é derivável no período corrente. A semana, o mês e o ano em andamento são extraídos só até o dia da extração (ADR-0006).
@@ -380,7 +381,7 @@ Resultado: nenhuma coluna tem nome, e-mail, telefone ou identificador de pessoa 
   - os grants e o RLS, que impedem acesso direto;
   - as funções de `analitico`, que só devolvem dados da empresa da credencial.
 - **Exceções à 3FN**: a repetição de `empresa_id` e o `bruto` são as únicas, ambas registradas acima. A agregação por conta faz três junções a partir do anúncio. Se o RNF-06 não for atendido com a empresa de referência, a saída é índice ou view materializada em `analitico`, a única camada onde a desnormalização é permitida.
-- **Volume**: guardar todas as ações do catálogo nas quebras acrescenta linhas que o `docs/REQUIREMENTS.md` §4.2 não estimou: uma por categoria × dia para cada tipo de ação com ocorrência. A medição da Q-09 mostra se a estimativa precisa subir.
+- **Volume**: as ações das quebras acrescentam no máximo uma linha por categoria × dia, a do resultado principal (ADR-0011). A medição da Q-09 mostra se a estimativa do `docs/REQUIREMENTS.md` §4.2 precisa subir.
 - **Calendário**: termina em 31/12/2035. A FK das datas faz a carga falhar de forma visível antes que algum dado se perca, e a extensão do intervalo é uma migration nova.
 - **Domínios da API**:
   - **Status**: um valor novo, fora do domínio fechado de R-35, faz falhar a carga das empresas afetadas até uma migration ampliar o `CHECK`.
