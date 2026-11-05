@@ -258,7 +258,8 @@ COLUNAS_JANELA: Final = ("conjunto_anuncio_id", "tipo_evento", "janela_dias")
 
 # As campanhas dadas cujo objetivo cai em "Não classificado", a regra sem
 # objetivo do catálogo, pela mesma resolução que o painel usa (RF-15;
-# ADR-0009 §4).
+# ADR-0009 §4). A campanha gravada de novo na mesma execução, pelo cadastro e
+# pelo ID, não repete o aviso.
 REGISTRAR_AVISOS_NAO_CLASSIFICADO: Final = """
 INSERT INTO normalizado.aviso_execucao (empresa_id, execucao_id, tipo, campanha_id)
 SELECT %(empresa_id)s, %(execucao_id)s, 'objetivo_nao_classificado', resolvido.campanha_id
@@ -266,6 +267,14 @@ FROM normalizado.resolver_resultado_campanha(%(empresa_id)s) AS resolvido
 JOIN normalizado.resultado_objetivo AS regra ON regra.id = resolvido.resultado_objetivo_id
 WHERE regra.objetivo IS NULL
   AND resolvido.campanha_id = ANY(%(campanhas)s)
+  AND NOT EXISTS (
+    SELECT
+    FROM normalizado.aviso_execucao AS anterior
+    WHERE anterior.empresa_id = %(empresa_id)s
+      AND anterior.execucao_id = %(execucao_id)s
+      AND anterior.tipo = 'objetivo_nao_classificado'
+      AND anterior.campanha_id = resolvido.campanha_id
+  )
 """
 
 
@@ -846,8 +855,8 @@ def registrar_avisos_nao_classificado(
     execucao_id: UUID,
     campanhas: Sequence[UUID],
 ) -> int:
-    """Grava um aviso por campanha dada que fica "Não classificado", e
-    devolve quantos gravou. O objetivo desconhecido não falha a carga: a
+    """Grava um aviso por campanha dada que fica "Não classificado" e ainda
+    não tem aviso na execução, e devolve quantos gravou. O objetivo desconhecido não falha a carga: a
     campanha entra, e o aviso aponta para ela pelo id interno (RF-15).
 
     Só as campanhas desta carga, e não todas as da empresa, para que cada
