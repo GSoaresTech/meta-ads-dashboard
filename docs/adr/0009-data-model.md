@@ -162,6 +162,7 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
   - PK `codigo`. `UNIQUE (codigo, unidade)`, alvo da FK composta de `meta_desempenho`.
   - Colunas `rotulo`, `explicacao` (`CHECK (char_length(explicacao) <= 200)`, RNF-01), `formula`, `unidade` (`moeda`, `quantidade`, `percentual`, `razao`), `aditiva`, `tipo` (`base`, `acao`, `derivada`), `campo_base`, `tipo_acao` e `medida_acao` (`quantidade`, `valor`).
   - `CHECK`s amarram o tipo à origem: `base` exige `campo_base`; `acao` exige `tipo_acao` e `medida_acao`; `derivada` não tem nenhum dos dois.
+  - `campo_base` guarda o nome da coluna de `metrica_diaria_anuncio` já em português (`investimento`), e não o campo da API (`spend`). A tradução fica só no mapa de campos da ETL, e um teste pgTAP confere que a coluna existe. `tipo_acao` guarda o tipo de ação como a API o entrega, que é o valor gravado na tabela longa de ações.
 - **`resultado_objetivo`**: uma linha por objetivo × meta de otimização (`docs/REQUIREMENTS.md` §7.2).
   - PK `id`. `UNIQUE NULLS NOT DISTINCT (objetivo, meta_otimizacao)`.
   - Colunas `nome_objetivo`, `metrica_resultado` e `metrica_kpi`, estas duas com FK para `metrica` e anuláveis: "Não classificado" não tem resultado, e o resultado de `OUTCOME_APP_PROMOTION` é *a confirmar* (`docs/REQUIREMENTS.md` §7.2).
