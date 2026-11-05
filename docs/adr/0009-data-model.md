@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5 e as regras das credenciais na §4
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais na §4 e os operandos das métricas derivadas na §2
 
 ## Contexto
 
@@ -161,8 +161,9 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
   - O intervalo vai de 01/01/2023 a 31/12/2035 e é gerado pela própria migration. Ele cobre os 37 meses de histórico (R-19) de qualquer conta cadastrada até o fim do intervalo.
 - **`metrica`**: uma linha por métrica do catálogo (`docs/REQUIREMENTS.md` §7.1).
   - PK `codigo`. `UNIQUE (codigo, unidade)`, alvo da FK composta de `meta_desempenho`.
-  - Colunas `rotulo`, `explicacao` (`CHECK (char_length(explicacao) <= 200)`, RNF-01), `formula`, `unidade` (`moeda`, `quantidade`, `percentual`, `razao`), `aditiva`, `tipo` (`base`, `acao`, `derivada`), `campo_base`, `tipo_acao` e `medida_acao` (`quantidade`, `valor`).
-  - `CHECK`s amarram o tipo à origem: `base` exige `campo_base`; `acao` exige `tipo_acao` e `medida_acao`; `derivada` não tem nenhum dos dois.
+  - Colunas `rotulo`, `explicacao` (`CHECK (char_length(explicacao) <= 200)`, RNF-01), `formula`, `unidade` (`moeda`, `quantidade`, `percentual`, `razao`), `aditiva`, `tipo` (`base`, `acao`, `derivada`), `campo_base`, `tipo_acao`, `medida_acao` (`quantidade`, `valor`), `numerador`, `denominador` e `fator`.
+  - `CHECK`s amarram o tipo à origem: `base` exige `campo_base`; `acao` exige `tipo_acao` e `medida_acao`; `derivada` exige `numerador`, `denominador` e `fator` (`> 0`), e só ela os tem.
+  - A derivada vale `numerador ÷ denominador × fator`. `numerador` e `denominador` têm FK para `metrica`, e um teste pgTAP confere que nenhum deles é outra derivada. Assim, as funções de `analitico` calculam a razão a partir das somas do recorte sem repetir a fórmula no código, e a `formula` continua sendo o texto que explica a conta na tela. O percentual é guardado como fração, que a formatação pt-BR exibe multiplicada por 100 (RF-35): o fator do CTR é 1, e o "× 100" da fórmula descreve a exibição.
   - `campo_base` guarda o nome da coluna de `metrica_diaria_anuncio` já em português (`investimento`), e não o campo da API (`spend`). A tradução fica só no mapa de campos da ETL, e um teste pgTAP confere que a coluna existe. `tipo_acao` guarda o tipo de ação como a API o entrega, que é o valor gravado na tabela longa de ações.
 - **`resultado_objetivo`**: uma linha por objetivo × meta de otimização (`docs/REQUIREMENTS.md` §7.2).
   - PK `id`. `UNIQUE NULLS NOT DISTINCT (objetivo, meta_otimizacao)`.

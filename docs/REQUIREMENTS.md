@@ -328,7 +328,7 @@ O catálogo é dado no banco (ADR-0007), nas tabelas `metrica`, `resultado_objet
 Cada métrica tem código, rótulo no painel, explicação curta (RNF-01), fórmula, unidade e aditividade. A origem depende do tipo:
 - **base**: uma coluna das métricas diárias, como investimento e impressões;
 - **ação**: a quantidade ou o valor de um tipo de ação da API (R-21);
-- **derivada**: calculada a partir das outras, sem origem própria.
+- **derivada**: a razão entre duas métricas base ou de ação, multiplicada por um fator de escala, como o 1000 do custo por mil impressões.
 
 Regras de agregação:
 - Métricas aditivas somam entre dias e entre entidades.

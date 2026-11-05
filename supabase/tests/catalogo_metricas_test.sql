@@ -3,7 +3,7 @@
 -- e as referências das regras de resultado às métricas (RNF-01; ADR-0007;
 -- ADR-0009 §2 e §3).
 BEGIN;
-SELECT plan(65);
+SELECT plan(75);
 
 -- Estrutura
 SELECT col_is_pk('normalizado', 'metrica', 'codigo', 'codigo é a PK de metrica');
@@ -50,6 +50,9 @@ SELECT fk_ok(
   'normalizado', 'metrica_apoio_resultado', 'resultado_objetivo_id', 'normalizado', 'resultado_objetivo', 'id',
   'metrica_apoio_resultado.resultado_objetivo_id referencia resultado_objetivo'
 );
+-- A derivada é a razão entre duas métricas do próprio catálogo.
+SELECT fk_ok('normalizado', 'metrica', coluna, 'normalizado', 'metrica', 'codigo', format('metrica.%s referencia metrica', coluna))
+FROM unnest(ARRAY['numerador', 'denominador']) AS coluna;
 
 -- Um CHECK avaliado como NULL passa, então as colunas de domínio e de texto
 -- obrigatório são NOT NULL (ADR-0009 §1).
@@ -74,11 +77,14 @@ FROM unnest(ARRAY['objetivo', 'meta_otimizacao', 'metrica_resultado', 'metrica_k
 -- Uma métrica válida de cada tipo, usada pelos testes seguintes.
 SELECT lives_ok(
   $$
-  INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao)
+  INSERT INTO normalizado.metrica
+    (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator)
   VALUES
-    ('teste_base', 'Base de teste', 'Explicação de teste.', 'soma', 'moeda', true, 'base', 'investimento', NULL, NULL),
-    ('teste_acao', 'Ação de teste', 'Explicação de teste.', 'soma', 'quantidade', true, 'acao', NULL, 'offsite_conversion.fb_pixel_lead', 'quantidade'),
-    ('teste_derivada', 'Derivada de teste', 'Explicação de teste.', 'base ÷ ação', 'moeda', false, 'derivada', NULL, NULL, NULL)
+    ('teste_base', 'Base de teste', 'Explicação de teste.', 'soma', 'moeda', true, 'base', 'investimento', NULL, NULL, NULL, NULL, NULL),
+    ('teste_acao', 'Ação de teste', 'Explicação de teste.', 'soma', 'quantidade', true, 'acao', NULL,
+     'offsite_conversion.fb_pixel_lead', 'quantidade', NULL, NULL, NULL),
+    ('teste_derivada', 'Derivada de teste', 'Explicação de teste.', 'base ÷ ação', 'moeda', false, 'derivada', NULL, NULL, NULL,
+     'teste_base', 'teste_acao', 1)
   $$,
   'métricas base, de ação e derivada com a origem do próprio tipo são aceitas'
 );
@@ -87,8 +93,8 @@ SELECT lives_ok(
 SELECT lives_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo)
-    VALUES ('teste_200', 'Teste', %L, 'soma', 'quantidade', false, 'derivada')
+    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
+    VALUES ('teste_200', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1)
     $$,
     repeat('á', 199) || '.'
   ),
@@ -97,8 +103,8 @@ SELECT lives_ok(
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo)
-    VALUES ('teste_201', 'Teste', %L, 'soma', 'quantidade', false, 'derivada')
+    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
+    VALUES ('teste_201', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1)
     $$,
     repeat('á', 200) || '.'
   ),
@@ -116,10 +122,10 @@ SELECT is_empty(
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao)
-    VALUES (%L, %L, %L, %L, %L, false, %L, %L, %L, %L)
+    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
+    VALUES (%L, %L, %L, %L, %L, false, %L, 'teste_base', 'teste_acao', 1)
     $$,
-    codigo, rotulo, explicacao, formula, unidade, tipo, campo_base, tipo_acao, medida_acao
+    codigo, rotulo, explicacao, formula, unidade, tipo
   ),
   '23514',
   NULL,
@@ -127,24 +133,26 @@ SELECT throws_ok(
 )
 FROM (
   VALUES
-    ('Teste_Maiusculas', 'Teste', 'Explicação.', 'soma', 'moeda', 'derivada', NULL, NULL, NULL, 'código fora do formato snake_case é recusado'),
-    ('teste_rotulo', ' Teste', 'Explicação.', 'soma', 'moeda', 'derivada', NULL, NULL, NULL, 'rótulo não aparado é recusado'),
-    ('teste_rotulo', '', 'Explicação.', 'soma', 'moeda', 'derivada', NULL, NULL, NULL, 'rótulo vazio é recusado'),
-    ('teste_explicacao', 'Teste', '', 'soma', 'moeda', 'derivada', NULL, NULL, NULL, 'explicação vazia é recusada'),
-    ('teste_formula', 'Teste', 'Explicação.', 'soma ', 'moeda', 'derivada', NULL, NULL, NULL, 'fórmula não aparada é recusada'),
-    ('teste_unidade', 'Teste', 'Explicação.', 'soma', 'reais', 'derivada', NULL, NULL, NULL, 'unidade fora do domínio é recusada'),
-    ('teste_tipo', 'Teste', 'Explicação.', 'soma', 'moeda', 'calculada', NULL, NULL, NULL, 'tipo fora do domínio é recusado')
-) AS caso (codigo, rotulo, explicacao, formula, unidade, tipo, campo_base, tipo_acao, medida_acao, descricao);
+    ('Teste_Maiusculas', 'Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'código fora do formato snake_case é recusado'),
+    ('teste_rotulo', ' Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'rótulo não aparado é recusado'),
+    ('teste_rotulo', '', 'Explicação.', 'soma', 'moeda', 'derivada', 'rótulo vazio é recusado'),
+    ('teste_explicacao', 'Teste', '', 'soma', 'moeda', 'derivada', 'explicação vazia é recusada'),
+    ('teste_formula', 'Teste', 'Explicação.', 'soma ', 'moeda', 'derivada', 'fórmula não aparada é recusada'),
+    ('teste_unidade', 'Teste', 'Explicação.', 'soma', 'reais', 'derivada', 'unidade fora do domínio é recusada'),
+    ('teste_tipo', 'Teste', 'Explicação.', 'soma', 'moeda', 'calculada', 'tipo fora do domínio é recusado')
+) AS caso (codigo, rotulo, explicacao, formula, unidade, tipo, descricao);
 
 -- O tipo amarra a origem: base lê uma coluna, ação lê um tipo de ação e uma
--- medida, e derivada não lê nenhum dos dois (ADR-0009 §2).
+-- medida, e derivada lê só a razão entre duas métricas, com o fator de escala
+-- (ADR-0009 §2).
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao)
-    VALUES ('teste_origem', 'Teste', 'Explicação.', 'soma', 'quantidade', true, %L, %L, %L, %L)
+    INSERT INTO normalizado.metrica
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator)
+    VALUES ('teste_origem', 'Teste', 'Explicação.', 'soma', 'quantidade', true, %L, %L, %L, %L, %L, %L, %L)
     $$,
-    tipo, campo_base, tipo_acao, medida_acao
+    tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator
   ),
   '23514',
   NULL,
@@ -152,17 +160,40 @@ SELECT throws_ok(
 )
 FROM (
   VALUES
-    ('base', NULL, NULL, NULL, 'métrica base sem coluna é recusada'),
-    ('base', 'impressoes', 'link_click', 'quantidade', 'métrica base com tipo de ação é recusada'),
-    ('acao', NULL, 'link_click', NULL, 'métrica de ação sem medida é recusada'),
-    ('acao', NULL, NULL, 'quantidade', 'métrica de ação sem tipo de ação é recusada'),
-    ('acao', 'impressoes', 'link_click', 'quantidade', 'métrica de ação com coluna é recusada'),
-    ('acao', NULL, 'link_click', 'soma', 'medida de ação fora do domínio é recusada'),
-    ('acao', NULL, 'Link Click', 'quantidade', 'tipo de ação fora do formato da API é recusado'),
-    ('derivada', 'impressoes', NULL, NULL, 'métrica derivada com coluna é recusada'),
-    ('derivada', NULL, 'link_click', 'quantidade', 'métrica derivada com tipo de ação é recusada'),
-    ('base', 'Impressoes', NULL, NULL, 'coluna fora do formato snake_case é recusada')
-) AS caso (tipo, campo_base, tipo_acao, medida_acao, descricao);
+    ('base', NULL, NULL, NULL, NULL, NULL, NULL, 'métrica base sem coluna é recusada'),
+    ('base', 'impressoes', 'link_click', 'quantidade', NULL, NULL, NULL, 'métrica base com tipo de ação é recusada'),
+    ('base', 'impressoes', NULL, NULL, 'teste_base', 'teste_acao', 1, 'métrica base com operandos é recusada'),
+    ('acao', NULL, 'link_click', NULL, NULL, NULL, NULL, 'métrica de ação sem medida é recusada'),
+    ('acao', NULL, NULL, 'quantidade', NULL, NULL, NULL, 'métrica de ação sem tipo de ação é recusada'),
+    ('acao', 'impressoes', 'link_click', 'quantidade', NULL, NULL, NULL, 'métrica de ação com coluna é recusada'),
+    ('acao', NULL, 'link_click', 'quantidade', 'teste_base', 'teste_acao', 1, 'métrica de ação com operandos é recusada'),
+    ('acao', NULL, 'link_click', 'soma', NULL, NULL, NULL, 'medida de ação fora do domínio é recusada'),
+    ('acao', NULL, 'Link Click', 'quantidade', NULL, NULL, NULL, 'tipo de ação fora do formato da API é recusado'),
+    ('derivada', 'impressoes', NULL, NULL, 'teste_base', 'teste_acao', 1, 'métrica derivada com coluna é recusada'),
+    ('derivada', NULL, 'link_click', 'quantidade', 'teste_base', 'teste_acao', 1, 'métrica derivada com tipo de ação é recusada'),
+    ('derivada', NULL, NULL, NULL, NULL, 'teste_acao', 1, 'métrica derivada sem numerador é recusada'),
+    ('derivada', NULL, NULL, NULL, 'teste_base', NULL, 1, 'métrica derivada sem denominador é recusada'),
+    ('derivada', NULL, NULL, NULL, 'teste_base', 'teste_acao', NULL, 'métrica derivada sem fator é recusada'),
+    ('derivada', NULL, NULL, NULL, 'teste_base', 'teste_acao', 0, 'fator zero é recusado'),
+    ('base', 'Impressoes', NULL, NULL, NULL, NULL, NULL, 'coluna fora do formato snake_case é recusada')
+) AS caso (tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator, descricao);
+SELECT throws_ok(
+  format(
+    $$
+    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
+    VALUES ('teste_operando', 'Teste', 'Explicação.', 'soma', 'moeda', false, 'derivada', %L, %L, 1)
+    $$,
+    numerador, denominador
+  ),
+  '23503',
+  NULL,
+  descricao
+)
+FROM (
+  VALUES
+    ('metrica_inexistente', 'teste_acao', 'numerador fora do catálogo de métricas é recusado'),
+    ('teste_base', 'metrica_inexistente', 'denominador fora do catálogo de métricas é recusado')
+) AS caso (numerador, denominador, descricao);
 
 -- resultado_objetivo
 SELECT lives_ok(

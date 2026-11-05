@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 29/10/2026
-- Atualizado em: 04/11/2026, com a janela de atribuição e o formato de `results` verificados na API, e em 05/11/2026, com a janela e o desempate do critério de conjuntos divergentes
+- Atualizado em: 04/11/2026, com a janela de atribuição e o formato de `results` verificados na API, e em 05/11/2026, com a janela e o desempate do critério de conjuntos divergentes e com os operandos das métricas derivadas
 
 ## Contexto
 
@@ -32,7 +32,7 @@ A referência diz que `use_unified_attribution_setting=true` reproduz o Gerencia
 
 ## Decisão
 
-- **Tabela de métricas**: código, rótulo, explicação curta, fórmula descritiva, unidade (moeda, número, percentual), aditividade e origem (campo ou `action_type`).
+- **Tabela de métricas**: código, rótulo, explicação curta, fórmula descritiva, unidade (moeda, número, percentual), aditividade e origem (campo ou `action_type`; na derivada, o numerador, o denominador e o fator da razão, ADR-0009 §2).
 - **Tabela de resultado por objetivo**: objetivo da API, meta de otimização (ou "qualquer"), nome do objetivo no painel, métrica de resultado principal, KPI principal e métricas de apoio.
 - **Tabela de sobrescrita por campanha**: campanha, métrica de resultado principal e KPI, mantida pelo operador (RF-49).
 - **Precedência**: sobrescrita > objetivo + meta de otimização do conjunto > objetivo + "qualquer" > "Não classificado".
