@@ -4,7 +4,7 @@
 -- os casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
 -- ADR-0007; ADR-0009 §2).
 BEGIN;
-SELECT plan(21);
+SELECT plan(23);
 
 SELECT isnt_empty('SELECT 1 FROM normalizado.metrica', 'o catálogo de métricas está carregado');
 SELECT isnt_empty('SELECT 1 FROM normalizado.resultado_objetivo', 'o catálogo de resultado por objetivo está carregado');
@@ -228,6 +228,44 @@ SELECT is_empty(
   WHERE (tipo = 'derivada' AND aditiva) OR (tipo = 'acao' AND NOT aditiva)
   $$,
   'razões e derivadas nunca são aditivas, e as métricas de ação sempre são'
+);
+-- Cada derivada é a razão da própria fórmula. O percentual sai como fração,
+-- que a formatação pt-BR exibe multiplicada por 100 (RF-35), então o fator do
+-- CTR é 1, e o "× 100" da fórmula descreve a exibição.
+SELECT results_eq(
+  $$
+  SELECT codigo, numerador, denominador, fator
+  FROM normalizado.metrica
+  WHERE tipo = 'derivada'
+  ORDER BY codigo
+  $$,
+  $$
+  VALUES
+    ('cpc', 'investimento', 'cliques_link', 1::numeric),
+    ('cpm', 'investimento', 'impressoes', 1000::numeric),
+    ('ctr', 'cliques_link', 'impressoes', 1::numeric),
+    ('custo_cadastro', 'investimento', 'cadastros', 1::numeric),
+    ('custo_compra', 'investimento', 'compras', 1::numeric),
+    ('custo_conversa', 'investimento', 'conversas_iniciadas', 1::numeric),
+    ('custo_interacao', 'investimento', 'interacoes_publicacao', 1::numeric),
+    ('custo_mil_alcance', 'investimento', 'alcance', 1000::numeric),
+    ('custo_visualizacao_pagina', 'investimento', 'visualizacoes_pagina_destino', 1::numeric),
+    ('frequencia', 'impressoes', 'alcance', 1::numeric),
+    ('roas', 'valor_compras', 'investimento', 1::numeric)
+  $$,
+  'cada métrica derivada é a razão entre as métricas da própria fórmula, com o fator de escala'
+);
+-- As funções de analitico calculam a derivada a partir das somas dos
+-- operandos, sem encadear uma derivada em outra.
+SELECT is_empty(
+  $$
+  SELECT derivada.codigo, operando.codigo
+  FROM normalizado.metrica AS derivada
+  JOIN normalizado.metrica AS operando ON operando.codigo IN (derivada.numerador, derivada.denominador)
+  WHERE derivada.tipo = 'derivada'
+    AND operando.tipo = 'derivada'
+  $$,
+  'os operandos de toda derivada são métricas base ou de ação'
 );
 
 -- Explicações e rótulos em linguagem de negócio: nenhum nome de campo ou
