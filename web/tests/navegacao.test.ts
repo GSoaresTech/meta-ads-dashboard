@@ -5,6 +5,7 @@ import {
   montarCaminho,
   montarConsulta,
   montarEndereco,
+  nomearEntidade,
   resolverIntervalo,
   SELECAO_PADRAO,
   type Selecao,
@@ -161,5 +162,20 @@ describe("resolverIntervalo", () => {
         "2026-11-06",
       ),
     ).toEqual({ inicio: "2025-01-01", fim: "2025-01-31" });
+  });
+});
+
+describe("nomearEntidade", () => {
+  test("usa o nome da entidade e, sem ele, o nível dela", () => {
+    expect(
+      nomearEntidade({
+        nivel: "campanha",
+        entidadeId: ENTIDADE,
+        nome: "Campanha Exemplo",
+      }),
+    ).toBe("Campanha Exemplo");
+    expect(
+      nomearEntidade({ nivel: "anuncio", entidadeId: ENTIDADE, nome: null }),
+    ).toBe("Anúncio sem nome");
   });
 });
