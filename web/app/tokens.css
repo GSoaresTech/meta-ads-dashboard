@@ -11,7 +11,7 @@
   --cor-aco: #4d4d4d; /* texto secundário */
   --cor-bruma: #e8e8e8; /* linhas finas e grades */
 
-  /* Contraste de 3,9:1 no branco: só decoração, nunca texto que precisa ser lido. */
+  /* Contraste de 3,8:1 no branco: só decoração, nunca texto que precisa ser lido. */
   --cor-ardosia: #828282;
 
   /* Os dois únicos acentos. A brasa tem contraste de 2,9:1 no branco e não serve
