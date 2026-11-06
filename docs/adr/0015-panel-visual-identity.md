@@ -53,7 +53,7 @@ Duas cores têm uso limitado pelo contraste no branco (RNF-03):
 | Token | Contraste | Uso |
 |---|---|---|
 | `--cor-brasa` | 2,9:1 | Sublinhado de link e marca de gráfico. Nunca texto ou fundo de botão |
-| `--cor-ardosia` | 3,9:1 | Decoração, como separadores, sublinhados e bordas. Nunca texto que precisa ser lido |
+| `--cor-ardosia` | 3,8:1 | Decoração, como separadores, sublinhados e bordas. Nunca texto que precisa ser lido |
 
 ## Consequências
 
