@@ -14,7 +14,8 @@ import { conectarBancoLocal, URL_BANCO_LOCAL } from "./banco-local";
 // O servidor conecta ao banco local como painel_leitor, o papel do painel em
 // produção, para que os testes provem que ele basta (ADR-0009 §3). O papel
 // nasce sem senha, que nunca autentica; a suíte define uma senha sorteada e,
-// no fim, devolve a que havia.
+// no fim, devolve a que havia. Um segundo servidor aponta para uma porta sem
+// banco, para provar as respostas de erro.
 
 const RAIZ_PAINEL = fileURLToPath(new URL("../..", import.meta.url));
 const CLI_NEXT = fileURLToPath(
@@ -28,6 +29,7 @@ const BYTES_SENHA = 24;
 declare module "vitest" {
   export interface ProvidedContext {
     urlPainel: string;
+    urlPainelSemBanco: string;
   }
 }
 
@@ -139,10 +141,13 @@ async function definirSenhaPainelLeitor(senha: string | null): Promise<void> {
 
 // O URL_BANCO do ambiente é substituído, para que o servidor nunca conecte a
 // outro banco que não o local.
-function montarUrlPainelLeitor(senha: string): string {
+function montarUrlPainelLeitor(senha: string, porta?: number): string {
   const url = new URL(URL_BANCO_LOCAL);
   url.username = "painel_leitor";
   url.password = senha;
+  if (porta !== undefined) {
+    url.port = String(porta);
+  }
   return url.toString();
 }
 
@@ -165,11 +170,20 @@ export default async function configurarServidor(
       URL_BANCO: montarUrlPainelLeitor(senha),
     });
     servidores.push(servidor);
-    await aguardarServidor(servidor);
+    // A porta reservada e liberada fica sem ninguém ouvindo: a conexão ao
+    // banco é recusada.
+    const servidorSemBanco = iniciarServidor(await reservarPorta(), {
+      ...process.env,
+      URL_BANCO: montarUrlPainelLeitor(senha, await reservarPorta()),
+    });
+    servidores.push(servidorSemBanco);
+    await Promise.all(servidores.map(aguardarServidor));
 
     projeto.provide("urlPainel", servidor.url);
+    projeto.provide("urlPainelSemBanco", servidorSemBanco.url);
   } catch (erro) {
-    // Sem isto, um servidor que não sobe deixaria a senha sorteada no papel.
+    // Sem isto, um servidor que não sobe deixaria o outro de pé e a senha
+    // sorteada no papel.
     await encerrar();
     throw erro;
   }
