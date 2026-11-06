@@ -111,6 +111,18 @@ export function formatarMetrica(
   }
 }
 
+// O que uma leitura trouxe de uma métrica: indefinido é a métrica que ela não
+// traz, como o alcance, e nulo é a razão sem denominador (ADR-0013).
+export function formatarLeituraMetrica(
+  valor: ValorNumerico,
+  unidade: UnidadeMetrica,
+  moeda: string,
+): string {
+  return valor === undefined
+    ? ROTULO_NAO_DISPONIVEL
+    : formatarMetrica(valor, unidade, moeda);
+}
+
 // O eixo do gráfico é aproximado: o valor exato fica na dica e na tabela.
 export function formatarEixoMetrica(
   valor: number,
