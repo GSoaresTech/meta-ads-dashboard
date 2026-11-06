@@ -153,18 +153,25 @@ def ler_periodos_janela(
 ) -> list[PeriodoAlcance]:
     """As consultas de alcance da janela, na ordem: a semana, o mês e cada
     ano, cada uma do since ao until (ADR-0006)."""
-    if inicio > fim:
-        raise ValueError("janela com início depois do fim")
+    conferir_calendario(conexao, inicio, fim)
     parametros = {"inicio": inicio, "fim": fim}
-    dias = conexao.execute(CONTAR_DIAS_CALENDARIO, parametros).fetchone()[0]
-    if dias != (fim - inicio).days + 1:
-        raise ErroCalendario("janela com dias fora do calendário")
     return [
         PeriodoAlcance(TipoPeriodo(tipo), inicio_periodo, fim_periodo)
         for tipo, inicio_periodo, fim_periodo, _ in conexao.execute(
             LER_PERIODOS_JANELA, parametros
         ).fetchall()
     ]
+
+
+def conferir_calendario(conexao: psycopg.Connection, inicio: date, fim: date) -> None:
+    """Falha se algum dia de inicio a fim falta no calendário, a única fonte
+    do agrupamento por semana, mês e ano (CLAUDE.md §5)."""
+    if inicio > fim:
+        raise ValueError("janela com início depois do fim")
+    parametros = {"inicio": inicio, "fim": fim}
+    dias = conexao.execute(CONTAR_DIAS_CALENDARIO, parametros).fetchone()[0]
+    if dias != (fim - inicio).days + 1:
+        raise ErroCalendario("janela com dias fora do calendário")
 
 
 def carregar_alcance_conta(

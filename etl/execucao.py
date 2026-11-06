@@ -239,12 +239,18 @@ def carregar_com_rastreio[D](
     """
     contagens = tarefa.carregar(conexao, empresa_id, execucao_id, dados)
     respostas = contar_respostas_brutas(conexao, empresa_id, execucao_id)
+    conferir_rastreio(contagens, respostas)
+    return {**contagens, TABELA_BRUTO: respostas}
+
+
+def conferir_rastreio(contagens: Contagens, respostas: int) -> None:
+    """Falha se a carga gravou linhas em normalizado sem nenhuma resposta
+    bruta, o que desfaz a transação em vez de deixá-las sem rastro (RF-09)."""
     normalizadas = sum(
         linhas for tabela, linhas in contagens.items() if tabela != TABELA_BRUTO
     )
     if normalizadas and not respostas:
         raise ErroSemRespostaBruta("linhas em normalizado sem resposta bruta")
-    return {**contagens, TABELA_BRUTO: respostas}
 
 
 def registrar_inicio(
