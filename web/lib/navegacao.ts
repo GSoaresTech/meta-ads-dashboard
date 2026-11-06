@@ -14,6 +14,39 @@ import {
 
 export type Nivel = "geral" | "conta" | "campanha" | "anuncio";
 
+export type NivelFilho = Exclude<Nivel, "geral">;
+
+// O nome é nulo entre o cadastro e a primeira extração (ADR-0009 §2).
+export interface Entidade {
+  nivel: Nivel;
+  entidadeId: string | null;
+  nome: string | null;
+}
+
+// Um nível da trilha, com os fusos das contas que ele abrange.
+export interface NivelTrilha extends Entidade {
+  fusosHorarios: string[];
+}
+
+export interface EntidadeFilha extends Entidade {
+  entidadeId: string;
+}
+
+export const ROTULOS_NIVEL: Record<Nivel, string> = {
+  geral: "Geral",
+  conta: "Conta",
+  campanha: "Campanha",
+  anuncio: "Anúncio",
+};
+
+// O anúncio é o nível mais detalhado (REQUIREMENTS §3.1).
+export const NIVEIS_FILHOS: Record<Nivel, NivelFilho | null> = {
+  geral: "conta",
+  conta: "campanha",
+  campanha: "anuncio",
+  anuncio: null,
+};
+
 export interface Selecao {
   // O atalho é recalculado a cada visita, e o intervalo livre fica fixo.
   periodo: Atalho | Intervalo;
@@ -40,7 +73,7 @@ export const PERIODO_INTERVALO = "intervalo";
 // Os searchParams do Next.js: a chave repetida chega como lista.
 export type ParametrosUrl = Record<string, string | string[] | undefined>;
 
-const SEGMENTOS_NIVEL: Record<Exclude<Nivel, "geral">, string> = {
+const SEGMENTOS_NIVEL: Record<NivelFilho, string> = {
   conta: "contas",
   campanha: "campanhas",
   anuncio: "anuncios",
@@ -101,6 +134,10 @@ export function montarCaminho(
   return nivel === "geral"
     ? raiz
     : `${raiz}/${SEGMENTOS_NIVEL[nivel]}/${entidadeId}`;
+}
+
+export function nomearEntidade({ nivel, nome }: Entidade): string {
+  return nome ?? `${ROTULOS_NIVEL[nivel]} sem nome`;
 }
 
 export function montarEndereco(caminho: string, selecao: Selecao): string {
