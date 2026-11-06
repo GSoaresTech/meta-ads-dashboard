@@ -63,12 +63,12 @@ O conjunto de anúncios existe nos dados e liga o anúncio à campanha. A meta d
 
 | Granularidade | Definição |
 |---|---|
-| Dia ou período livre | Um dia ou um intervalo qualquer. Atalhos: hoje (parcial), ontem, últimos 7 dias, últimos 30 dias, este mês, mês passado, este ano e intervalo livre |
+| Dia ou período livre | Um dia ou um intervalo qualquer. Atalhos: hoje (parcial), ontem, últimos 7 dias, últimos 30 dias, este mês, mês passado, este ano e intervalo livre. Os últimos 7 e 30 dias terminam ontem, sem o dia parcial de hoje; este mês e este ano vão até hoje |
 | Semana | Semana ISO 8601, de segunda a domingo. Na virada do ano, a semana pertence ao ano ISO |
 | Mês | Mês de calendário |
 | Ano | Ano de calendário |
 
-Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega os dados (R-17).
+Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega os dados (R-17), e os atalhos são calculados nesse fuso. No Geral com contas em fusos diferentes, vale a regra da §3.3. Sem período na URL, o painel abre nos últimos 30 dias, por dia.
 
 ### 3.3 Regras de exibição especiais
 
@@ -78,6 +78,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 | Alcance e frequência em semana ISO, mês ou ano que começa antes do limite de 37 meses (R-19) | "Não disponível", com explicação: a Meta não entrega o período inteiro (ADR-0006) |
 | Alcance e frequência em período livre | "Não disponível", com explicação, salvo quando o intervalo coincide exatamente com uma semana ISO, um mês ou um ano |
 | Alcance e frequência na visão Geral com mais de uma conta | "Não disponível": a Meta não deduplica pessoas entre contas |
+| Atalhos de período na visão Geral com contas em fusos diferentes | O "hoje" é o dia corrente da conta de fuso mais atrasado, e os demais atalhos partem dele, para que "ontem" e os dias anteriores já estejam encerrados em todas as contas. Em cada data, a série soma o dia de cada conta no fuso dela (R-17). Ao descer para uma conta, o atalho é recalculado no fuso dela: nas horas de diferença entre os fusos, as datas podem diferir das do Geral, e cada página mostra o intervalo (ADR-0012) |
 | Alcance e frequência em quebras agregadas por mais de um dia | Não exibidos |
 | Quebra por região | Não inclui conversões que acontecem fora da Meta, como compras no site (R-23). O painel avisa quando o resultado principal da campanha é desse tipo |
 
@@ -200,7 +201,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 | RF-23 | O painel deve permitir descer de Geral para conta, campanha e anúncio mantendo o período e a granularidade selecionados. | Must | Com "mês atual" selecionado, ao abrir uma campanha, a lista de anúncios aparece filtrada por ela e pelo mesmo mês. | Objetivo central |
 | RF-24 | O painel deve refletir na URL o nível, o período e a granularidade (sem o token de acesso), para que voltar e recarregar preservem o estado. | Should | Ao recarregar a página de uma campanha com "últimos 7 dias", a mesma visão reaparece. A URL não contém o token. | Objetivo central; ADR-0004 |
 | RF-25 | O painel deve permitir escolher a granularidade de tempo (dia, semana ISO, mês, ano) para séries e tabelas. | Must | Com "Este ano" e granularidade "Mês", a série mostra um ponto por mês, e a soma do investimento dos meses é igual ao total do ano. | Objetivo central |
-| RF-26 | O painel deve oferecer atalhos de período (hoje, ontem, últimos 7 e 30 dias, este mês, mês passado, este ano) e intervalo livre. | Must | Cada atalho seleciona o intervalo correto no fuso da conta, verificado por teste com data fixa. | Objetivo central |
+| RF-26 | O painel deve oferecer atalhos de período (hoje, ontem, últimos 7 e 30 dias, este mês, mês passado, este ano) e intervalo livre. | Must | Cada atalho seleciona o intervalo correto no fuso da conta, verificado por teste com data fixa. Numa empresa com uma conta em `America/Sao_Paulo` e outra em `America/Los_Angeles`, às 03:43 de Brasília de 06/11/2026, o "hoje" do Geral é 05/11/2026, e o "ontem", 04/11/2026 (§3.3). | Objetivo central; ADR-0012 |
 | RF-27 | O painel deve mostrar, ao lado de cada métrica, a variação percentual em relação ao período anterior equivalente. | Must | Com "mês passado" (setembro), a variação é calculada contra agosto. Com um intervalo livre de 10 dias, contra os 10 dias imediatamente anteriores. Sem dado no período anterior, mostra "—". | Decisão de produto |
 | RF-28 | O painel deve marcar os dados de hoje como parciais, exibir o horário da última carga bem-sucedida e sinalizar atraso. | Must | Se a última carga bem-sucedida da empresa tiver mais de 3 h, o painel exibe o aviso "dados desatualizados". | Decisão de produto |
 | RF-29 | O painel deve ter layout utilizável no celular, com tabelas virando cartões e toque no lugar do cursor. | Must | Em 360 px de largura, nenhuma página tem rolagem horizontal, e todas as ações disponíveis no desktop estão acessíveis. | Decisão de produto |
