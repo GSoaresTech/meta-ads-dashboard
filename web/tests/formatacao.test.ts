@@ -2,9 +2,14 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
   formatarData,
+  formatarEixoMetrica,
+  formatarMetrica,
   formatarMoeda,
+  formatarNomeMoeda,
   formatarNumero,
   formatarPercentual,
+  formatarPeriodo,
+  formatarRotuloEixo,
 } from "@/lib/formatacao";
 
 // O Intl separa o símbolo do valor com espaço não separável (U+00A0): na tela
@@ -149,5 +154,75 @@ describe("formatarData", () => {
 
       expect(modulo.formatarData(data)).toBe(esperado);
     });
+  });
+});
+
+describe("formatarMetrica", () => {
+  test.each([
+    ["moeda", 1234.56, `R$${ESPACO}1.234,56`],
+    ["quantidade", 1234, "1.234"],
+    ["percentual", 0.125, "12,5%"],
+    ["razao", 2.5, "2,5"],
+  ] as const)("segue a unidade do catálogo: %s", (unidade, valor, esperado) => {
+    expect(formatarMetrica(valor, unidade, "BRL")).toBe(esperado);
+  });
+
+  test("usa a moeda da conta", () => {
+    expect(formatarMetrica(20, "moeda", "USD")).toBe(`US$${ESPACO}20,00`);
+  });
+
+  test("zero é valor, e a ausência vira travessão em toda unidade", () => {
+    expect(formatarMetrica(0, "quantidade", "BRL")).toBe("0");
+    expect(formatarMetrica(null, "moeda", "BRL")).toBe(TRAVESSAO);
+    expect(formatarMetrica(null, "percentual", "BRL")).toBe(TRAVESSAO);
+  });
+});
+
+describe("formatarEixoMetrica", () => {
+  test.each([
+    ["moeda", 12000, `R$${ESPACO}12${ESPACO}mil`],
+    ["quantidade", 1500000, `1,5${ESPACO}mi`],
+    ["quantidade", 250, "250"],
+    ["razao", 2.5, "2,5"],
+    ["percentual", 0.125, "12,5%"],
+  ] as const)("encurta o valor do eixo: %s %d", (unidade, valor, esperado) => {
+    expect(formatarEixoMetrica(valor, unidade, "BRL")).toBe(esperado);
+  });
+});
+
+describe("formatarPeriodo", () => {
+  test("um dia aparece uma vez", () => {
+    expect(formatarPeriodo("2026-10-29", "2026-10-29")).toBe("29/10/2026");
+  });
+
+  test("um período mostra os dois extremos", () => {
+    expect(formatarPeriodo("2026-10-26", "2026-11-01")).toBe(
+      "26/10/2026 a 01/11/2026",
+    );
+  });
+});
+
+describe("formatarRotuloEixo", () => {
+  test.each([
+    ["dia", "29/10"],
+    ["semana", "29/10"],
+    ["mes", "10/2026"],
+    ["ano", "2026"],
+  ] as const)("segue a granularidade: %s", (granularidade, esperado) => {
+    expect(formatarRotuloEixo("2026-10-29", granularidade)).toBe(esperado);
+  });
+
+  test.each(FUSOS)("não recua de mês nem de ano no fuso %s", async (fuso) => {
+    const modulo = await carregarModuloNoFuso(fuso);
+
+    expect(modulo.formatarRotuloEixo("2026-01-01", "ano")).toBe("2026");
+    expect(modulo.formatarRotuloEixo("2026-10-01", "mes")).toBe("10/2026");
+  });
+});
+
+describe("formatarNomeMoeda", () => {
+  test("escreve o nome da moeda em português", () => {
+    expect(formatarNomeMoeda("BRL")).toBe("Real brasileiro");
+    expect(formatarNomeMoeda("USD")).toBe("Dólar americano");
   });
 });
