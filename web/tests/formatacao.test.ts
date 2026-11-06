@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   formatarData,
   formatarEixoMetrica,
+  formatarLeituraMetrica,
   formatarMetrica,
   formatarMoeda,
   formatarNomeMoeda,
@@ -154,6 +155,22 @@ describe("formatarData", () => {
 
       expect(modulo.formatarData(data)).toBe(esperado);
     });
+  });
+});
+
+describe("formatarLeituraMetrica", () => {
+  test("a métrica que a leitura não traz é 'Não disponível', e a razão sem denominador é o travessão (ADR-0013)", () => {
+    expect(formatarLeituraMetrica(undefined, "moeda", "BRL")).toBe(
+      "Não disponível",
+    );
+    expect(formatarLeituraMetrica(null, "moeda", "BRL")).toBe(TRAVESSAO);
+  });
+
+  test("o valor lido segue a unidade do catálogo", () => {
+    expect(formatarLeituraMetrica(0, "quantidade", "BRL")).toBe("0");
+    expect(formatarLeituraMetrica(20, "moeda", "USD")).toBe(
+      `US$${ESPACO}20,00`,
+    );
   });
 });
 

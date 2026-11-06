@@ -1,6 +1,6 @@
 import { useId } from "react";
 
-import { formatarMetrica, ROTULO_NAO_DISPONIVEL } from "@/lib/formatacao";
+import { formatarLeituraMetrica } from "@/lib/formatacao";
 import type { MetricaResumida } from "@/lib/resumo-desempenho";
 
 import estilos from "./CartaoMetrica.module.css";
@@ -26,9 +26,7 @@ export function CartaoMetrica({
         {metrica.rotulo}
       </h3>
       <p className={estilos.valor}>
-        {valor === undefined
-          ? ROTULO_NAO_DISPONIVEL
-          : formatarMetrica(valor, metrica.unidade, moeda)}
+        {formatarLeituraMetrica(valor, metrica.unidade, moeda)}
       </p>
       <p className={estilos.explicacao}>{metrica.explicacao}</p>
     </article>
