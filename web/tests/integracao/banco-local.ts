@@ -115,6 +115,8 @@ export interface CampanhaTeste {
   nome: string;
   // Sem objetivo, a campanha é de vendas.
   objetivo?: string;
+  // Sem status, a campanha está ativa.
+  status?: string;
   anuncios: AnuncioTeste[];
 }
 
@@ -131,6 +133,7 @@ export type IdsEntidades = Record<string, string>;
 const INVESTIMENTO_DIARIO = "10.00";
 const IMPRESSOES_DIARIAS = 100;
 const OBJETIVO_PADRAO = "OUTCOME_SALES";
+const STATUS_PADRAO = "ACTIVE";
 
 // IDs da Meta inventados e sorteados, com 15 dígitos, para não colidir com
 // o seed, com a massa de referência nem com outro arquivo de teste.
@@ -212,13 +215,14 @@ async function cadastrarCampanha(
     cliente,
     `INSERT INTO normalizado.campanha
        (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status, execucao_id)
-     VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
       empresaId,
       contaId,
       sortearIdMeta(),
       campanha.nome,
       campanha.objetivo ?? OBJETIVO_PADRAO,
+      campanha.status ?? STATUS_PADRAO,
       execucaoId,
     ],
   );

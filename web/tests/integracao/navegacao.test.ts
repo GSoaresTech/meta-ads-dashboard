@@ -152,7 +152,7 @@ function lerVisao(documento: Document): Visao {
     ),
     filhas: [
       ...documento.querySelectorAll(
-        'section[aria-labelledby="titulo-filhas"] li a',
+        'section[aria-labelledby="titulo-filhas"] a',
       ),
     ].map(lerLigacao),
   };

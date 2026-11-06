@@ -1,6 +1,7 @@
 import "server-only";
 
 import { consultar } from "@/lib/banco";
+import type { LinhaCampanha } from "@/lib/campanhas";
 import type { EntidadeFilha, Nivel, NivelTrilha } from "@/lib/navegacao";
 import type { Intervalo } from "@/lib/periodo";
 
@@ -13,6 +14,13 @@ interface LinhaEntidade {
   nivel: Nivel;
   entidade_id: string;
   nome: string | null;
+}
+
+interface LinhaCampanhaBanco extends LinhaEntidade {
+  objetivo: string;
+  status: string;
+  metrica_resultado: string | null;
+  metrica_kpi: string | null;
 }
 
 interface LinhaTrilha extends Omit<LinhaEntidade, "entidade_id"> {
@@ -80,4 +88,27 @@ export async function listarFilhasComEntrega(
       entidadeId: filha.entidade_id,
       nome: filha.nome,
     }));
+}
+
+// As campanhas da conta, com ou sem entrega, em ordem de nome. O filtro pela
+// entrega depende do desempenho, que é lido com as métricas delas.
+export async function listarCampanhas(
+  credencial: string,
+  empresaId: string,
+  contaId: string | null,
+): Promise<LinhaCampanha[]> {
+  const linhas = await consultar<LinhaCampanhaBanco>(
+    `SELECT nivel, entidade_id, nome, objetivo, status, metrica_resultado, metrica_kpi
+     FROM analitico.listar_entidades($1, $2, 'conta', $3)`,
+    [credencial, empresaId, contaId],
+  );
+  return linhas.map((linha) => ({
+    nivel: linha.nivel,
+    entidadeId: linha.entidade_id,
+    nome: linha.nome,
+    objetivo: linha.objetivo,
+    status: linha.status,
+    metricaResultado: linha.metrica_resultado,
+    metricaKpi: linha.metrica_kpi,
+  }));
 }
