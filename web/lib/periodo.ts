@@ -15,6 +15,12 @@ export const ATALHOS = [
 
 export type Atalho = (typeof ATALHOS)[number];
 
+// Os valores que analitico.obter_desempenho aceita, sem o total do
+// intervalo, que não é escolha da tela (ADR-0009 §4; RF-25).
+export const GRANULARIDADES = ["dia", "semana", "mes", "ano"] as const;
+
+export type Granularidade = (typeof GRANULARIDADES)[number];
+
 export interface Intervalo {
   inicio: string;
   fim: string;
