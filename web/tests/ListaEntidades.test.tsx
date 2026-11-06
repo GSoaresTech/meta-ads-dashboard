@@ -47,7 +47,6 @@ test("a filha ainda sem nome aparece pelo nível", () => {
 
 test.each([
   ["conta", "Nenhuma conta com entrega no período."],
-  ["campanha", "Nenhuma campanha com entrega no período."],
   ["anuncio", "Nenhum anúncio com entrega no período."],
 ] as const)("sem filhas no período, a lista de %s avisa", (nivel, aviso) => {
   render(

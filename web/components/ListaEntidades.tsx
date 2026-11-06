@@ -9,21 +9,22 @@ import {
   type Selecao,
 } from "@/lib/navegacao";
 
-const TITULOS: Record<NivelFilho, string> = {
+// As campanhas têm a própria tabela, com as colunas da visão da conta.
+type NivelLista = Exclude<NivelFilho, "campanha">;
+
+const TITULOS: Record<NivelLista, string> = {
   conta: "Contas",
-  campanha: "Campanhas",
   anuncio: "Anúncios",
 };
 
-const AVISOS_SEM_ENTREGA: Record<NivelFilho, string> = {
+const AVISOS_SEM_ENTREGA: Record<NivelLista, string> = {
   conta: "Nenhuma conta com entrega no período.",
-  campanha: "Nenhuma campanha com entrega no período.",
   anuncio: "Nenhum anúncio com entrega no período.",
 };
 
 interface Propriedades {
   empresaId: string;
-  nivel: NivelFilho;
+  nivel: NivelLista;
   filhas: EntidadeFilha[];
   selecao: Selecao;
 }

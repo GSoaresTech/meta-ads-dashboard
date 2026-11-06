@@ -1,6 +1,12 @@
 import "server-only";
 
 import { consultar } from "@/lib/banco";
+import {
+  listarTiposResultado,
+  montarCampanhas,
+  type CampanhaListada,
+} from "@/lib/campanhas";
+import { listarCampanhas } from "@/lib/entidades";
 import type { Nivel } from "@/lib/navegacao";
 import type { Granularidade, Intervalo } from "@/lib/periodo";
 import {
@@ -30,6 +36,11 @@ interface FiltroDesempenho {
   entidadeId: string | null;
   intervalo: Intervalo;
   metricas: string[];
+}
+
+export interface VisaoConta {
+  resumos: ResumoMoeda[];
+  campanhas: CampanhaListada[];
 }
 
 function carregarCatalogo(credencial: string): Promise<Metrica[]> {
@@ -118,4 +129,58 @@ export async function carregarResumoGeral(
   ]);
 
   return montarResumos({ catalogo, resultados, totais, serie });
+}
+
+// O que a visão da conta mostra (REQUIREMENTS §3.1): os totais e a série, como
+// no Geral, e as campanhas com entrega. A leitura do intervalo inteiro serve
+// às duas partes, porque a obter_desempenho traz o foco e as filhas na mesma
+// chamada. O investimento vai sempre no filtro: é ele que marca a campanha com
+// entrega, inclusive a que não tem resultado no catálogo.
+export async function carregarVisaoConta(
+  credencial: string,
+  empresaId: string,
+  contaId: string | null,
+  intervalo: Intervalo,
+  granularidade: Granularidade,
+): Promise<VisaoConta> {
+  const [catalogo, linhasCampanhas] = await Promise.all([
+    carregarCatalogo(credencial),
+    listarCampanhas(credencial, empresaId, contaId),
+  ]);
+
+  const filtro: FiltroDesempenho = {
+    credencial,
+    empresaId,
+    nivel: "conta",
+    entidadeId: contaId,
+    intervalo,
+    metricas: [
+      METRICA_INVESTIMENTO,
+      ...linhasCampanhas
+        .flatMap(({ metricaResultado, metricaKpi }) => [
+          metricaResultado,
+          metricaKpi,
+        ])
+        .filter((metrica) => metrica !== null),
+    ],
+  };
+  const [periodo, serie] = await Promise.all([
+    carregarDesempenho(filtro, "periodo", ["conta", "campanha"]),
+    carregarDesempenho(filtro, granularidade, ["conta"]),
+  ]);
+
+  const campanhas = montarCampanhas(
+    linhasCampanhas,
+    periodo.filter(({ nivel }) => nivel === "campanha"),
+    catalogo,
+  );
+  return {
+    campanhas,
+    resumos: montarResumos({
+      catalogo,
+      resultados: listarTiposResultado(campanhas),
+      totais: periodo.filter(({ nivel }) => nivel === "conta"),
+      serie,
+    }),
+  };
 }
