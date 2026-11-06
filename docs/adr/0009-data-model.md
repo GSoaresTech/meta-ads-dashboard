@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais na §4 e os operandos das métricas derivadas na §2
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2
 
 ## Contexto
 
@@ -283,7 +283,7 @@ Assinaturas, com os parâmetros que vêm depois de `p_credencial`. As colunas de
 |---|---|---|---|
 | `resolver_acesso` | — | `TABLE (escopo text, empresa_id uuid)`; zero linhas se inválida | RF-45, RF-46, RF-47 |
 | `listar_empresas` | — | empresas visíveis à credencial | RF-47 |
-| `obter_desempenho` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_inicio date, p_fim date, p_granularidade text` | uma linha por período × entidade filha, com métricas aditivas somadas e moeda | RF-23, RF-25, RF-32, RF-33 |
+| `obter_desempenho` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_inicio date, p_fim date, p_granularidade text` | uma linha por entidade × período × moeda × métrica, da entidade em foco e de cada filha, com as aditivas somadas e as derivadas recalculadas das somas | RF-23, RF-25, RF-32, RF-33, RF-34 |
 | `obter_alcance` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_inicio date, p_fim date` | alcance e frequência, ou o motivo de indisponibilidade | §3.3 do `docs/REQUIREMENTS.md`, ADR-0006 |
 | `obter_quebra` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_tipo_quebra text, p_inicio date, p_fim date` | uma linha por categoria | RF-36 |
 | `listar_metricas` | — | o catálogo de métricas, com rótulos e explicações | RF-30 |
@@ -295,6 +295,13 @@ Assinaturas, com os parâmetros que vêm depois de `p_credencial`. As colunas de
 - `p_nivel` aceita `geral`, `conta`, `campanha` e `anuncio`; `p_entidade_id` é nulo só em `geral`.
 - `p_granularidade` aceita `dia`, `semana`, `mes`, `ano` e `periodo` (total do intervalo).
 - Valor fora do domínio levanta `22023` (`invalid_parameter_value`).
+- `obter_desempenho` devolve `TABLE (nivel text, entidade_id uuid, inicio_periodo date, fim_periodo date, moeda text, metrica text, valor numeric)`:
+  - **Entidades**: as linhas da entidade em foco repetem `p_nivel` e `p_entidade_id`, e as demais são das filhas: as contas no geral, as campanhas na conta e os anúncios na campanha. O anúncio não tem filhas. Assim, uma chamada traz o total da entidade e a lista do nível abaixo, e o total de uma filha é igual ao da chamada com foco nela (RF-32).
+  - **Métricas**: uma linha por métrica, pelo código do catálogo. O formato longo deixa o catálogo escolher as métricas aditivas e as derivadas de operandos aditivos (§2), e uma métrica nova não muda a assinatura. Alcance, frequência e as derivadas que dependem deles ficam com `obter_alcance` (ADR-0006).
+  - **Períodos**: o dia, a semana ISO, o mês, o ano ou o intervalo inteiro, pelo `calendario` e cortados no intervalo pedido. A entidade em foco tem todo período do intervalo, em cada moeda com dados nele: sem entrega, as aditivas são zero e as razões ficam nulas. Assim a série tem um ponto por período (RF-25) sem que o painel leia o calendário. As filhas aparecem só nos períodos com dados, e o intervalo sem nenhum dado devolve zero linhas.
+  - **Moeda**: no geral, a empresa tem um total por moeda, inclusive nas métricas sem dinheiro, para que cada razão use só contas da mesma moeda (RF-34).
+  - **Agregação**: fica numa função interna, `normalizado.agregar_desempenho`, sem credencial e sem grant, chamada depois da validação e da resolução da credencial.
+  - **Desempenho**: a função interna é planejada a cada chamada com os valores dos parâmetros (`plan_cache_mode = force_custom_plan`), com `work_mem` próprio e só com junções por hash (`enable_nestloop` e `enable_mergejoin` desligados nela). Com a massa fictícia da empresa de referência (`supabase/scripts/`), o plano genérico e as estimativas sobre as CTEs levavam os recortes longos acima do RNF-06, e esses atributos bastaram, sem índice nem view materializada (Consequências).
 
 As funções da área do operador exigem escopo `operador` e seguem o mesmo padrão:
 - empresas e contas (RF-43, RF-48, RF-22):
