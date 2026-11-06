@@ -119,6 +119,17 @@ jobs:
         run: python -m pip install -e . --group dev
       - name: Testes de integração com o banco
         run: python -m pytest -m integracao
+      # Os testes de integração do painel sobem o next start e ficam neste
+      # job, que já tem o Postgres local de pé.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Instalar dependências do painel
+        working-directory: web
+        run: npm ci
+      - name: Testes de integração do painel
+        working-directory: web
+        run: npm run test:integracao
 
   segredos:
     name: segredos

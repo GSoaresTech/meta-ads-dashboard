@@ -62,7 +62,7 @@ O painel precisa de testes de unidade, como os da formatação pt-BR com a cober
 - **Banco**: Supabase (Postgres). O schema é versionado por migrations do Supabase CLI e testado com pgTAP (`supabase test db`).
 - **Painel**: Next.js com TypeScript `strict`, gráficos com Recharts e acesso ao banco só no servidor.
 - **Hospedagem**: Vercel Hobby.
-- **Testes do painel**: Vitest com Testing Library e jsdom, para testes de unidade e de componente. Os testes de ponta a ponta ficam fora desta decisão.
+- **Testes do painel**: Vitest com Testing Library e jsdom, para testes de unidade e de componente. Os testes de integração também rodam no Vitest, em ambiente Node, com requisições HTTP ao servidor de produção do Next.js (`next start`). Os testes no navegador ficam fora desta decisão.
 - **Nomenclatura**: português no padrão de cada linguagem. O mapa de tradução dos campos da Meta é único e versionado.
 - **Autenticação**: nenhuma; o acesso funciona como descrito no ADR-0004.
 
@@ -70,7 +70,7 @@ O painel precisa de testes de unidade, como os da formatação pt-BR com a cober
 
 - Duas cadeias de ferramentas, Python e TypeScript, cada uma com lint, formatação e testes próprios na CI.
 - **Risco (Q-01)**: pelos termos, o que define o uso comercial no Vercel Hobby é haver ganho financeiro de quem desenvolve ou opera o projeto, não de quem é a conta. Gatilho de revisão: primeiro cliente pagante ou qualquer remuneração ligada ao projeto. A saída é migrar para o Pro, sem mudança de código.
-- Server Components `async` não rodam no Vitest. Eles só são cobertos por testes de ponta a ponta, cuja ferramenta ainda não foi decidida.
+- Server Components `async` não rodam no Vitest com jsdom. Os testes de integração os cobrem pela resposta HTTP, e o que só o navegador executa fica sem teste até decidirmos a ferramenta de ponta a ponta.
 
 ## Referências
 
