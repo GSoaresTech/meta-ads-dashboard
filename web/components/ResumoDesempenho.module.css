@@ -1,0 +1,13 @@
+/* O mínimo da coluna cabe em 360 px, e a grade vira uma coluna sozinha, sem
+   rolagem horizontal (RF-29). */
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.grade figure {
+  min-width: 0;
+  margin: 0;
+}
