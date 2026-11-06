@@ -22,12 +22,19 @@ import type { PontoSerie } from "@/lib/resumo-desempenho";
 
 const ALTURA_PX = 200;
 const DISTANCIA_MINIMA_ROTULOS_PX = 24;
-const COR_SERIE = "#2a78d6";
+// Os tokens de app/tokens.css (RNF-26). A brasa tem pouco contraste com o
+// branco, e a tabela da SerieTemporal traz todo valor em texto.
+const COR_SERIE = "var(--cor-brasa)";
 const OPACIDADE_AREA = 0.1;
-const COR_GRADE = "#e3e2de";
-const COR_TEXTO = "#52514e";
+const COR_GRADE = "var(--cor-bruma)";
+const COR_TEXTO = "var(--cor-aco)";
 
 const ESTILO_EIXO = { fontSize: 12, fill: COR_TEXTO };
+const ESTILO_DICA = {
+  border: `1px solid ${COR_GRADE}`,
+  borderRadius: "var(--raio-dica)",
+  color: "var(--cor-grafite)",
+};
 
 interface Propriedades {
   rotulo: string;
@@ -75,6 +82,7 @@ export function GraficoSerie({
         />
         <Tooltip
           separator=": "
+          contentStyle={ESTILO_DICA}
           itemStyle={{ color: COR_TEXTO }}
           formatter={(valor) => [
             formatarMetrica(

@@ -48,7 +48,7 @@ export function TabelaCampanhas({
       {campanhas.length === 0 ? (
         <p>Nenhuma campanha com entrega no período.</p>
       ) : (
-        <table className={estilos.tabela}>
+        <table>
           <thead>
             <tr>
               <th scope="col">Campanha</th>
@@ -76,7 +76,9 @@ export function TabelaCampanhas({
                   </Link>
                 </th>
                 <td>{campanha.objetivo}</td>
-                <td>{campanha.status}</td>
+                <td>
+                  <span className={estilos.etiqueta}>{campanha.status}</span>
+                </td>
                 <CelulaMetrica
                   medida={campanha.resultado}
                   moeda={campanha.moeda}
