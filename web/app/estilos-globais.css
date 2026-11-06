@@ -1,0 +1,116 @@
+/* Os elementos sem classe de todas as páginas, a partir dos tokens. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cor-branco);
+  color: var(--cor-grafite);
+  font-family: var(--fonte-texto);
+  font-size: var(--texto-base);
+  line-height: var(--altura-linha-texto);
+}
+
+main {
+  max-width: var(--largura-pagina);
+  margin-inline: auto;
+  padding: var(--espaco-40) var(--espaco-20) var(--espaco-secao);
+}
+
+main > section {
+  margin-top: var(--espaco-secao);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-weight: var(--peso-titulo);
+  letter-spacing: var(--tracking-titulo);
+  line-height: var(--altura-linha-titulo);
+  overflow-wrap: anywhere;
+}
+
+h1 {
+  font-size: var(--texto-titulo-grande);
+}
+
+h2 {
+  margin-bottom: var(--espaco-20);
+  font-size: var(--texto-titulo);
+}
+
+h3 {
+  font-size: var(--texto-subtitulo);
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--cor-ardosia);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: var(--cor-brasa);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cor-grafite);
+  outline-offset: 2px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: var(--espaco-12);
+  border-bottom: 1px solid var(--cor-bruma);
+  font-weight: var(--peso-titulo);
+  text-align: left;
+}
+
+thead th {
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+  font-weight: var(--peso-rotulo);
+}
+
+input {
+  padding: var(--espaco-8) var(--espaco-12);
+  border: 1px solid var(--cor-ardosia);
+  border-radius: var(--raio-botao);
+  background: var(--cor-branco);
+  color: var(--cor-grafite);
+  font: inherit;
+}
+
+button {
+  padding: 10px var(--espaco-20);
+  border: 1px solid var(--cor-grafite);
+  border-radius: var(--raio-botao);
+  background: var(--cor-grafite);
+  color: var(--cor-branco);
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-base);
+  font-weight: var(--peso-titulo);
+  letter-spacing: var(--tracking-titulo);
+  cursor: pointer;
+}
+
+@media (max-width: 40rem) {
+  main {
+    padding-top: var(--espaco-20);
+  }
+
+  h1 {
+    font-size: var(--texto-titulo);
+  }
+}

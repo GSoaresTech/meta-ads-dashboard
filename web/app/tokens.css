@@ -1,0 +1,54 @@
+/* A identidade visual do painel (RNF-26; ADR-0015): o único lugar com valores
+   literais de cor, fonte, escala, espaço e raio. O restante do painel lê daqui,
+   e o tests/design.test.ts falha com cor, sombra ou fonte fora deste arquivo. */
+:root {
+  /* A página é quase toda acromática. */
+  --cor-grafite: #202020; /* texto principal e títulos */
+  --cor-branco: #ffffff; /* fundo da página e cartões de dados */
+  --cor-cinza: #efefef; /* painéis e pílulas de navegação */
+  --cor-nevoa: #f5f5f5; /* superfícies aninhadas */
+  --cor-marfim: #ebe6dd; /* etiquetas e blocos em destaque */
+  --cor-aco: #4d4d4d; /* texto secundário */
+  --cor-bruma: #e8e8e8; /* linhas finas e grades */
+
+  /* Contraste de 3,9:1 no branco: só decoração, nunca texto que precisa ser lido. */
+  --cor-ardosia: #828282;
+
+  /* Os dois únicos acentos. A brasa tem contraste de 2,9:1 no branco e não serve
+     para texto nem fundo de botão: só sublinhado de link e marca de gráfico. */
+  --cor-brasa: #ff682c;
+  --cor-latao: #816729; /* segunda série de gráfico e texto de destaque */
+
+  /* As variáveis --fonte-inter* vêm do next/font, em app/layout.tsx. */
+  --fonte-titulo:
+    var(--fonte-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --fonte-texto: var(--fonte-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --peso-titulo: 400; /* títulos nunca ficam em negrito */
+  --peso-rotulo: 500;
+  --tracking-titulo: -0.02em;
+
+  --texto-legenda: 14px;
+  --texto-base: 16px;
+  --texto-subtitulo: 18px;
+  --texto-titulo: 32px;
+  --texto-titulo-grande: 40px;
+  --altura-linha-texto: 1.5;
+  --altura-linha-titulo: 1.2;
+
+  --espaco-4: 4px;
+  --espaco-8: 8px;
+  --espaco-12: 12px;
+  --espaco-16: 16px;
+  --espaco-20: 20px; /* entre elementos */
+  --espaco-40: 40px; /* interno de painéis */
+  --espaco-secao: 80px; /* entre seções, sem linha divisória */
+  --largura-pagina: 1200px;
+
+  --raio-botao: 0;
+  --raio-painel: 6px 0 0; /* o canto assimétrico é a assinatura dos painéis */
+  --raio-cartao-dados: 20px;
+  --raio-dica: 8px;
+  --raio-etiqueta: 20px;
+  --raio-pilula: 200px;
+}
