@@ -1,0 +1,17 @@
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabela th,
+.tabela td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e3e2de;
+  font-weight: 400;
+  text-align: left;
+}
+
+.tabela thead th {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
