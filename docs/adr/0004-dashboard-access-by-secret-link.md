@@ -23,6 +23,9 @@ Adotar link secreto por empresa e credencial do operador, ambos implementados co
 
 - **Credencial**: token aleatório gerado no servidor (recomendado: 32 bytes em base64url) e exibido uma única vez. O banco guarda só o hash SHA-256, o escopo (uma `empresa_id` ou "operador"), a data de criação e a de revogação. Como o token é aleatório e de alta entropia, SHA-256 basta, sem hash lento (RNF-15).
 - **Entrada**: o link `/acesso/<token>` troca o token por um cookie `HttpOnly`, `Secure`, `SameSite=Lax` e redireciona para uma URL sem token, para que o token não fique nas URLs de navegação.
+  - O cookie guarda o próprio token e é de sessão, sem validade: some quando o navegador fecha, e a pessoa volta pelo link. Como o banco resolve a credencial a cada requisição, a revogação vale já na seguinte (RF-45).
+  - O redirecionamento é um 303 com `Cache-Control: no-store`, para que nenhum cache guarde a resposta com o cookie. O link de empresa leva a `/empresas/<id>`, a visão da empresa pelo ID interno, que o operador também abre. O link do operador leva à raiz.
+  - O token vai ao banco como parâmetro, nunca no texto do comando, que o Postgres grava no log quando o comando falha. Um valor com caractere fora do base64url não é de nenhuma credencial e é recusado antes de chegar ao banco.
 - **Resolução no banco**: o servidor do painel passa a credencial do cookie para funções de `analitico`. Elas calculam o hash, verificam se a credencial não está revogada, resolvem o escopo e filtram os dados. O papel de banco usado pelo painel só pode executar essas funções, sem `SELECT` nas tabelas.
 - **Operador**: a credencial do operador dá acesso a todas as empresas e às funções de escrita da área do operador (links, metas, sobrescritas, cadastro de empresa).
 - **Rotas**: para credencial inválida, revogada ou fora do escopo, a resposta é 404, não 403, para não revelar se a empresa existe.
