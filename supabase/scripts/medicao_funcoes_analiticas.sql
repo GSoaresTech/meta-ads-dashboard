@@ -110,6 +110,15 @@ FROM (
     (
       'obter_trilha · anúncio',
       format('SELECT * FROM analitico.obter_trilha(%L, %L, %L, %L)', :'token', :'empresa_id', 'anuncio', :'anuncio_id')
+    ),
+    ('listar_entidades · geral', format('SELECT * FROM analitico.listar_entidades(%L, %L, %L, NULL)', :'token', :'empresa_id', 'geral')),
+    (
+      'listar_entidades · conta',
+      format('SELECT * FROM analitico.listar_entidades(%L, %L, %L, %L)', :'token', :'empresa_id', 'conta', :'conta_id')
+    ),
+    (
+      'listar_entidades · campanha',
+      format('SELECT * FROM analitico.listar_entidades(%L, %L, %L, %L)', :'token', :'empresa_id', 'campanha', :'campanha_id')
     )
 ) AS caso (descricao, chamada);
 
