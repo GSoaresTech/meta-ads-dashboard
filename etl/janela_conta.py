@@ -159,9 +159,16 @@ def carregar_janela_conta(
             conexao, empresa_id, execucao_id, janela.inicio, janela.fim, janela.quebras
         )
     )
+    # O alcance de uma fatia histórica vai além dela, como a semana que
+    # termina no mês seguinte e o ano da fatia de janeiro: a data de
+    # referência do bruto é o último dia consultado (ADR-0009 §2). Na rotina
+    # diária, os períodos terminam no fim da janela.
+    referencia_alcance = max(
+        [janela.fim, *(periodo.fim for periodo in janela.alcance.consultas)]
+    )
     contagens.update(
         carregar_alcance_conta(
-            conexao, empresa_id, execucao_id, janela.fim, janela.alcance
+            conexao, empresa_id, execucao_id, referencia_alcance, janela.alcance
         )
     )
     return dict(contagens)

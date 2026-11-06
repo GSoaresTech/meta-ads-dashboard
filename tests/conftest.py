@@ -37,6 +37,7 @@ LIMPEZA_EMPRESA = (
     "DELETE FROM normalizado.aviso_execucao WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.campanha WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.contagem_linhas_execucao WHERE empresa_id = %(empresa_id)s",
+    "DELETE FROM normalizado.fatia_historica WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM bruto.resposta_api WHERE empresa_id = %(empresa_id)s",
     "UPDATE normalizado.conta_anuncio SET execucao_id = NULL WHERE empresa_id = %(empresa_id)s",
     "DELETE FROM normalizado.execucao_carga WHERE empresa_id = %(empresa_id)s",

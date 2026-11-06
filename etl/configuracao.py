@@ -69,6 +69,21 @@ JANELA_REPROCESSAMENTO_DIAS = 28
 # reprocessamento de 28 dias mais uma margem (ADR-0005).
 RETENCAO_BRUTO_DIAS = 35
 
+# Os insights aceitam o since a partir de hoje menos 37 meses, no mesmo dia
+# do mês (R-19). Não verificamos em que fuso a Meta conta o hoje, que pode
+# estar um dia à frente do da conta: às 06:43 UTC da carga diária, uma conta
+# de Los Angeles ainda está na véspera. O limite da carga histórica é o mais
+# tardio entre o de hoje e o de amanhã (calcular_limite_historico).
+HISTORICO_MAXIMO_MESES = 37
+MARGEM_LIMITE_HISTORICO_DIAS = 1
+# Cada execução histórica cabe em 5 h (RNF-07), abaixo das 6 h por job do
+# Actions (R-07). Depois de 3 h, nenhuma fatia nova começa, e a que está em
+# andamento termina; a execução seguinte continua da primeira não concluída.
+# As 2 h restantes cobrem a fatia em andamento quando a cota da conta se
+# esgota: com o uso acima de LIMITE_USO_PERCENTUAL, cada chamada espera até
+# ESPERA_MAXIMA_SEGUNDOS, e uma fatia faz até cerca de 18 chamadas (R-37).
+DURACAO_MAXIMA_HISTORICA_SEGUNDOS = 3 * 60 * 60
+
 
 class ErroConfiguracao(Exception):
     """Variável de ambiente ausente ou inválida na inicialização."""

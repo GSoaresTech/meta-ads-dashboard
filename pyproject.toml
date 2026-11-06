@@ -44,12 +44,12 @@ markers = ["integracao: exige o banco local do Supabase"]
 [tool.coverage.run]
 source = ["etl"]
 # A carga, a execução, as tarefas de cadastro, de insights, de alcance e de
-# quebras, a janela da conta e a rotina diária são I/O de banco: os testes de
-# integração, fora desta medição, as provam contra o banco local
-# (tests/test_carga_banco.py, tests/test_execucao_banco.py,
+# quebras, a janela da conta, a rotina diária e a carga histórica são I/O de
+# banco: os testes de integração, fora desta medição, as provam contra o
+# banco local (tests/test_carga_banco.py, tests/test_execucao_banco.py,
 # tests/test_cadastro_banco.py, tests/test_insights_banco.py,
-# tests/test_alcance_banco.py, tests/test_quebras_banco.py e
-# tests/test_rotina_diaria_banco.py).
+# tests/test_alcance_banco.py, tests/test_quebras_banco.py,
+# tests/test_rotina_diaria_banco.py e tests/test_carga_historica_banco.py).
 omit = [
     "etl/carga.py",
     "etl/execucao.py",
@@ -59,6 +59,7 @@ omit = [
     "etl/quebras.py",
     "etl/janela_conta.py",
     "etl/rotina_diaria.py",
+    "etl/carga_historica.py",
 ]
 
 [tool.coverage.report]
