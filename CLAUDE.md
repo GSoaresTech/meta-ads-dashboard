@@ -31,6 +31,7 @@ Banco local (exige o Supabase CLI e o Docker), na raiz do repositório:
 - `supabase test db`: roda os testes pgTAP de `supabase/tests/` contra o banco local.
 - `supabase stop`: para o Supabase local.
 - `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -1 -f supabase/scripts/massa_empresa_referencia.sql`: carrega no banco local a massa fictícia da empresa de referência do `docs/REQUIREMENTS.md` §4.2, com 37 meses até hoje, que fica até o próximo `supabase db reset` (exige o `psql`). Os testes pgTAP contam as linhas do banco só com o seed: com a massa carregada, rode `supabase db reset` antes de `supabase test db`.
+- `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f supabase/scripts/medicao_funcoes_analiticas.sql`: mede o p95 de 20 execuções de cada cenário das funções de `analitico` com essa massa (RNF-06). Se ela faltar, o script a carrega antes e a remove no fim.
 
 Banco de produção (ADR-0010), na raiz do repositório, a partir da `main` atualizada depois do merge do PR que traz a migration. Exige o Supabase CLI autenticado com `supabase login` e o projeto ligado com `supabase link --project-ref <ref>`, que pede a senha do banco no prompt.
 - `supabase projects list`: confere que o projeto marcado como ligado é o deste painel, e não o outro projeto da organização.
