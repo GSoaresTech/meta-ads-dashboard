@@ -2,7 +2,7 @@ import type { Granularidade } from "@/lib/periodo";
 
 const LOCALIDADE = "pt-BR";
 
-const VALOR_AUSENTE = "—";
+export const VALOR_AUSENTE = "—";
 
 // A métrica que a leitura não traz, diferente do valor ausente, que é a razão
 // sem denominador (docs/REQUIREMENTS.md §3.3 e §7.1).
