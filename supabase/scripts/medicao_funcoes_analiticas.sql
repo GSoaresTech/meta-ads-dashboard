@@ -36,11 +36,13 @@ SELECT id AS empresa_id FROM normalizado.empresa WHERE nome = 'Empresa Exemplo R
 SELECT normalizado.gerar_credencial('empresa', :'empresa_id') AS token \gset
 
 -- As datas dos atalhos do painel (RF-26), pelo calendário, e o início do
--- histórico carregado.
+-- histórico carregado. Os últimos 7 e 30 dias terminam ontem (REQUIREMENTS
+-- §3.2).
 SELECT
   hoje.data AS hoje,
-  hoje.data - 6 AS inicio_7_dias,
-  hoje.data - 29 AS inicio_30_dias,
+  hoje.data - 1 AS ontem,
+  hoje.data - 7 AS inicio_7_dias,
+  hoje.data - 30 AS inicio_30_dias,
   hoje.inicio_mes AS inicio_mes,
   mes_passado.inicio_mes AS inicio_mes_passado,
   mes_passado.data AS fim_mes_passado,
@@ -82,14 +84,14 @@ SELECT
   )
 FROM (
   VALUES
-    ('obter_desempenho · geral · últimos 30 dias · dia', 'geral', NULL, :'inicio_30_dias', :'hoje', 'dia'),
+    ('obter_desempenho · geral · últimos 30 dias · dia', 'geral', NULL, :'inicio_30_dias', :'ontem', 'dia'),
     ('obter_desempenho · geral · este mês · período', 'geral', NULL, :'inicio_mes', :'hoje', 'periodo'),
     ('obter_desempenho · geral · mês passado · período', 'geral', NULL, :'inicio_mes_passado', :'fim_mes_passado', 'periodo'),
     ('obter_desempenho · geral · este ano · mês', 'geral', NULL, :'inicio_ano', :'hoje', 'mes'),
     ('obter_desempenho · geral · 37 meses · mês', 'geral', NULL, :'inicio_historico', :'hoje', 'mes'),
     ('obter_desempenho · geral · 37 meses · semana', 'geral', NULL, :'inicio_historico', :'hoje', 'semana'),
     ('obter_desempenho · geral · 37 meses · dia', 'geral', NULL, :'inicio_historico', :'hoje', 'dia'),
-    ('obter_desempenho · conta · últimos 30 dias · período', 'conta', :'conta_id', :'inicio_30_dias', :'hoje', 'periodo'),
+    ('obter_desempenho · conta · últimos 30 dias · período', 'conta', :'conta_id', :'inicio_30_dias', :'ontem', 'periodo'),
     ('obter_desempenho · conta · este ano · semana', 'conta', :'conta_id', :'inicio_ano', :'hoje', 'semana'),
     ('obter_desempenho · conta · 37 meses · dia', 'conta', :'conta_id', :'inicio_historico', :'hoje', 'dia'),
     ('obter_desempenho · campanha · este ano · período', 'campanha', :'campanha_id', :'inicio_ano', :'hoje', 'periodo'),
