@@ -1,0 +1,50 @@
+# Carga histórica da ETL (RF-07, RF-22; ADR-0005). Roda como job da carga
+# diária, depois da rotina, e por disparo manual, para retomar sem esperar a
+# madrugada seguinte. A conta nova é a que ainda não tem fatias, e cada
+# execução continua da primeira fatia não concluída. Uma falha em qualquer
+# empresa faz o job terminar com código diferente de zero, o que dispara a
+# notificação do GitHub (RF-50). Os logs são públicos, e a carga só escreve os
+# campos da lista permitida (RNF-17).
+name: Carga histórica
+
+on:
+  workflow_call:
+    secrets:
+      TOKEN_SISTEMA_META:
+        required: true
+      URL_BANCO:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  carga-historica:
+    name: carga-historica
+    runs-on: ubuntu-24.04
+    # Depois de 3 h, a carga não começa fatia nova, e a que está em andamento
+    # termina (DURACAO_MAXIMA_HISTORICA_SEGUNDOS). O job para em 5 h, o teto
+    # do RNF-07, abaixo das 6 h do Actions (R-07); no cancelamento, a carga
+    # fecha o registro da execução como falha antes de sair.
+    timeout-minutes: 300
+    # Um disparo manual espera a carga em andamento, chamada pela carga
+    # diária ou não, em vez de ler as mesmas fatias ao mesmo tempo. O lock
+    # por empresa (RF-19) segue valendo.
+    concurrency:
+      group: carga-historica
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Instalar a ETL
+        run: python -m pip install .
+      - name: Rodar a carga histórica
+        env:
+          TOKEN_SISTEMA_META: ${{ secrets.TOKEN_SISTEMA_META }}
+          URL_BANCO: ${{ secrets.URL_BANCO }}
+        run: python -m etl.carga_historica
