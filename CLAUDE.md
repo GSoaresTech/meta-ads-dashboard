@@ -127,6 +127,11 @@ Toda execução, seja horária, diária ou histórica (ADR-0005), segue a ordem 
 - Agregue e exiba conforme `docs/REQUIREMENTS.md` §3.3 e §7.1: métricas aditivas somam, razões são recalculadas a partir das somas, e alcance e frequência nunca são somados. Um teste prova a aditividade entre níveis (RF-32).
 - O formato é pt-BR via `Intl` com `pt-BR`. A formatação fica centralizada num módulo; é proibido formatar número ou data inline.
 - A prévia do anúncio é montada pelo painel com dados do banco e do Storage. Nunca use o iframe da Meta (R-25).
+- Toda página e todo elemento novo seguem a identidade visual do ADR-0015 e usam só os tokens de `web/app/tokens.css`, o único lugar com valores literais de cor, fonte, escala, espaço e raio. O `web/tests/design.test.ts` falha com cor, sombra ou fonte fora dele (RNF-26).
+  - Títulos na fonte de título, sempre com peso 400; o restante na fonte de texto.
+  - A página é quase toda acromática. A brasa aparece só em sublinhado de link e marca de gráfico, e nenhuma outra cor entra, nem para status.
+  - A profundidade vem da superfície, sem sombra: painel cinza com raio `6px 0 0` e cartão de dados branco com raio de 20 px. As seções se separam por 80 px de espaço, sem linha.
+  - Botão de canto reto, em grafite; navegação em pílula. O texto secundário usa `--cor-aco`, e a `--cor-ardosia` fica só para decoração.
 
 ## 8. Clean Code
 

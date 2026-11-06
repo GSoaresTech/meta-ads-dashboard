@@ -268,6 +268,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 | RNF-02 | Nenhum nome de campo da API aparece na interface. | Must | Um teste percorre os textos renderizados e encontra 0 ocorrências da lista de campos da API (`spend`, `impressions`, `cpc`, `ctr`, `reach`, `actions` e outros). | Objetivo central |
 | RNF-03 | O painel é acessível e utilizável no celular. | Must | Lighthouse (modo mobile) com Acessibilidade ≥ 90 nas páginas Geral, campanha e anúncio. | Decisão de produto |
 | RNF-04 | Uma pessoa sem experiência em Meta Ads responde às perguntas de negócio usando só o painel. | Should | Num teste com pelo menos 1 pessoa de negócio, cada uma das 3 perguntas ("Quanto investimos no mês passado?", "Qual campanha teve o menor custo por conversa?", "Qual anúncio gerou mais cadastros?") é respondida corretamente em até 2 min. | Objetivo central |
+| RNF-26 | O painel segue uma identidade visual única. | Must | Um teste percorre os CSS e os componentes e encontra 0 ocorrências de cor, sombra ou fonte fora dos tokens (ADR-0015). | Decisão de produto |
 
 ### 6.2 Desempenho
 
