@@ -100,6 +100,19 @@ FROM (
     ('obter_desempenho · anúncio · 37 meses · mês', 'anuncio', :'anuncio_id', :'inicio_historico', :'hoje', 'mes')
 ) AS caso (descricao, nivel, entidade_id, inicio, fim, granularidade);
 
+-- As demais funções, depois das de desempenho, com as mesmas entidades em
+-- foco.
+INSERT INTO cenario (ordem, descricao, chamada)
+SELECT (SELECT max(anterior.ordem) FROM cenario AS anterior) + row_number() OVER (), caso.descricao, caso.chamada
+FROM (
+  VALUES
+    ('obter_trilha · geral', format('SELECT * FROM analitico.obter_trilha(%L, %L, %L, NULL)', :'token', :'empresa_id', 'geral')),
+    (
+      'obter_trilha · anúncio',
+      format('SELECT * FROM analitico.obter_trilha(%L, %L, %L, %L)', :'token', :'empresa_id', 'anuncio', :'anuncio_id')
+    )
+) AS caso (descricao, chamada);
+
 -- Executa a chamada e consome todas as linhas, sem enviá-las ao cliente. O
 -- p95 é por posto mais próximo: a 19ª de 20 durações em ordem crescente.
 CREATE FUNCTION pg_temp.medir(p_chamada text, p_execucoes integer)
