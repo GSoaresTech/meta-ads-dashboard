@@ -14,6 +14,12 @@ import {
   type MassaAcesso,
 } from "./banco-local";
 import { requisitar } from "./http";
+import {
+  acharSecao,
+  lerCartoes,
+  lerSerie,
+  lerValorMoeda,
+} from "./leitura-pagina";
 
 // Prova a visão Geral por HTTP: os totais e as séries por moeda, os tipos de
 // resultado e o catálogo (REQUIREMENTS §3.1 e §3.3; RF-25, RF-30, RF-34;
@@ -151,38 +157,6 @@ async function abrirGeral(
 
 function abrirSetembro(): Promise<Pagina> {
   return abrirGeral(massa.empresaA, massa.tokenA, CONSULTA_SETEMBRO);
-}
-
-function acharSecao(documento: Document, titulo: string): Element | undefined {
-  return [...documento.querySelectorAll("section")].find(
-    (secao) => secao.querySelector("h2")?.textContent === titulo,
-  );
-}
-
-// Cada cartão pelo rótulo, com o valor e a explicação que a pessoa lê.
-function lerCartoes(secao: Element | undefined): Record<string, string[]> {
-  return Object.fromEntries(
-    [...(secao?.querySelectorAll("article") ?? [])].map((cartao) => [
-      cartao.querySelector("h3")?.textContent ?? "",
-      [...cartao.querySelectorAll("p")].map(
-        (paragrafo) => paragrafo.textContent ?? "",
-      ),
-    ]),
-  );
-}
-
-// As linhas da tabela de dados da série, pela legenda da figura.
-function lerSerie(secao: Element | undefined, rotulo: string): string[][] {
-  const figura = [...(secao?.querySelectorAll("figure") ?? [])].find(
-    (elemento) => elemento.querySelector("figcaption")?.textContent === rotulo,
-  );
-  return [...(figura?.querySelectorAll("tbody tr") ?? [])].map((linha) =>
-    [...linha.querySelectorAll("td")].map((celula) => celula.textContent ?? ""),
-  );
-}
-
-function lerValorMoeda(texto: string): number {
-  return Number(texto.replace(/[^\d,]/g, "").replace(",", "."));
 }
 
 describe("RF-34: totais separados por moeda", () => {
