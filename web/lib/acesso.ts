@@ -44,15 +44,37 @@ export async function resolverAcesso(
   return linha ? { escopo: linha.escopo, empresaId: linha.empresa_id } : null;
 }
 
+async function lerCredencial(): Promise<string | undefined> {
+  const loja = await cookies();
+  return loja.get(NOME_COOKIE_CREDENCIAL)?.value;
+}
+
 // Para Server Components: sem acesso, a rota responde 404, sem revelar se a
 // empresa existe (ADR-0004; RF-46).
 export async function exigirAcesso(): Promise<Acesso> {
-  const loja = await cookies();
-  const acesso = await resolverAcesso(loja.get(NOME_COOKIE_CREDENCIAL)?.value);
+  const acesso = await resolverAcesso(await lerCredencial());
   if (acesso === null) {
     notFound();
   }
   return acesso;
+}
+
+// Para as páginas de uma empresa: a credencial do cookie, que as funções de
+// analitico recebem (ADR-0009 §4), ou 404 sem acesso à empresa. O valor fica
+// no servidor e nunca vai em propriedade de componente de cliente.
+export async function exigirCredencialEmpresa(
+  empresaId: string,
+): Promise<string> {
+  const credencial = await lerCredencial();
+  const acesso = await resolverAcesso(credencial);
+  if (
+    credencial === undefined ||
+    acesso === null ||
+    !abrangeEmpresa(acesso, empresaId)
+  ) {
+    notFound();
+  }
+  return credencial;
 }
 
 // O operador vê todas as empresas; o link, só a própria.

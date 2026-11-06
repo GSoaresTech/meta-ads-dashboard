@@ -1,19 +1,21 @@
-import { notFound } from "next/navigation";
-
-import { abrangeEmpresa, exigirAcesso } from "@/lib/acesso";
+import { VisaoEntidade } from "@/components/VisaoEntidade";
+import type { ParametrosUrl } from "@/lib/navegacao";
 
 export default async function PaginaEmpresa({
   params,
-}: Readonly<{ params: Promise<{ empresaId: string }> }>) {
+  searchParams,
+}: Readonly<{
+  params: Promise<{ empresaId: string }>;
+  searchParams: Promise<ParametrosUrl>;
+}>) {
   const { empresaId } = await params;
-  const acesso = await exigirAcesso();
-  if (!abrangeEmpresa(acesso, empresaId)) {
-    notFound();
-  }
 
   return (
-    <main>
-      <h1>Painel de Meta Ads</h1>
-    </main>
+    <VisaoEntidade
+      empresaId={empresaId}
+      nivel="geral"
+      entidadeId={null}
+      parametros={await searchParams}
+    />
   );
 }
