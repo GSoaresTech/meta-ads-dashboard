@@ -107,10 +107,14 @@ export async function removerMassaAcesso(
 export interface AnuncioTeste {
   nome: string;
   dias: string[];
+  // A quantidade de cada tipo de ação da API em cada um dos dias.
+  acoesPorDia?: Record<string, number>;
 }
 
 export interface CampanhaTeste {
   nome: string;
+  // Sem objetivo, a campanha é de vendas.
+  objetivo?: string;
   anuncios: AnuncioTeste[];
 }
 
@@ -126,6 +130,7 @@ export type IdsEntidades = Record<string, string>;
 
 const INVESTIMENTO_DIARIO = "10.00";
 const IMPRESSOES_DIARIAS = 100;
+const OBJETIVO_PADRAO = "OUTCOME_SALES";
 
 // IDs da Meta inventados e sorteados, com 15 dígitos, para não colidir com
 // o seed, com a massa de referência nem com outro arquivo de teste.
@@ -181,6 +186,16 @@ async function cadastrarAnuncio(
         execucaoId,
       ],
     );
+    for (const [tipoAcao, quantidade] of Object.entries(
+      anuncio.acoesPorDia ?? {},
+    )) {
+      await cliente.query(
+        `INSERT INTO normalizado.acao_diaria_anuncio
+           (empresa_id, anuncio_id, data, tipo_acao, quantidade, execucao_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [empresaId, anuncioId, dia, tipoAcao, quantidade, execucaoId],
+      );
+    }
   }
   return anuncioId;
 }
@@ -197,8 +212,15 @@ async function cadastrarCampanha(
     cliente,
     `INSERT INTO normalizado.campanha
        (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status, execucao_id)
-     VALUES ($1, $2, $3, $4, 'OUTCOME_SALES', 'ACTIVE', $5)`,
-    [empresaId, contaId, sortearIdMeta(), campanha.nome, execucaoId],
+     VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6)`,
+    [
+      empresaId,
+      contaId,
+      sortearIdMeta(),
+      campanha.nome,
+      campanha.objetivo ?? OBJETIVO_PADRAO,
+      execucaoId,
+    ],
   );
   const conjuntoId = await inserirComId(
     cliente,
