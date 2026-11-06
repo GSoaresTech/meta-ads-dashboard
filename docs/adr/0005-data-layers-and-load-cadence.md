@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 30/10/2026
-- Atualizado em: 04/11/2026, com a expiração da URL da miniatura, e 05/11/2026, com o horário da execução diária
+- Atualizado em: 04/11/2026, com a expiração da URL da miniatura, 05/11/2026, com o horário da execução diária, e 06/11/2026, com o disparo da carga histórica
 
 ## Contexto
 
@@ -41,6 +41,8 @@ O tratamento de dados é intensivo. A Meta revisa conversões de dias passados (
   - retenção de `bruto`;
   - registro do uso das cotas do plano.
 - **Histórica**: ao cadastrar uma conta, importa até 37 meses fatiados por mês. Cada fatia é uma transação atômica e idempotente, e a carga pode ser retomada pela tabela de controle.
+  - Roda como job da carga diária, depois da rotina, para que a conta nova já tenha o fuso e o cadastro, e por disparo manual, para retomar sem esperar a madrugada seguinte.
+  - Cada execução deixa de começar fatias depois de 3 h e cabe nas 5 h do RNF-07, abaixo das 6 h por job do Actions (R-07). As 2 h restantes cobrem a fatia em andamento quando a cota da conta se esgota e cada chamada espera a recuperação (R-37). A execução seguinte continua de onde ela parou.
 
 **Recuperação**
 - Banco: backup diário automático do Supabase, com a retenção do plano contratado (R-01).
