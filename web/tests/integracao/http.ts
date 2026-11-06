@@ -2,10 +2,12 @@ import { inject } from "vitest";
 
 export const NOME_COOKIE_CREDENCIAL = "credencial";
 
-interface OpcoesRequisicao {
+export interface OpcoesRequisicao {
   credencial?: string;
   metodo?: string;
   cabecalhos?: Record<string, string>;
+  // O servidor cujo banco recusa a conexão, para as respostas de erro.
+  semBanco?: boolean;
 }
 
 // Redirecionamentos não são seguidos, para que o teste veja a resposta de
@@ -19,7 +21,8 @@ export function requisitar(
     cabecalhos.set("cookie", `${NOME_COOKIE_CREDENCIAL}=${opcoes.credencial}`);
   }
 
-  return fetch(`${inject("urlPainel")}${caminho}`, {
+  const servidor = inject(opcoes.semBanco ? "urlPainelSemBanco" : "urlPainel");
+  return fetch(`${servidor}${caminho}`, {
     method: opcoes.metodo ?? "GET",
     headers: cabecalhos,
     redirect: "manual",

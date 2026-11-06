@@ -30,10 +30,13 @@ Adotar link secreto por empresa e credencial do operador, ambos implementados co
 - **Operador**: a credencial do operador dá acesso a todas as empresas e às funções de escrita da área do operador (links, metas, sobrescritas, cadastro de empresa).
 - **Rotas**: para credencial inválida, revogada ou fora do escopo, a resposta é 404, não 403, para não revelar se a empresa existe.
 - **Cabeçalhos**: `Referrer-Policy: no-referrer`, para que o token não vaze ao clicar em "ver publicação", e `X-Robots-Tag: noindex, nofollow`, contra indexação (RNF-18).
+  - Eles vêm do `headers()` do `next.config`, que o roteador do Next.js aplica antes dos redirecionamentos, do Proxy e das rotas, e valem para páginas, rotas, 404 e erros.
+  - O redirecionamento da barra no fim do caminho e o caminho que não decodifica saem do roteador sem eles (R-43). O `proxy.ts` responde aos dois no lugar do roteador, com o mesmo 308 e com 400, e as respostas do Proxy recebem os cabeçalhos.
 
 ## Consequências
 
 - O isolamento é testável no banco (RNF-14) e independe do código do painel.
+- No `next start`, o 308 com que o Next.js troca barras repetidas ou invertidas por uma só sai sem os cabeçalhos, porque nenhuma configuração o alcança (R-43). Ele só leva a outro endereço do próprio painel, que responde com eles.
 - Não há auditoria por pessoa. Um link encaminhado dá acesso a quem o recebe; a mitigação é revogar e gerar outro (RF-45).
 - A credencial do operador é o segredo mais sensível do painel. Ela é guardada fora do repositório, num gerenciador de senhas, e rotacionada pelo runbook.
 - **Gatilhos para migrar ao Supabase Auth**: pedido de acesso individual, necessidade de auditoria por pessoa ou mais de uma pessoa operando. As funções de `analitico` passam então a resolver o escopo por `auth.uid()` e pelo vínculo usuário–empresa (ADR-0002).
