@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha`, o retorno de `listar_entidades` e de `listar_metricas` e a `listar_resultados` na §4
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha`, o retorno de `listar_entidades` e de `listar_metricas` e a `listar_resultados` na §4, e a carga histórica na §5
 
 ## Contexto
 
@@ -364,12 +364,19 @@ A resolução do resultado principal de cada campanha, com a precedência do ADR
   |---|---|
   | Horária | ontem e hoje de cada conta: métricas, ações e quebras |
   | Diária | os 28 dias anteriores de cada conta (RF-05): métricas, ações e quebras; em `alcance_periodo`, as semanas, os meses e o ano que tocam a janela (ADR-0006) |
-  | Histórica | o mês da fatia, para a conta da fatia; em `alcance_periodo`, os períodos que começam no mês |
+  | Histórica | o mês da fatia, para a conta da fatia, cortado no limite de 37 meses (R-19) e em ontem: métricas, ações e quebras; em `alcance_periodo`, os períodos que começam na fatia: as semanas ISO, o mês, quando a fatia começa no dia 1, e o ano, quando começa em 1º de janeiro |
 
 - **Rotina diária**: é uma execução por empresa, com uma só transação para todas as contas dela (RF-18). Uma falha em qualquer etapa desfaz a empresa inteira, e a execução seguinte recarrega a janela.
   - A extração de cada conta começa pelo cadastro. O dia lido nele, no fuso da conta, dá a janela: os 28 dias anteriores, sem hoje, que é da execução horária. Assim, cada conta tem a própria janela, mesmo que as contas da empresa estejam em fusos diferentes, e a conta sem fuso já a tem na primeira execução.
   - O cadastro lido ainda não foi carregado quando as outras consultas terminam. Por isso, a leitura pelo ID deixa de fora, além do que está no banco, o que o cadastro da mesma execução trouxe. Sem isso, a primeira execução de uma conta leria pelo ID cada anúncio com entrega no ano.
   - A carga de cada conta segue a ordem cadastro, insights, quebras e alcance. As entidades vêm antes dos fatos, pela FK, e os insights antes das quebras (ADR-0011).
+- **Carga histórica**: é uma execução por empresa, com uma transação por fatia (RF-18). Roda depois da rotina diária, no mesmo workflow, e por disparo manual (ADR-0005).
+  - A conta ativa sem nenhuma fatia em `fatia_historica` é nova, seja qual for a data do cadastro (RF-22). No início, a execução planeja as fatias de todas as contas novas da empresa: uma pendente por mês do calendário, do limite de 37 meses até ontem, no fuso da conta. A conta sem fuso, que ainda não teve a primeira extração, espera a execução seguinte.
+  - O limite é hoje menos 37 meses, no mesmo dia do mês (R-19). Não verificamos em que fuso a Meta conta o hoje, e às 06:43 UTC uma conta de Los Angeles ainda está na véspera. Também não verificamos o que ela faz com o dia que não existe no mês do limite. Por isso vale o mais tardio entre o limite de hoje e o de amanhã, com o dia contado a partir do dia 1 do mês do limite, o que leva o dia inexistente para o mês seguinte. O `since` nunca fica antes do aceito, ao custo de até três dias do mês mais antigo.
+  - As fatias não concluídas de cada conta são carregadas em ordem, da mais antiga para a mais recente. A extração corta o mês da fatia no limite e em ontem calculados na hora, porque a retomada pode vir dias depois do planejamento, e conclui sem dados o mês que saiu inteiro do limite. A execução não lê o cadastro, e a leitura pelo ID inclui tudo o que o banco não tem.
+  - A fatia que falha é marcada como `falha`, numa transação própria, e encerra só a conta dela, para que um erro que se repete a cada execução não segure as outras contas. A execução segue para a próxima conta e, no fim, fica como falha, com o primeiro erro e as linhas das fatias já confirmadas no registro de fim. A fatia que não obtém o lock fica pendente, e a execução termina como `ignorada` (RF-19).
+  - Nenhuma fatia nova começa depois de 3 h de execução, e a execução seguinte continua da primeira não concluída (RNF-07). Se o Actions cancelar o job no limite de tempo, a interrupção fecha o registro como falha antes de sair, e a fatia em andamento é desfeita e fica pendente. Uma empresa sem fatia a carregar não gera execução.
+  - O alcance de uma fatia pode ir além dela, na semana que termina no mês seguinte e no ano da fatia de janeiro. A data de referência das respostas dele em `bruto` é o último dia consultado, para que a retenção não as apague antes do tempo.
 - **Idempotência**: o "estado idêntico" do RF-17 compara as colunas de negócio, que são o grão e as medidas. Ficam de fora `execucao_id`, as colunas `*_em` e as chaves substitutas (`quebra_diaria_campanha.id`), que mudam a cada execução por definição.
 - **Fatia histórica**: a marca `concluida` em `fatia_historica` é gravada na mesma transação dos dados da fatia. Uma fatia interrompida nunca aparece como concluída, e a retomada começa pela primeira fatia não concluída (RF-07).
 - **Controle**:

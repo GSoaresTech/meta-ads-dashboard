@@ -301,9 +301,12 @@ def registrar_falha(
     empresa_id: UUID,
     execucao_id: UUID,
     erro: Exception,
+    *,
+    contagens: Contagens | None = None,
 ) -> None:
     """Registra a falha no log, só com os códigos da Meta, e no banco, com a
-    descrição do erro.
+    descrição do erro e as linhas que a execução já confirmou, como as das
+    fatias históricas anteriores à falha (RF-20).
 
     A descrição vai só para o banco, que é privado: a mensagem de um erro do
     banco ou da transformação pode trazer valores da linha recusada, que não
@@ -320,6 +323,7 @@ def registrar_falha(
                 empresa_id,
                 execucao_id,
                 StatusExecucao.FALHA,
+                contagens=contagens,
                 erro=descrever_erro(erro),
             )
     except (psycopg.Error, ErroRegistroExecucao):
