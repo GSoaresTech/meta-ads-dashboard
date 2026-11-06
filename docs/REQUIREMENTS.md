@@ -78,6 +78,7 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 | Alcance e frequência em semana ISO, mês ou ano que começa antes do limite de 37 meses (R-19) | "Não disponível", com explicação: a Meta não entrega o período inteiro (ADR-0006) |
 | Alcance e frequência em período livre | "Não disponível", com explicação, salvo quando o intervalo coincide exatamente com uma semana ISO, um mês ou um ano |
 | Alcance e frequência na visão Geral com mais de uma conta | "Não disponível": a Meta não deduplica pessoas entre contas |
+| Totais de resultado na visão Geral | Em cada moeda, um total por tipo de resultado: o resultado principal das campanhas com entrega no período, com a sobrescrita aplicada. O total soma a métrica em todas as campanhas da moeda (ADR-0013) |
 | Atalhos de período na visão Geral com contas em fusos diferentes | O "hoje" é o dia corrente da conta de fuso mais atrasado, e os demais atalhos partem dele, para que "ontem" e os dias anteriores já estejam encerrados em todas as contas. Em cada data, a série soma o dia de cada conta no fuso dela (R-17). Ao descer para uma conta, o atalho é recalculado no fuso dela: nas horas de diferença entre os fusos, as datas podem diferir das do Geral, e cada página mostra o intervalo (ADR-0012) |
 | Alcance e frequência em quebras agregadas por mais de um dia | Não exibidos |
 | Quebra por região | Não inclui conversões que acontecem fora da Meta, como compras no site (R-23). O painel avisa quando o resultado principal da campanha é desse tipo |
