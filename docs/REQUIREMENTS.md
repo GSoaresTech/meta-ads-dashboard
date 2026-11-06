@@ -291,7 +291,7 @@ Com 37 meses de histórico, a empresa de referência ocupa cerca de 150 a 280 MB
 | ID | Descrição | Prioridade | Critério de aceite | Origem |
 |---|---|---|---|---|
 | RNF-14 | Um acesso só enxerga dados da empresa da credencial usada. | Must | Em teste pgTAP, cada função de `analitico` chamada com a credencial da empresa A retorna 0 linhas da empresa B. | ADR-0002 |
-| RNF-15 | Credenciais de acesso ao painel são fortes e não ficam em texto puro. | Must | Tokens com ≥ 128 bits de entropia; o banco guarda só o hash SHA-256 (0 tokens em texto puro, verificado por teste); a comparação no servidor é feita em tempo constante. | ADR-0004 |
+| RNF-15 | Credenciais de acesso ao painel são fortes e não ficam em texto puro. | Must | Tokens com ≥ 128 bits de entropia; o banco guarda só o hash SHA-256 (0 tokens em texto puro, verificado por teste); a credencial é encontrada pelo SHA-256 do token, e nenhum código do servidor compara o token em si. | ADR-0004 |
 | RNF-16 | Nenhum segredo fica no repositório nem no navegador. | Must | Varredura de segredos com 0 achados em todo PR. Uma busca no build do cliente encontra 0 ocorrências de token da Meta, chave `service_role` ou string de conexão. | CLAUDE.md §12 |
 | RNF-17 | Logs públicos não expõem dados de empresas. | Must | O logger aceita só campos de uma lista permitida. Um teste falha se algum log contiver nome de empresa, ID da Meta, nome de campanha ou anúncio, valor monetário ou token. | ADR-0008 |
 | RNF-18 | O link secreto não vaza por cabeçalho nem por indexação. | Must | 100% das respostas do painel (páginas, rotas de API e redirecionamentos) têm `Referrer-Policy: no-referrer` e `X-Robots-Tag: noindex, nofollow`, verificado por teste de integração. | ADR-0004 |
