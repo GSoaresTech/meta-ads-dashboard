@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { ListaEntidades } from "@/components/ListaEntidades";
+import { ResumoDesempenho } from "@/components/ResumoDesempenho";
 import { SeletorPeriodo } from "@/components/SeletorPeriodo";
 import { TrilhaNavegacao } from "@/components/TrilhaNavegacao";
 import { exigirCredencialEmpresa } from "@/lib/acesso";
+import { carregarResumoGeral } from "@/lib/desempenho";
 import { carregarTrilha, listarFilhasComEntrega } from "@/lib/entidades";
 import {
   lerSelecao,
@@ -24,8 +26,9 @@ interface Propriedades {
   parametros: ParametrosUrl;
 }
 
-// A página de um nível: a trilha, o seletor e a lista das filhas. O relógio
-// lido aqui é o que os atalhos usam, no fuso da entidade em foco (RF-26).
+// A página de um nível: a trilha, o seletor, os totais e as séries do Geral e
+// a lista das filhas. O relógio lido aqui é o que os atalhos usam, no fuso da
+// entidade em foco (RF-26).
 export async function VisaoEntidade({
   empresaId,
   nivel,
@@ -43,16 +46,25 @@ export async function VisaoEntidade({
   const hoje = obterHoje(new Date(), foco.fusosHorarios);
   const intervalo = resolverIntervalo(selecao.periodo, hoje);
   const nivelFilho = NIVEIS_FILHOS[nivel];
-  const filhas =
+  const [filhas, resumos] = await Promise.all([
     nivelFilho === null
       ? []
-      : await listarFilhasComEntrega(
+      : listarFilhasComEntrega(
           credencial,
           empresaId,
           nivel,
           entidadeId,
           intervalo,
-        );
+        ),
+    nivel === "geral"
+      ? carregarResumoGeral(
+          credencial,
+          empresaId,
+          intervalo,
+          selecao.granularidade,
+        )
+      : null,
+  ]);
 
   return (
     <main>
@@ -67,6 +79,12 @@ export async function VisaoEntidade({
         selecao={selecao}
         intervalo={intervalo}
       />
+      {resumos !== null && (
+        <ResumoDesempenho
+          resumos={resumos}
+          granularidade={selecao.granularidade}
+        />
+      )}
       {nivelFilho !== null && (
         <ListaEntidades
           empresaId={empresaId}
