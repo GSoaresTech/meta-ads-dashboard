@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integracao": "next build && vitest run --config vitest.integracao.config.mts"
   },
   "dependencies": {
     "next": "16.4.3",
