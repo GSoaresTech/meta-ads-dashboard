@@ -1,23 +1,24 @@
+/* A superfície branca sobre o painel cinza separa o cartão, sem borda nem sombra. */
 .cartao {
-  padding: 0.75rem 1rem;
-  border: 1px solid #e3e2de;
-  border-radius: 0.5rem;
+  padding: var(--espaco-20);
+  border-radius: var(--raio-cartao-dados);
+  background: var(--cor-branco);
 }
 
 .rotulo {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: var(--texto-base);
 }
 
 .valor {
-  margin: 0.25rem 0;
-  font-size: 1.5rem;
-  font-weight: 600;
+  margin: var(--espaco-8) 0;
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-titulo);
+  letter-spacing: var(--tracking-titulo);
+  line-height: var(--altura-linha-titulo);
 }
 
 .explicacao {
   margin: 0;
-  color: #52514e;
-  font-size: 0.8125rem;
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
 }

@@ -1,13 +1,49 @@
+.painel {
+  padding: var(--espaco-40);
+  border-radius: var(--raio-painel);
+  background: var(--cor-cinza);
+}
+
 /* O mínimo da coluna cabe em 360 px, e a grade vira uma coluna sozinha, sem
    rolagem horizontal (RF-29). */
 .grade {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--espaco-20);
+}
+
+.grade + .grade {
+  margin-top: var(--espaco-20);
 }
 
 .grade figure {
   min-width: 0;
   margin: 0;
+  padding: var(--espaco-20);
+  border-radius: var(--raio-cartao-dados);
+  background: var(--cor-branco);
+}
+
+.grade figcaption {
+  margin-bottom: var(--espaco-12);
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-subtitulo);
+  letter-spacing: var(--tracking-titulo);
+}
+
+.grade summary {
+  margin-top: var(--espaco-12);
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+  cursor: pointer;
+}
+
+.grade table {
+  font-size: var(--texto-legenda);
+}
+
+@media (max-width: 40rem) {
+  .painel {
+    padding: var(--espaco-20) var(--espaco-12);
+  }
 }

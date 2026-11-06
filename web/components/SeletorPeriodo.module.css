@@ -1,0 +1,66 @@
+.seletor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--espaco-12);
+}
+
+main > section.seletor {
+  margin-top: var(--espaco-20);
+}
+
+.intervalo {
+  margin: 0;
+  color: var(--cor-aco);
+}
+
+.pilulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-4);
+  margin: 0;
+  padding: var(--espaco-4);
+  border-radius: var(--raio-pilula);
+  background: var(--cor-cinza);
+  list-style: none;
+}
+
+.pilulas a {
+  display: block;
+  padding: var(--espaco-4) var(--espaco-16);
+  border-radius: var(--raio-pilula);
+  font-family: var(--fonte-titulo);
+  letter-spacing: var(--tracking-titulo);
+  text-decoration: none;
+}
+
+.pilulas a:hover {
+  background: var(--cor-bruma);
+}
+
+.pilulas a[aria-current="true"] {
+  background: var(--cor-branco);
+  font-weight: var(--peso-rotulo);
+}
+
+.formulario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--espaco-12);
+}
+
+.formulario label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4);
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+}
+
+/* Em várias linhas, a cápsula inteira ficaria deformada. */
+@media (max-width: 40rem) {
+  .pilulas {
+    border-radius: var(--raio-cartao-dados);
+  }
+}

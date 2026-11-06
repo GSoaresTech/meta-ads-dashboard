@@ -9,6 +9,8 @@ import {
   type Selecao,
 } from "@/lib/navegacao";
 
+import estilos from "./TrilhaNavegacao.module.css";
+
 interface Propriedades {
   empresaId: string;
   trilha: NivelTrilha[];
@@ -28,7 +30,7 @@ export function TrilhaNavegacao({
 }: Readonly<Propriedades>) {
   return (
     <nav aria-label="Trilha de navegação">
-      <ol>
+      <ol className={estilos.trilha}>
         {trilha.map((item, indice) => (
           <li key={item.nivel}>
             {indice === trilha.length - 1 ? (

@@ -9,6 +9,8 @@ import {
   type Selecao,
 } from "@/lib/navegacao";
 
+import estilos from "./ListaEntidades.module.css";
+
 // As campanhas têm a própria tabela, com as colunas da visão da conta.
 type NivelLista = Exclude<NivelFilho, "campanha">;
 
@@ -43,7 +45,7 @@ export function ListaEntidades({
       {filhas.length === 0 ? (
         <p>{AVISOS_SEM_ENTREGA[nivel]}</p>
       ) : (
-        <ul>
+        <ul className={estilos.lista}>
           {filhas.map((filha) => (
             <li key={filha.entidadeId}>
               <Link

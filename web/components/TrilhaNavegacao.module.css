@@ -1,0 +1,16 @@
+.trilha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-8);
+  margin: 0 0 var(--espaco-20);
+  padding: 0;
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+  list-style: none;
+}
+
+.trilha li + li::before {
+  margin-right: var(--espaco-8);
+  color: var(--cor-ardosia);
+  content: "/";
+}

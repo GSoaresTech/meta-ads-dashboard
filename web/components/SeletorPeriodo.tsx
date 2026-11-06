@@ -15,6 +15,8 @@ import {
   type Intervalo,
 } from "@/lib/periodo";
 
+import estilos from "./SeletorPeriodo.module.css";
+
 const ROTULOS_ATALHO: Record<Atalho, string> = {
   hoje: "Hoje",
   ontem: "Ontem",
@@ -48,8 +50,8 @@ export function SeletorPeriodo({
   intervalo,
 }: Readonly<Propriedades>) {
   return (
-    <section aria-label="Período e granularidade">
-      <p>
+    <section aria-label="Período e granularidade" className={estilos.seletor}>
+      <p className={estilos.intervalo}>
         <time dateTime={intervalo.inicio}>
           {formatarData(intervalo.inicio)}
         </time>{" "}
@@ -57,7 +59,7 @@ export function SeletorPeriodo({
       </p>
 
       <nav aria-label="Atalhos de período">
-        <ul>
+        <ul className={estilos.pilulas}>
           {ATALHOS.map((atalho) => (
             <li key={atalho}>
               <Link
@@ -71,7 +73,12 @@ export function SeletorPeriodo({
         </ul>
       </nav>
 
-      <form method="get" action={caminho} aria-label="Intervalo livre">
+      <form
+        method="get"
+        action={caminho}
+        aria-label="Intervalo livre"
+        className={estilos.formulario}
+      >
         <input
           type="hidden"
           name={PARAMETROS.periodo}
@@ -104,7 +111,7 @@ export function SeletorPeriodo({
       </form>
 
       <nav aria-label="Granularidade">
-        <ul>
+        <ul className={estilos.pilulas}>
           {GRANULARIDADES.map((granularidade) => (
             <li key={granularidade}>
               <Link

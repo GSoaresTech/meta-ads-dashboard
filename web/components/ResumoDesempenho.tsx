@@ -25,7 +25,11 @@ export function ResumoDesempenho({
     const idTitulo = `titulo-moeda-${moeda}`;
 
     return (
-      <section key={moeda} aria-labelledby={idTitulo}>
+      <section
+        key={moeda}
+        aria-labelledby={idTitulo}
+        className={estilos.painel}
+      >
         <h2 id={idTitulo}>
           {formatarNomeMoeda(moeda)} ({moeda})
         </h2>
