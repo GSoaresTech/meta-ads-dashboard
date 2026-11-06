@@ -1,8 +1,9 @@
 -- Prova a listagem das entidades filhas: os parâmetros, o isolamento entre
 -- empresas e as contas, campanhas ou anúncios abaixo da entidade em foco,
--- de onde o painel desce de nível (RF-23; RNF-14; ADR-0009 §4).
+-- de onde o painel desce de nível, com o objetivo, o status, o resultado e o
+-- KPI das campanhas (RF-23; RF-37; RNF-14; ADR-0007; ADR-0009 §4).
 BEGIN;
-SELECT plan(20);
+SELECT plan(24);
 
 -- Atributos: o painel_leitor só executa, e a função roda com os privilégios
 -- do postgres, com search_path vazio (ADR-0009 §3 e §4).
@@ -21,8 +22,8 @@ SELECT results_eq(
 );
 SELECT is(
   pg_get_function_result('analitico.listar_entidades(text, uuid, text, uuid)'::regprocedure),
-  'TABLE(nivel text, entidade_id uuid, nome text)',
-  'uma linha por entidade filha, com o nível e o nome'
+  'TABLE(nivel text, entidade_id uuid, nome text, objetivo text, status text, metrica_resultado text, metrica_kpi text)',
+  'uma linha por entidade filha, com o nível, o nome e o que a lista da campanha exibe'
 );
 SELECT ok(
   has_function_privilege('painel_leitor', 'analitico.listar_entidades(text, uuid, text, uuid)', 'EXECUTE'),
@@ -102,6 +103,23 @@ UPDATE normalizado.credencial_acesso
 SET revogado_em = now()
 WHERE hash = (SELECT sha256(convert_to(token, 'UTF8')) FROM credencial_teste WHERE caso = 'empresa_a_revogada');
 
+-- A segunda conta de A tem as campanhas que provam o objetivo e o status em
+-- linguagem de negócio: um objetivo legado, um desconhecido da API e uma
+-- sobrescrita, cada uma com um status.
+INSERT INTO normalizado.campanha (empresa_id, conta_anuncio_id, id_meta, nome, objetivo, status, execucao_id)
+SELECT c.empresa_id, c.id, v.id_meta, v.nome, v.objetivo, v.status, c.execucao_id
+FROM (
+  VALUES
+    ('520000000000000004', 'Campanha Teste Legada', 'LINK_CLICKS', 'PAUSED'),
+    ('520000000000000005', 'Campanha Teste Desconhecida', 'OUTCOME_TESTE', 'ARCHIVED'),
+    ('520000000000000006', 'Campanha Teste Sobrescrita', 'OUTCOME_SALES', 'DELETED')
+) AS v (id_meta, nome, objetivo, status)
+JOIN normalizado.conta_anuncio AS c ON c.id_meta = '511111111111112';
+INSERT INTO normalizado.sobrescrita_resultado_campanha (empresa_id, campanha_id, metrica_resultado, metrica_kpi)
+SELECT empresa_id, id, 'conversas_iniciadas', 'custo_conversa'
+FROM normalizado.campanha
+WHERE id_meta = '520000000000000006';
+
 -- A chamada e o retorno pelo nome da empresa e pelo ID da Meta das
 -- entidades, que deixam os casos legíveis. A ordinalidade preserva a ordem
 -- em que a função devolve as filhas, que a junção não garante.
@@ -122,6 +140,19 @@ LANGUAGE sql STABLE AS $$
   ) WITH ORDINALITY AS filha
   LEFT JOIN entidade_teste AS entidade ON entidade.id = filha.entidade_id
   ORDER BY filha.ordinality
+$$;
+
+-- O que a lista exibe de cada filha, com os valores e na ordem da função.
+CREATE FUNCTION pg_temp.detalhes(p_nivel text, p_id_meta_pai text)
+RETURNS TABLE (nome text, objetivo text, status text, metrica_resultado text, metrica_kpi text)
+LANGUAGE sql STABLE AS $$
+  SELECT filha.nome, filha.objetivo, filha.status, filha.metrica_resultado, filha.metrica_kpi
+  FROM analitico.listar_entidades(
+    (SELECT token FROM credencial_teste WHERE caso = 'empresa_a'),
+    (SELECT id FROM normalizado.empresa WHERE nome = 'Empresa Teste A'),
+    p_nivel,
+    (SELECT id FROM entidade_teste WHERE id_meta = p_id_meta_pai)
+  ) AS filha
 $$;
 
 -- Parâmetros fora do domínio levantam 22023, mesmo com credencial válida
@@ -174,6 +205,35 @@ SELECT is_empty(
   'o anúncio não tem filhas'
 );
 
+-- RF-37: o objetivo e o status saem em rótulo de negócio, nunca como o valor
+-- da API. O objetivo legado passa pelo equivalente, o desconhecido é "Não
+-- classificado", sem resultado, e a sobrescrita troca o resultado e o KPI,
+-- mas não o nome do objetivo (ADR-0007).
+SELECT results_eq(
+  $$ SELECT * FROM pg_temp.detalhes('conta', '511111111111112') $$,
+  $$
+  VALUES
+    ('Campanha Teste Desconhecida', 'Não classificado', 'Arquivada', NULL, NULL),
+    ('Campanha Teste Legada', 'Tráfego', 'Pausada', 'cliques_link', 'cpc'),
+    ('Campanha Teste Sobrescrita', 'Vendas', 'Excluída', 'conversas_iniciadas', 'custo_conversa')
+  $$,
+  'cada campanha traz o objetivo e o status em rótulo de negócio, o resultado e o KPI'
+);
+SELECT is_empty(
+  $$
+  SELECT * FROM pg_temp.detalhes('geral', NULL)
+  WHERE num_nonnulls(objetivo, status, metrica_resultado, metrica_kpi) > 0
+  $$,
+  'as contas não têm objetivo, status, resultado nem KPI'
+);
+SELECT is_empty(
+  $$
+  SELECT * FROM pg_temp.detalhes('campanha', '520000000000000001')
+  WHERE num_nonnulls(objetivo, status, metrica_resultado, metrica_kpi) > 0
+  $$,
+  'os anúncios não têm objetivo, status, resultado nem KPI: entram com a visão que os exibir'
+);
+
 -- RNF-14: a credencial de uma empresa nunca devolve linha de outra. O
 -- acesso negado e a entidade pai que não é da empresa ou do nível pedido
 -- devolvem zero linhas, sem erro (ADR-0009 §4).
@@ -184,6 +244,7 @@ SELECT is_empty(
 FROM (
   VALUES
     ('empresa_a', 'Empresa Teste B', 'geral', NULL, 'a credencial de A não lista as contas de B'),
+    ('empresa_a', 'Empresa Teste B', 'conta', '522222222222221', 'a credencial de A não lista as campanhas de B, com o objetivo e o resultado'),
     ('empresa_a', 'Empresa Teste B', 'campanha', '520000000000000003', 'a credencial de A não lista os anúncios de B'),
     ('empresa_a', 'Empresa Teste A', 'conta', '522222222222221', 'a conta de B não lista campanhas pela empresa A'),
     ('empresa_a', 'Empresa Teste A', 'campanha', '520000000000000003', 'a campanha de B não lista anúncios pela empresa A'),
