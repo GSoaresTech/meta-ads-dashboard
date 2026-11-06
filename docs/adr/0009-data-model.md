@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha` e o retorno de `listar_entidades` na §4
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha` e o retorno de `listar_entidades` e de `listar_metricas` na §4
 
 ## Contexto
 
@@ -286,7 +286,7 @@ Assinaturas, com os parâmetros que vêm depois de `p_credencial`. As colunas de
 | `obter_desempenho` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_inicio date, p_fim date, p_granularidade text` | uma linha por entidade × período × moeda × métrica, da entidade em foco e de cada filha, com as aditivas somadas e as derivadas recalculadas das somas | RF-23, RF-25, RF-32, RF-33, RF-34 |
 | `obter_alcance` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_inicio date, p_fim date` | alcance e frequência, ou o motivo de indisponibilidade | §3.3 do `docs/REQUIREMENTS.md`, ADR-0006 |
 | `obter_quebra` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid, p_tipo_quebra text, p_inicio date, p_fim date` | uma linha por categoria | RF-36 |
-| `listar_metricas` | — | o catálogo de métricas, com rótulos e explicações | RF-30 |
+| `listar_metricas` | — | `TABLE (codigo text, rotulo text, explicacao text, unidade text)`: o catálogo de métricas, em ordem de rótulo. Cada coluna entra com a visão que a exibe | RF-30 |
 | `obter_situacao_carga` | `p_empresa_id uuid` | instante da última carga bem-sucedida | RF-28 |
 | `obter_trilha` | `p_empresa_id uuid, p_nivel text, p_entidade_id uuid` | `TABLE (nivel text, entidade_id uuid, nome text, fusos_horarios text[])`: uma linha por nível, do geral até a entidade em foco, com o nome e os fusos das contas que o nível abrange; zero linhas se a entidade não é da empresa ou do nível pedido | RF-23, RF-26 |
 | `listar_entidades` | `p_empresa_id uuid, p_nivel text, p_entidade_pai_id uuid` | `TABLE (nivel text, entidade_id uuid, nome text)`: contas, campanhas ou anúncios filhos, em ordem de nome, com ou sem entrega. Cada coluna entra com a visão que a exibe: objetivo e status em rótulo de negócio, resultado principal e KPI | RF-23, RF-31, RF-37 |
