@@ -11,5 +11,8 @@ export default defineConfig({
     environment: "node",
     include: ["tests/integracao/**/*.test.ts"],
     globalSetup: ["./tests/integracao/servidor.ts"],
+    // Os arquivos alteram e restauram o catálogo, que é global, e em paralelo
+    // um veria a alteração do outro.
+    fileParallelism: false,
   },
 });
