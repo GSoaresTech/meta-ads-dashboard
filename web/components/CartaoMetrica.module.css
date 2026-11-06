@@ -1,0 +1,23 @@
+.cartao {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e3e2de;
+  border-radius: 0.5rem;
+}
+
+.rotulo {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.valor {
+  margin: 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.explicacao {
+  margin: 0;
+  color: #52514e;
+  font-size: 0.8125rem;
+}
