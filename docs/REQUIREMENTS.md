@@ -75,9 +75,11 @@ Datas seguem o fuso horário da conta de anúncios, que é como a Meta entrega o
 | Combinação | Tratamento |
 |---|---|
 | Alcance e frequência em semana ISO, mês ou ano | Valor extraído da API para aquele período e entidade (ADR-0006) |
+| Alcance e frequência em semana ISO, mês ou ano em andamento | Valor extraído até o último dia da rotina diária, com essa data. Vale para o intervalo que começa no primeiro dia do período e chega pelo menos a esse dia, como "este mês" e "este ano" (ADR-0016) |
 | Alcance e frequência em semana ISO, mês ou ano que começa antes do limite de 37 meses (R-19) | "Não disponível", com explicação: a Meta não entrega o período inteiro (ADR-0006) |
+| Alcance e frequência em semana ISO, mês ou ano, inteiro ou em andamento até hoje, com entrega e sem alcance extraído | "Não disponível", com explicação: o alcance desse período ainda não foi extraído (ADR-0016) |
 | Alcance e frequência em período livre | "Não disponível", com explicação, salvo quando o intervalo coincide exatamente com uma semana ISO, um mês ou um ano |
-| Alcance e frequência na visão Geral com mais de uma conta | "Não disponível": a Meta não deduplica pessoas entre contas |
+| Alcance e frequência na visão Geral de empresa com mais de uma conta cadastrada | "Não disponível": a Meta não deduplica pessoas entre contas (ADR-0016) |
 | Totais de resultado nas visões Geral e conta | Em cada moeda, um total por tipo de resultado: o resultado principal das campanhas com entrega no período, com a sobrescrita aplicada. O total soma a métrica em todas as campanhas da moeda (ADR-0013). Na conta, entram só as campanhas dela (ADR-0014) |
 | Atalhos de período na visão Geral com contas em fusos diferentes | O "hoje" é o dia corrente da conta de fuso mais atrasado, e os demais atalhos partem dele, para que "ontem" e os dias anteriores já estejam encerrados em todas as contas. Em cada data, a série soma o dia de cada conta no fuso dela (R-17). Ao descer para uma conta, o atalho é recalculado no fuso dela: nas horas de diferença entre os fusos, as datas podem diferir das do Geral, e cada página mostra o intervalo (ADR-0012) |
 | Alcance e frequência em quebras agregadas por mais de um dia | Não exibidos |
