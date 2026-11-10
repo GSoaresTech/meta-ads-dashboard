@@ -100,8 +100,33 @@ FROM (
     ('obter_desempenho · anúncio · 37 meses · mês', 'anuncio', :'anuncio_id', :'inicio_historico', :'hoje', 'mes')
 ) AS caso (descricao, nivel, entidade_id, inicio, fim, granularidade);
 
--- As demais funções, depois das de desempenho, com as mesmas entidades em
--- foco.
+-- O alcance, nas mesmas chamadas do total e da série que o painel faz à
+-- obter_desempenho.
+INSERT INTO cenario (ordem, descricao, chamada)
+SELECT
+  (SELECT max(anterior.ordem) FROM cenario AS anterior) + row_number() OVER (),
+  caso.descricao,
+  format(
+    'SELECT * FROM analitico.obter_alcance(%L, %L, %L, %L, %L, %L, %L)',
+    :'token', :'empresa_id', caso.nivel, caso.entidade_id, caso.inicio, caso.fim, caso.granularidade
+  )
+FROM (
+  VALUES
+    ('obter_alcance · geral · últimos 30 dias · dia', 'geral', NULL, :'inicio_30_dias', :'ontem', 'dia'),
+    ('obter_alcance · geral · este mês · período', 'geral', NULL, :'inicio_mes', :'hoje', 'periodo'),
+    ('obter_alcance · geral · 37 meses · semana', 'geral', NULL, :'inicio_historico', :'hoje', 'semana'),
+    ('obter_alcance · geral · 37 meses · dia', 'geral', NULL, :'inicio_historico', :'hoje', 'dia'),
+    ('obter_alcance · conta · mês passado · período', 'conta', :'conta_id', :'inicio_mes_passado', :'fim_mes_passado', 'periodo'),
+    ('obter_alcance · conta · este ano · semana', 'conta', :'conta_id', :'inicio_ano', :'hoje', 'semana'),
+    ('obter_alcance · conta · 37 meses · mês', 'conta', :'conta_id', :'inicio_historico', :'hoje', 'mes'),
+    ('obter_alcance · conta · 37 meses · dia', 'conta', :'conta_id', :'inicio_historico', :'hoje', 'dia'),
+    ('obter_alcance · campanha · este ano · período', 'campanha', :'campanha_id', :'inicio_ano', :'hoje', 'periodo'),
+    ('obter_alcance · campanha · este ano · dia', 'campanha', :'campanha_id', :'inicio_ano', :'hoje', 'dia'),
+    ('obter_alcance · anúncio · 37 meses · mês', 'anuncio', :'anuncio_id', :'inicio_historico', :'hoje', 'mes')
+) AS caso (descricao, nivel, entidade_id, inicio, fim, granularidade);
+
+-- As demais funções, depois das de desempenho e de alcance, com as mesmas
+-- entidades em foco.
 INSERT INTO cenario (ordem, descricao, chamada)
 SELECT (SELECT max(anterior.ordem) FROM cenario AS anterior) + row_number() OVER (), caso.descricao, caso.chamada
 FROM (
