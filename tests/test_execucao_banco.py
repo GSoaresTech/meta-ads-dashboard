@@ -635,7 +635,16 @@ def test_execucao_horaria_nao_aplica_a_retencao(
 ) -> None:
     empresa = empresas[0]
     inserir_resposta_antiga(conexao_operador, empresa, RETENCAO_BRUTO_DIAS + 1)
-    tarefa = TarefaExemplo(montar_cargas(empresas))
+    # Dias recentes, para que a resposta da própria execução fique dentro da
+    # retenção em qualquer data em que o teste rodar e só a antiga conte.
+    dias = montar_dias(inicio=ler_hoje_utc(conexao_operador) - timedelta(days=5))
+    tarefa = TarefaExemplo(
+        {
+            empresa.empresa_id: montar_carga(
+                empresa.empresa_id, empresa.conta_id, PREFIXOS_ID_META[0], dias
+            )
+        }
+    )
 
     codigo = executar_empresas(conectar_etl, [empresa.empresa_id], "horaria", tarefa)
 
