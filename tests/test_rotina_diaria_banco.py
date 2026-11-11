@@ -1,15 +1,20 @@
-"""Prova, contra o banco local e com a API simulada pelas fixtures, a rotina
-diária de ponta a ponta, pela execução por empresa: a revisão da Meta dentro
-da janela de 28 dias (RF-05), a ordem das etapas (ADR-0011), a janela no fuso
-de cada conta e a transação única por empresa (RF-18; ADR-0009 §5). Exige o
+"""Prova, contra o banco local e com a API simulada pelas fixtures, a revisão
+diária leve de ponta a ponta, pela execução por empresa: a revisão da Meta
+dentro da janela de 28 dias (RF-05), sem o cadastro completo e com o alcance
+dos períodos que contêm ontem, retomado dos dias perdidos depois de uma
+falha (ADR-0017), a ordem das etapas (ADR-0011), a
+janela no fuso de cada conta e a transação única por empresa (RF-18;
+ADR-0009 §5). O cadastro vem antes, como a carga inicial o deixa. Exige o
 banco local de pé.
 """
 
 import copy
+import json
 from collections.abc import Callable, Iterator, Sequence
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from functools import partial
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -19,9 +24,10 @@ import responses
 from responses.registries import OrderedRegistry
 
 from etl import rotina_diaria
-from etl.cadastro import listar_empresas_ativas
+from etl.cadastro import TarefaCadastro, listar_empresas_ativas
+from etl.carga_historica import TIPO_HISTORICA
 from etl.cliente_api_meta import ClienteApiMeta
-from etl.configuracao import Ambiente
+from etl.configuracao import VERSAO_API_META, Ambiente
 from etl.execucao import (
     CODIGO_SAIDA_FALHA,
     CODIGO_SAIDA_SUCESSO,
@@ -41,7 +47,11 @@ from tests.conftest import (
     EmpresaTeste,
     criar_empresa,
 )
-from tests.insights_exemplo import ID_META_ANUNCIO_AUSENTE, simular_entidades
+from tests.insights_exemplo import (
+    ID_META_ANUNCIO_AUSENTE,
+    NOMES_ENTIDADES,
+    simular_entidades,
+)
 from tests.insights_exemplo import ler_fixtures as ler_fixtures_insights
 from tests.rotina_diaria_exemplo import (
     ANTES,
@@ -55,9 +65,11 @@ from tests.rotina_diaria_exemplo import (
     RESPOSTA_VAZIA,
     SEGUNDA_EXECUCAO,
     SEGUNDO_HOJE,
+    calcular_janela,
     ler_insights,
     ler_quebras,
     listar_linhas,
+    montar_alcance_periodos,
     simular_conta_vazia,
     simular_rotina,
 )
@@ -83,8 +95,6 @@ TIPO_ACAO_CONVERSAS = "onsite_conversion.messaging_conversation_started_7d"
 TIPO_ACAO_COMPRAS = "omni_purchase"
 TIPO_ACAO_REMOVIDO = "offsite_conversion.fb_pixel_add_to_cart"
 RETENCAO_DIAS = 35
-# As linhas do alcance das fixtures, nos três níveis.
-LINHAS_ALCANCE = 32
 
 LER_METRICAS = """
 SELECT anuncio.id_meta, metrica.data, metrica.investimento, metrica.impressoes,
@@ -127,11 +137,16 @@ WHERE quebra.empresa_id = %s
 """
 
 LER_EXECUCOES = """
-SELECT tipo, status FROM normalizado.execucao_carga WHERE empresa_id = %s
+SELECT tipo, status FROM normalizado.execucao_carga
+WHERE empresa_id = %s ORDER BY iniciado_em
 """
 
-LER_CONTAGENS = """
-SELECT tabela, linhas FROM normalizado.contagem_linhas_execucao WHERE empresa_id = %s
+LER_CONTAGENS_DIARIA = """
+SELECT contagem.tabela, contagem.linhas
+FROM normalizado.contagem_linhas_execucao AS contagem
+JOIN normalizado.execucao_carga AS execucao
+  ON execucao.empresa_id = contagem.empresa_id AND execucao.id = contagem.execucao_id
+WHERE contagem.empresa_id = %s AND execucao.tipo = 'diaria'
 """
 
 type Linhas = set[tuple]
@@ -157,6 +172,42 @@ def empresa(conexao_operador: psycopg.Connection) -> Iterator[EmpresaTeste]:
         apagar_empresas_rotina(conexao_operador)
 
 
+def carregar_cadastro(
+    conectar: Callable[[], psycopg.Connection],
+    empresa_id: UUID,
+    cadastro: dict[str, dict] | None = None,
+) -> None:
+    """O cadastro completo da conta das fixtures, como a carga inicial o deixa
+    antes da revisão: com fuso, moeda e as entidades não excluídas
+    (ADR-0017)."""
+    with responses.RequestsMock(registry=OrderedRegistry) as api:
+        cadastro_exemplo.simular_cadastro(
+            api, cadastro_exemplo.ler_fixtures() if cadastro is None else cadastro
+        )
+        cliente = ClienteApiMeta(TOKEN, dormir=lambda segundos: None)
+        tarefa = TarefaCadastro(conectar, cliente, relogio=lambda: PRIMEIRA_EXECUCAO)
+        status = executar_empresa(conectar, empresa_id, TIPO_HISTORICA, tarefa)
+    assert status is StatusExecucao.SUCESSO
+
+
+def definir_fuso(conexao: psycopg.Connection, conta_id: UUID, fuso: str) -> None:
+    """O fuso e a moeda que a carga inicial grava com o cadastro da conta."""
+    conexao.execute(
+        "UPDATE normalizado.conta_anuncio SET fuso_horario = %s, moeda = 'BRL'"
+        " WHERE id = %s",
+        (fuso, conta_id),
+    )
+
+
+def inserir_conta(conexao: psycopg.Connection, empresa_id: UUID, id_meta: str) -> UUID:
+    """Uma conta recém-cadastrada, só com o ID da Meta."""
+    return conexao.execute(
+        "INSERT INTO normalizado.conta_anuncio (empresa_id, id_meta)"
+        " VALUES (%s, %s) RETURNING id",
+        (empresa_id, id_meta),
+    ).fetchone()[0]
+
+
 def executar_rotina(
     conectar: Callable[[], psycopg.Connection],
     empresa_id: UUID,
@@ -165,33 +216,52 @@ def executar_rotina(
 ) -> StatusExecucao:
     """Uma execução com a API simulada. Uma chamada não simulada falha a
     execução."""
+    status, _ = executar_rotina_com_chamadas(conectar, empresa_id, instante, simular)
+    return status
+
+
+def executar_rotina_com_chamadas(
+    conectar: Callable[[], psycopg.Connection],
+    empresa_id: UUID,
+    instante: datetime,
+    simular: Callable[[responses.RequestsMock], None],
+) -> tuple[StatusExecucao, list[str]]:
+    """Uma execução com a API simulada e a URL de cada chamada, na ordem."""
     with responses.RequestsMock(registry=OrderedRegistry) as api:
         simular(api)
         cliente = ClienteApiMeta(TOKEN, dormir=lambda segundos: None)
         tarefa = TarefaRotinaDiaria(conectar, cliente, relogio=lambda: instante)
-        return executar_empresa(conectar, empresa_id, TIPO_COM_RETENCAO, tarefa)
+        status = executar_empresa(conectar, empresa_id, TIPO_COM_RETENCAO, tarefa)
+        return status, [chamada.request.url for chamada in api.calls]
+
+
+def simular_primeira(api: responses.RequestsMock) -> None:
+    """A revisão de 07/04 depois da carga inicial: pelo ID, só o anúncio
+    excluído, o único que o cadastro não traz, com o conjunto e a campanha
+    dele. Sem alcance extraído, os períodos são os da janela inteira."""
+    simular_rotina(
+        api,
+        PRIMEIRO_HOJE,
+        ler_insights(ANTES),
+        ler_quebras(ANTES),
+        alcance_exemplo.ler_fixtures(),
+    )
+    simular_entidades(api, ler_fixtures_insights())
 
 
 def executar_primeira(
     conectar: Callable[[], psycopg.Connection], empresa_id: UUID
 ) -> StatusExecucao:
-    """A primeira execução da conta, com o banco vazio: pelo ID, só o anúncio
-    excluído, o único que o cadastro não traz."""
-    alcance = alcance_exemplo.ler_fixtures()
-
-    def simular(api: responses.RequestsMock) -> None:
-        simular_rotina(
-            api, PRIMEIRO_HOJE, ler_insights(ANTES), ler_quebras(ANTES), alcance
-        )
-        simular_entidades(api, ler_fixtures_insights())
-
-    return executar_rotina(conectar, empresa_id, PRIMEIRA_EXECUCAO, simular)
+    """O cadastro da carga inicial e a primeira revisão da conta."""
+    carregar_cadastro(conectar, empresa_id)
+    return executar_rotina(conectar, empresa_id, PRIMEIRA_EXECUCAO, simular_primeira)
 
 
 def executar_segunda(
     conectar: Callable[[], psycopg.Connection], empresa_id: UUID
 ) -> StatusExecucao:
-    """A execução do dia seguinte, depois da revisão da Meta."""
+    """A revisão do dia seguinte, depois da revisão da Meta. A primeira
+    extraiu o alcance até 06/04, e esta lê só os períodos de ontem."""
     return executar_rotina(
         conectar,
         empresa_id,
@@ -202,6 +272,7 @@ def executar_segunda(
             ler_insights(DEPOIS),
             ler_quebras(DEPOIS),
             alcance_exemplo.ler_fixtures(),
+            desde=SEGUNDO_HOJE - timedelta(days=1),
         ),
     )
 
@@ -379,15 +450,30 @@ def test_dia_fora_da_janela_fica_como_estava(
     ]
 
 
-def test_primeira_execucao_le_pelo_id_so_o_que_o_cadastro_nao_trouxe(
+def test_revisao_le_pelo_id_so_os_objetos_novos_sem_o_cadastro_completo(
     conectar_etl: Callable[[], psycopg.Connection],
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # Com o banco vazio, os anúncios dos insights e do alcance que o cadastro
-    # traz não são lidos pelo ID: a simulação não responde a essas leituras,
-    # que numa conta real seriam uma chamada por anúncio.
-    assert executar_primeira(conectar_etl, empresa.empresa_id) is StatusExecucao.SUCESSO
+    # A revisão não lê o cadastro completo (ADR-0017): com os dados já
+    # carregados, as únicas leituras de cadastro são as do anúncio que o banco
+    # não tem, excluído e por isso fora das arestas, e as do conjunto e da
+    # campanha dele, pelo ID. Nenhuma chamada vai à conta nem às arestas de
+    # anúncios, conjuntos e campanhas; as demais são consultas de insights.
+    carregar_cadastro(conectar_etl, empresa.empresa_id)
+    fixtures = ler_fixtures_insights()
+    novos = [fixtures[nome]["corpo"]["id"] for nome, _ in NOMES_ENTIDADES]
+    assert novos[0] == ID_META_ANUNCIO_AUSENTE
+
+    status, urls = executar_rotina_com_chamadas(
+        conectar_etl, empresa.empresa_id, PRIMEIRA_EXECUCAO, simular_primeira
+    )
+
+    assert status is StatusExecucao.SUCESSO
+    caminhos = [urlsplit(url).path.removeprefix(f"/{VERSAO_API_META}/") for url in urls]
+    assert [caminho for caminho in caminhos if not caminho.endswith("/insights")] == (
+        novos
+    )
     assert (
         conexao_operador.execute(
             "SELECT count(*) FROM normalizado.anuncio"
@@ -403,20 +489,26 @@ def test_uma_execucao_diaria_por_empresa_com_as_tabelas_de_todas_as_etapas(
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
+    # Uma execução diária depois da histórica da carga inicial, sem as linhas
+    # da conta, que só o cadastro completo grava.
     assert executar_primeira(conectar_etl, empresa.empresa_id) is StatusExecucao.SUCESSO
 
     assert conexao_operador.execute(
         LER_EXECUCOES, (empresa.empresa_id,)
-    ).fetchall() == [("diaria", "sucesso")]
+    ).fetchall() == [("historica", "sucesso"), ("diaria", "sucesso")]
     contagens = dict(
-        conexao_operador.execute(LER_CONTAGENS, (empresa.empresa_id,)).fetchall()
+        conexao_operador.execute(LER_CONTAGENS_DIARIA, (empresa.empresa_id,)).fetchall()
     )
-    assert contagens["alcance_periodo"] == LINHAS_ALCANCE
+    alcance = montar_alcance_periodos(
+        alcance_exemplo.ler_fixtures(), *calcular_janela(PRIMEIRO_HOJE)
+    )
+    assert contagens["alcance_periodo"] == sum(
+        len(resposta["corpo"]["data"]) for resposta in alcance.values()
+    )
     assert contagens["metrica_diaria_anuncio"] == len(
         listar_linhas(ler_insights(ANTES))
     )
     assert {
-        "conta_anuncio",
         "campanha",
         "anuncio",
         "acao_diaria_anuncio",
@@ -424,6 +516,7 @@ def test_uma_execucao_diaria_por_empresa_com_as_tabelas_de_todas_as_etapas(
         "acao_quebra_diaria_campanha",
         "resposta_api",
     } <= contagens.keys()
+    assert "conta_anuncio" not in contagens
 
 
 def test_rotina_duas_vezes_com_a_mesma_resposta_produz_o_mesmo_estado(
@@ -431,7 +524,8 @@ def test_rotina_duas_vezes_com_a_mesma_resposta_produz_o_mesmo_estado(
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # A segunda execução já não lê nada pelo ID: tudo está no banco.
+    # A segunda execução já não lê nada pelo ID: tudo está no banco. O
+    # alcance já foi extraído até ontem, e ela relê só os períodos de ontem.
     def repetir() -> StatusExecucao:
         return executar_rotina(
             conectar_etl,
@@ -443,6 +537,7 @@ def test_rotina_duas_vezes_com_a_mesma_resposta_produz_o_mesmo_estado(
                 ler_insights(ANTES),
                 ler_quebras(ANTES),
                 alcance_exemplo.ler_fixtures(),
+                desde=PRIMEIRO_HOJE - timedelta(days=1),
             ),
         )
 
@@ -527,6 +622,7 @@ def test_quebras_resolvem_o_resultado_pelo_investimento_carregado_na_execucao(
     # sem investimento escolheria o conjunto de menor ID, de ThruPlay, sem
     # resultado principal, e nenhuma ação seria gravada (ADR-0011). A
     # resolução usa o hoje do banco, então os dias são os de agora.
+    carregar_cadastro(conectar_etl, empresa.empresa_id, montar_cadastro_com_conversas())
     instante = agora_utc()
     hoje = instante.astimezone(ZoneInfo(FUSO_BRASILIA)).date()
     ontem = hoje - timedelta(days=1)
@@ -551,7 +647,6 @@ def test_quebras_resolvem_o_resultado_pelo_investimento_carregado_na_execucao(
             insights,
             {"idade_genero": montar_quebra_com_duas_acoes(ontem)},
             {},
-            cadastro=montar_cadastro_com_conversas(),
         ),
     )
 
@@ -570,21 +665,19 @@ def test_janela_e_a_do_fuso_de_cada_conta(
     empresa: EmpresaTeste,
 ) -> None:
     # Às 06:43 UTC já é dia 7 em Brasília e ainda é dia 6 em Los Angeles: cada
-    # conta da empresa tem a própria janela (ADR-0009 §5). A simulação só
-    # responde à janela certa de cada uma, e a conta sem fuso, na primeira
-    # execução, o recebe do cadastro.
-    conexao_operador.execute(
-        "INSERT INTO normalizado.conta_anuncio (empresa_id, id_meta) VALUES (%s, %s)",
-        (empresa.empresa_id, ID_META_CONTA_LOS_ANGELES),
-    )
+    # conta da empresa tem a própria janela, no fuso que a carga inicial
+    # gravou (ADR-0009 §5). A simulação só responde à janela certa de cada uma.
+    with conexao_operador.transaction():
+        definir_fuso(conexao_operador, empresa.conta_id, FUSO_BRASILIA)
+        conta_los_angeles = inserir_conta(
+            conexao_operador, empresa.empresa_id, ID_META_CONTA_LOS_ANGELES
+        )
+        definir_fuso(conexao_operador, conta_los_angeles, FUSO_LOS_ANGELES)
 
     def simular(api: responses.RequestsMock) -> None:
-        simular_conta_vazia(api, ID_META_CONTA, FUSO_BRASILIA, PRIMEIRO_HOJE)
+        simular_conta_vazia(api, ID_META_CONTA, PRIMEIRO_HOJE)
         simular_conta_vazia(
-            api,
-            ID_META_CONTA_LOS_ANGELES,
-            FUSO_LOS_ANGELES,
-            PRIMEIRO_HOJE - timedelta(days=1),
+            api, ID_META_CONTA_LOS_ANGELES, PRIMEIRO_HOJE - timedelta(days=1)
         )
 
     status = executar_rotina(
@@ -592,15 +685,128 @@ def test_janela_e_a_do_fuso_de_cada_conta(
     )
 
     assert status is StatusExecucao.SUCESSO
-    assert dict(
-        conexao_operador.execute(
-            "SELECT id_meta, fuso_horario FROM normalizado.conta_anuncio"
-            " WHERE empresa_id = %s",
+
+
+def test_conta_sem_carga_inicial_fica_fora_da_revisao(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa: EmpresaTeste,
+) -> None:
+    # A conta recém-cadastrada ainda não tem o fuso, que só o cadastro
+    # completo da carga inicial grava, e sem ele não há janela: a revisão não
+    # chama a API para ela, que espera a carga inicial (ADR-0017). A outra
+    # conta da empresa é revisada, e a simulação não responde a mais nada.
+    with conexao_operador.transaction():
+        definir_fuso(conexao_operador, empresa.conta_id, FUSO_BRASILIA)
+        inserir_conta(conexao_operador, empresa.empresa_id, ID_META_OUTRA_CONTA)
+
+    status = executar_rotina(
+        conectar_etl,
+        empresa.empresa_id,
+        PRIMEIRA_EXECUCAO,
+        lambda api: simular_conta_vazia(api, ID_META_CONTA, PRIMEIRO_HOJE),
+    )
+
+    assert status is StatusExecucao.SUCESSO
+
+
+def test_alcance_e_o_da_semana_do_mes_e_do_ano_que_contem_ontem(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa: EmpresaTeste,
+) -> None:
+    # Em 10/01/2027, a janela vai de 13/12/2026 a 09/01/2027 e toca dois
+    # anos, e a revisão de ontem extraiu o alcance até 08/01. Esta lê só a
+    # semana, o mês e o ano que contêm ontem, cada um do primeiro dia até
+    # ontem. O ano em andamento continua atualizado, e os períodos que não
+    # contêm ontem ficam com o que já foi gravado (ADR-0016; ADR-0017).
+    definir_fuso(conexao_operador, empresa.conta_id, FUSO_BRASILIA)
+    gravar_alcance_extraido(conexao_operador, empresa, date(2027, 1, 8))
+    hoje = date(2027, 1, 10)
+
+    status, urls = executar_rotina_com_chamadas(
+        conectar_etl,
+        empresa.empresa_id,
+        datetime(2027, 1, 10, 6, 43, tzinfo=UTC),
+        lambda api: simular_conta_vazia(
+            api, ID_META_CONTA, hoje, desde=date(2027, 1, 9)
+        ),
+    )
+
+    assert status is StatusExecucao.SUCESSO
+    assert ler_periodos_consultados(urls) == {
+        ("7", "2027-01-04", "2027-01-09"),
+        ("monthly", "2027-01-01", "2027-01-09"),
+        ("all_days", "2027-01-01", "2027-01-09"),
+    }
+
+
+def test_alcance_retoma_os_periodos_dos_dias_perdidos_depois_de_uma_falha(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa: EmpresaTeste,
+) -> None:
+    # A revisão de 01/12/2026, com ontem em 30/11, falhou, e o alcance da
+    # conta ficou extraído até 29/11. A de 02/12 relê os períodos de 30/11 e
+    # de 01/12: novembro, que termina em 30/11, sai inteiro, em vez de ficar
+    # cortado em 29/11 para sempre (RF-04; ADR-0017).
+    definir_fuso(conexao_operador, empresa.conta_id, FUSO_BRASILIA)
+    gravar_alcance_extraido(conexao_operador, empresa, date(2026, 11, 29))
+    hoje = date(2026, 12, 2)
+
+    status, urls = executar_rotina_com_chamadas(
+        conectar_etl,
+        empresa.empresa_id,
+        datetime(2026, 12, 2, 6, 43, tzinfo=UTC),
+        lambda api: simular_conta_vazia(
+            api, ID_META_CONTA, hoje, desde=date(2026, 11, 30)
+        ),
+    )
+
+    assert status is StatusExecucao.SUCESSO
+    assert ler_periodos_consultados(urls) == {
+        ("7", "2026-11-30", "2026-12-01"),
+        ("monthly", "2026-11-01", "2026-12-01"),
+        ("all_days", "2026-01-01", "2026-12-01"),
+    }
+
+
+def gravar_alcance_extraido(
+    conexao: psycopg.Connection, empresa: EmpresaTeste, ate: date
+) -> None:
+    """O alcance do ano da própria conta extraído até o dia dado, como a
+    revisão anterior o deixa."""
+    with conexao.transaction():
+        execucao_id = conexao.execute(
+            "INSERT INTO normalizado.execucao_carga (empresa_id, tipo)"
+            " VALUES (%s, 'diaria') RETURNING id",
             (empresa.empresa_id,),
-        ).fetchall()
-    ) == {
-        ID_META_CONTA: FUSO_BRASILIA,
-        ID_META_CONTA_LOS_ANGELES: FUSO_LOS_ANGELES,
+        ).fetchone()[0]
+        conexao.execute(
+            "INSERT INTO normalizado.alcance_periodo (empresa_id, conta_anuncio_id,"
+            " tipo_periodo, inicio_periodo, fim_periodo, alcance, impressoes,"
+            " execucao_id) VALUES (%s, %s, 'ano', %s, %s, 10, 12, %s)",
+            (
+                empresa.empresa_id,
+                empresa.conta_id,
+                date(ate.year, 1, 1),
+                ate,
+                execucao_id,
+            ),
+        )
+
+
+def ler_periodos_consultados(urls: Sequence[str]) -> set[tuple[str, str, str]]:
+    """O incremento, o since e o until de cada consulta de alcance."""
+    consultas = [parse_qs(urlsplit(url).query) for url in urls]
+    return {
+        (
+            consulta["time_increment"][0],
+            json.loads(consulta["time_range"][0])["since"],
+            json.loads(consulta["time_range"][0])["until"],
+        )
+        for consulta in consultas
+        if consulta["time_increment"][0] != "1"
     }
 
 
@@ -609,23 +815,27 @@ def test_falha_no_alcance_desfaz_a_empresa_e_a_outra_carrega(
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # A última etapa da carga falha, com o cadastro, os insights e as quebras
-    # já gravados na transação: nada da empresa fica (RF-18), a outra carrega
-    # e o job sai com falha (RF-50).
+    # A última etapa da carga falha, no alcance do ano, com os insights e as
+    # quebras já gravados na transação: nada da revisão fica, nem a retenção
+    # (RF-18), a outra empresa carrega e o job sai com falha (RF-50).
+    carregar_cadastro(conectar_etl, empresa.empresa_id)
     outra = criar_empresa(
         conexao_operador, NOME_OUTRA_EMPRESA, ID_META_OUTRA_CONTA, indice=2
     )
+    definir_fuso(conexao_operador, outra.conta_id, FUSO_BRASILIA)
     alcance = alcance_exemplo.ler_fixtures()
-    alcance["alcance_campanha_semana"]["corpo"]["data"][0]["campaign_id"] = (
+    alcance["alcance_campanha_ano"]["corpo"]["data"][0]["campaign_id"] = (
         "995000000000000099"
     )
+    estado = ler_estado(conexao_operador, [empresa.empresa_id])
+    bruto = contar_bruto(conexao_operador, empresa.empresa_id)
 
     with responses.RequestsMock(registry=OrderedRegistry) as api:
         simular_rotina(
             api, PRIMEIRO_HOJE, ler_insights(ANTES), ler_quebras(ANTES), alcance
         )
         simular_entidades(api, ler_fixtures_insights())
-        simular_conta_vazia(api, ID_META_OUTRA_CONTA, FUSO_BRASILIA, PRIMEIRO_HOJE)
+        simular_conta_vazia(api, ID_META_OUTRA_CONTA, PRIMEIRO_HOJE)
         cliente = ClienteApiMeta(TOKEN, dormir=lambda segundos: None)
         tarefa = TarefaRotinaDiaria(
             conectar_etl, cliente, relogio=lambda: PRIMEIRA_EXECUCAO
@@ -640,19 +850,19 @@ def test_falha_no_alcance_desfaz_a_empresa_e_a_outra_carrega(
     assert codigo == CODIGO_SAIDA_FALHA
     assert conexao_operador.execute(
         LER_EXECUCOES, (empresa.empresa_id,)
-    ).fetchall() == [("diaria", "falha")]
+    ).fetchall() == [("historica", "sucesso"), ("diaria", "falha")]
     assert conexao_operador.execute(LER_EXECUCOES, (outra.empresa_id,)).fetchall() == [
         ("diaria", "sucesso")
     ]
-    estado = ler_estado(conexao_operador, [empresa.empresa_id])
-    assert all(contagem == 0 for contagem, _ in estado.values())
-    assert (
-        conexao_operador.execute(
-            "SELECT count(*) FROM bruto.resposta_api WHERE empresa_id = %s",
-            (empresa.empresa_id,),
-        ).fetchone()[0]
-        == 0
-    )
+    assert ler_estado(conexao_operador, [empresa.empresa_id]) == estado
+    assert contar_bruto(conexao_operador, empresa.empresa_id) == bruto
+
+
+def contar_bruto(conexao: psycopg.Connection, empresa_id: UUID) -> int:
+    return conexao.execute(
+        "SELECT count(*) FROM bruto.resposta_api WHERE empresa_id = %s",
+        (empresa_id,),
+    ).fetchone()[0]
 
 
 def test_ponto_de_entrada_roda_a_rotina_e_aplica_a_retencao_de_bruto(
@@ -677,13 +887,10 @@ def test_ponto_de_entrada_roda_a_rotina_e_aplica_a_retencao_de_bruto(
     hoje = agora_utc().astimezone(ZoneInfo(FUSO_BRASILIA)).date()
     execucao_id = uuid4()
     with conexao_operador.transaction():
-        # A retenção roda antes da carga do cadastro. Sem o fuso, ela usaria
-        # o dia em UTC, que das 21h às 24h de Brasília já é o seguinte.
-        conexao_operador.execute(
-            "UPDATE normalizado.conta_anuncio SET fuso_horario = %s, moeda = %s"
-            " WHERE id = %s",
-            (FUSO_BRASILIA, "BRL", empresa.conta_id),
-        )
+        # A conta tem o fuso que a carga inicial grava: sem ele, a revisão não
+        # a lê, e a retenção usaria o dia em UTC, que das 21h às 24h de
+        # Brasília já é o seguinte.
+        definir_fuso(conexao_operador, empresa.conta_id, FUSO_BRASILIA)
         conexao_operador.execute(
             "INSERT INTO normalizado.execucao_carga (id, empresa_id, tipo)"
             " VALUES (%s, %s, 'diaria')",
