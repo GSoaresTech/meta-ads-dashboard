@@ -2,13 +2,11 @@
 intervalo, com as entidades que eles referenciam lidas pelo ID, extraídos e
 carregados juntos (RF-02, RF-03, RF-04; ADR-0009 §5).
 
-A extração faz só o I/O de rede, fora de transação, e lê pelo ID só o que
-nem o banco nem o cadastro lido na mesma execução têm: o cadastro ainda não
-foi carregado quando as consultas terminam, e numa conta nova a conferência
-só com o banco leria pelo ID cada anúncio com entrega no ano. A carga roda na
-transação de quem chama, na ordem insights, quebras e alcance: as quebras
-resolvem o resultado principal pelo que os insights acabaram de carregar
-(ADR-0011).
+A extração faz só o I/O de rede, fora de transação, e lê pelo ID só o que o
+banco não tem: o cadastro completo da conta já entrou na carga inicial, antes
+de qualquer janela (ADR-0017). A carga roda na transação de quem chama, na
+ordem insights, quebras e alcance: as quebras resolvem o resultado principal
+pelo que os insights acabaram de carregar (ADR-0011).
 """
 
 from collections import Counter
@@ -21,10 +19,8 @@ import psycopg
 
 from etl.alcance import AlcanceContaExtraido, carregar_alcance_conta
 from etl.carga import Contagens
-from etl.cliente_api_meta import ClienteApiMeta, Endpoint
+from etl.cliente_api_meta import ClienteApiMeta
 from etl.extracao import (
-    CadastroExtraido,
-    Consulta,
     NivelAlcance,
     PeriodoAlcance,
     extrair_alcance_periodo,
@@ -68,12 +64,11 @@ def extrair_janela_conta(
     inicio: date,
     fim: date,
     periodos: Sequence[PeriodoAlcance],
-    cadastro: CadastroExtraido | None = None,
 ) -> JanelaContaExtraida:
     """Os insights e as quebras de inicio a fim, o alcance de cada período e,
-    pelo ID, as entidades delas que o cadastro dado e o banco não têm. Os
-    anúncios lidos pelo ID entram com os insights, antes do alcance, que
-    também depende deles pela FK."""
+    pelo ID, as entidades delas que o banco não tem. Os anúncios lidos pelo
+    ID entram com os insights, antes do alcance, que também depende deles
+    pela FK."""
     insights = extrair_insights_diarios(cliente, id_meta_conta, inicio, fim)
     quebras = extrair_quebras_campanha(cliente, id_meta_conta, inicio, fim)
     alcance = {
@@ -101,39 +96,17 @@ def extrair_janela_conta(
         InsightsContaExtraidos(
             conta_anuncio_id,
             insights,
-            extrair_anuncios_ausentes(
-                conectar,
-                cliente,
-                empresa_id,
-                retirar_cadastrados(anuncios, cadastro, Endpoint.ANUNCIOS),
-            ),
+            extrair_anuncios_ausentes(conectar, cliente, empresa_id, anuncios),
         ),
         QuebrasContaExtraidas(
             conta_anuncio_id,
             quebras,
-            extrair_campanhas_ausentes(
-                conectar,
-                cliente,
-                empresa_id,
-                retirar_cadastrados(campanhas, cadastro, Endpoint.CAMPANHAS),
-            ),
+            extrair_campanhas_ausentes(conectar, cliente, empresa_id, campanhas),
         ),
         AlcanceContaExtraido(
             conta_anuncio_id, alcance, extrair_entidades_por_id(cliente, [])
         ),
     )
-
-
-def retirar_cadastrados(
-    ids_meta: Sequence[str], cadastro: CadastroExtraido | None, endpoint: Endpoint
-) -> list[str]:
-    """Os IDs dados que a aresta do cadastro não trouxe, na ordem. Sem
-    cadastro lido, todos."""
-    if cadastro is None:
-        return list(ids_meta)
-    aresta: Consulta = cadastro.arestas[endpoint]
-    cadastrados = set(listar_ids_insights(aresta.paginas, "id"))
-    return [id_meta for id_meta in ids_meta if id_meta not in cadastrados]
 
 
 def carregar_janela_conta(
@@ -161,7 +134,7 @@ def carregar_janela_conta(
     )
     # O alcance de uma fatia histórica vai além dela, como a semana que
     # termina no mês seguinte e o ano da fatia de janeiro: a data de
-    # referência do bruto é o último dia consultado (ADR-0009 §2). Na rotina
+    # referência do bruto é o último dia consultado (ADR-0009 §2). Na revisão
     # diária, os períodos terminam no fim da janela.
     referencia_alcance = max(
         [janela.fim, *(periodo.fim for periodo in janela.alcance.consultas)]

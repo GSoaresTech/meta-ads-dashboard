@@ -1,8 +1,8 @@
-# Rotina diária da ETL (RF-05; ADR-0005), seguida da carga histórica das
-# contas novas e das interrompidas (RF-07, RF-22). Uma falha em qualquer
-# empresa faz o job terminar com código diferente de zero, o que dispara a
-# notificação do GitHub (RF-50). Os logs são públicos, e a rotina só escreve
-# os campos da lista permitida (RNF-17).
+# Revisão diária leve da ETL (RF-05; ADR-0017), seguida da carga inicial das
+# contas novas e das interrompidas (RF-01, RF-07, RF-22). Uma falha em
+# qualquer empresa faz o job terminar com código diferente de zero, o que
+# dispara a notificação do GitHub (RF-50). Os logs são públicos, e a revisão
+# só escreve os campos da lista permitida (RNF-17).
 name: Carga diária
 
 on:
@@ -12,16 +12,16 @@ on:
     # já fechou nas contas do Brasil, e em minuto quebrado, longe do pico do
     # início da hora (R-08).
     - cron: "43 6 * * *"
-  # Para a primeira carga de uma empresa e para refazer o dia depois de uma
-  # falha, sem esperar a madrugada seguinte.
+  # Para refazer a revisão depois de uma falha, sem esperar a madrugada
+  # seguinte. A carga inicial também tem disparo próprio.
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Um disparo manual espera a execução em andamento, com a carga histórica,
-# em vez de gastar a cota da Meta com a mesma leitura. O lock por empresa
-# (RF-19) segue valendo.
+# Um disparo manual espera a execução em andamento, com a carga inicial, em
+# vez de gastar a cota da Meta com a mesma leitura. O lock por empresa (RF-19)
+# segue valendo.
 concurrency:
   group: carga-diaria
   cancel-in-progress: false
@@ -39,15 +39,16 @@ jobs:
           python-version: "3.13"
       - name: Instalar a ETL
         run: python -m pip install .
-      - name: Rodar a rotina diária
+      - name: Rodar a revisão diária
         env:
           TOKEN_SISTEMA_META: ${{ secrets.TOKEN_SISTEMA_META }}
           URL_BANCO: ${{ secrets.URL_BANCO }}
         run: python -m etl.rotina_diaria
 
-  # A conta nova entra no histórico depois da rotina, que dá o fuso e o
-  # cadastro dela (RF-22). Roda também quando a rotina falha numa empresa,
-  # porque a falha de uma não segura o histórico das outras. O workflow
+  # A carga inicial lê o cadastro completo da conta nova, que dá o fuso, e
+  # depois o histórico dela (RF-22; ADR-0017). Roda depois da revisão, que
+  # pula a conta ainda sem fuso, e também quando a revisão falha numa
+  # empresa, porque a falha de uma não segura a carga das outras. O workflow
   # chamado tem o próprio limite de tempo (RNF-07).
   carga-historica:
     needs: carga-diaria

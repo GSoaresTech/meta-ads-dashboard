@@ -1,5 +1,5 @@
-"""Duas execuções diárias seguidas de uma conta, a partir das fixtures
-revisao_*.json, e a simulação das consultas da rotina com essas respostas.
+"""Duas revisões diárias seguidas de uma conta, a partir das fixtures
+revisao_*.json, e a simulação das consultas da revisão com essas respostas.
 
 As fixtures seguem a estrutura das respostas de insights, com IDs e valores
 inventados (CLAUDE.md §9). São duas extrações dos mesmos dias, antes e depois
@@ -8,11 +8,18 @@ janela de 10/03 a 06/04, e a segunda na de 08/04, com a janela de 11/03 a
 07/04. Em DIA_REVISADO e em PRIMEIRO_DIA_SEGUNDA_JANELA, as compras e os
 cadastros mudam; em DIA_REVISADO, um tipo de ação some. DIA_SEM_REVISAO vem
 igual nas duas, e DIA_FORA_DA_SEGUNDA_JANELA só na primeira. Os anúncios e as
-campanhas são os das fixtures de cadastro, e o alcance é o das fixtures de
-alcance, cuja janela é a da primeira execução.
+campanhas são os das fixtures de cadastro, que a revisão não lê: a carga
+inicial já os carregou (ADR-0017).
 
-A simulação só responde à consulta com os parâmetros que a rotina deve mandar,
-na ordem da extração: uma janela diferente sai sem resposta, e o teste falha.
+O alcance é o das fixtures de alcance, cuja janela é a da primeira execução.
+Os períodos lidos são os que contêm os dias do início do alcance até ontem
+(ADR-0017): na conta ainda sem alcance extraído, a janela inteira; no dia
+normal, só ontem. De cada fixture, ficam os blocos que começam no período
+pedido, cortados no until, como a API os devolve (R-20).
+
+A simulação só responde à consulta com os parâmetros que a revisão deve
+mandar, na ordem da extração: uma janela ou um período diferente sai sem
+resposta, e o teste falha.
 """
 
 import json
@@ -23,9 +30,6 @@ from typing import Final
 
 import responses
 
-from etl.extracao import montar_campos
-from etl.mapa_campos import ObjetoApi
-from tests import cadastro_exemplo
 from tests.alcance_exemplo import NIVEIS, montar_parametros_alcance, nomear_fixture
 from tests.cadastro_exemplo import CONTA, simular
 from tests.insights_exemplo import montar_parametros_insights
@@ -76,18 +80,38 @@ def calcular_janela(hoje: date) -> tuple[date, date]:
     return hoje - timedelta(days=28), hoje - timedelta(days=1)
 
 
-def calcular_periodos(inicio: date, fim: date) -> list[tuple[str, date, date]]:
-    """Os períodos da janela, na ordem da extração: a semana e o mês do
-    primeiro dia e cada ano que ela toca, todos cortados no último dia da
-    janela ou do ano (ADR-0006)."""
+def calcular_periodos(desde: date, fim: date) -> list[tuple[str, date, date]]:
+    """Os períodos que contêm os dias de desde a fim, na ordem da extração:
+    a semana e o mês de desde e cada ano até fim, todos cortados em fim ou no
+    fim do ano (ADR-0006; ADR-0017)."""
     return [
-        ("semana", inicio - timedelta(days=inicio.weekday()), fim),
-        ("mes", inicio.replace(day=1), fim),
+        ("semana", desde - timedelta(days=desde.weekday()), fim),
+        ("mes", desde.replace(day=1), fim),
         *(
             ("ano", date(ano, 1, 1), min(fim, date(ano, 12, 31)))
-            for ano in range(inicio.year, fim.year + 1)
+            for ano in range(desde.year, fim.year + 1)
         ),
     ]
+
+
+def montar_alcance_periodos(
+    alcance: Fixtures, desde: date, fim: date
+) -> dict[tuple[str, str, date], dict]:
+    """A resposta de cada nível e período, pelo nome da fixture, o tipo e o
+    since: os blocos da fixture que começam do since ao until, cortados no
+    until. Sem fixture, a resposta vem vazia."""
+    respostas = {}
+    for tipo, inicio, ate in calcular_periodos(desde, fim):
+        for _, nivel, _ in NIVEIS:
+            nome = nomear_fixture(nivel, tipo)
+            fixture = alcance.get(nome, RESPOSTA_VAZIA)
+            linhas = [
+                {**linha, "date_stop": min(linha["date_stop"], ate.isoformat())}
+                for linha in fixture["corpo"]["data"]
+                if inicio.isoformat() <= linha["date_start"] <= ate.isoformat()
+            ]
+            respostas[(nome, tipo, inicio)] = {**fixture, "corpo": {"data": linhas}}
+    return respostas
 
 
 def simular_janela(
@@ -97,10 +121,12 @@ def simular_janela(
     insights: dict,
     quebras: Fixtures,
     alcance: Fixtures,
+    desde: date | None = None,
 ) -> None:
-    """Registra, na ordem da extração, os insights, as três quebras e o
-    alcance dos períodos da janela, nos três níveis. A quebra ou o alcance
-    sem fixture vem vazio."""
+    """Registra, na ordem da extração, os insights e as três quebras da
+    janela e o alcance dos períodos que contêm os dias de desde a ontem, nos
+    três níveis. Sem desde, o início da janela, como na conta ainda sem
+    alcance extraído. A quebra ou o alcance sem fixture vem vazio."""
     inicio, fim = calcular_janela(hoje)
     simular(api, f"{conta}/insights", insights, montar_parametros_insights(inicio, fim))
     for tipo, breakdowns, _ in QUEBRAS:
@@ -110,12 +136,14 @@ def simular_janela(
             quebras.get(tipo, RESPOSTA_VAZIA),
             montar_parametros_quebra(breakdowns, inicio, fim),
         )
-    for tipo, inicio_periodo, fim_periodo in calcular_periodos(inicio, fim):
+    desde = inicio if desde is None else desde
+    respostas = montar_alcance_periodos(alcance, desde, fim)
+    for tipo, inicio_periodo, fim_periodo in calcular_periodos(desde, fim):
         for nivel_api, nivel, _ in NIVEIS:
             simular(
                 api,
                 f"{conta}/insights",
-                alcance.get(nomear_fixture(nivel, tipo), RESPOSTA_VAZIA),
+                respostas[(nomear_fixture(nivel, tipo), tipo, inicio_periodo)],
                 montar_parametros_alcance(nivel_api, tipo, inicio_periodo, fim_periodo),
             )
 
@@ -126,35 +154,18 @@ def simular_rotina(
     insights: dict,
     quebras: Fixtures,
     alcance: Fixtures,
-    *,
-    cadastro: Fixtures | None = None,
+    desde: date | None = None,
 ) -> None:
-    """Registra as consultas da rotina para a conta das fixtures de cadastro:
-    primeiro o cadastro, que dá o dia no fuso da conta; depois, a janela."""
-    cadastro_exemplo.simular_cadastro(
-        api, cadastro_exemplo.ler_fixtures() if cadastro is None else cadastro
-    )
-    simular_janela(api, CONTA, hoje, insights, quebras, alcance)
+    """Registra as consultas da revisão para a conta das fixtures de
+    cadastro, sem o cadastro."""
+    simular_janela(api, CONTA, hoje, insights, quebras, alcance, desde)
 
 
 def simular_conta_vazia(
-    api: responses.RequestsMock, id_meta_conta: str, fuso: str, hoje: date
+    api: responses.RequestsMock,
+    id_meta_conta: str,
+    hoje: date,
+    desde: date | None = None,
 ) -> None:
-    """Registra as consultas da rotina para uma conta sem entidades nem
-    entrega, no fuso dado."""
-    conta = f"act_{id_meta_conta}"
-    fixture_conta = cadastro_exemplo.ler_fixtures()["cadastro_conta"]
-    fixture_conta["corpo"] |= {"id": conta, "timezone_name": fuso}
-    simular(api, conta, fixture_conta, {"fields": montar_campos(ObjetoApi.CONTA)})
-    for aresta, objeto in (
-        ("ads", ObjetoApi.ANUNCIO),
-        ("adsets", ObjetoApi.CONJUNTO),
-        ("campaigns", ObjetoApi.CAMPANHA),
-    ):
-        simular(
-            api,
-            f"{conta}/{aresta}",
-            RESPOSTA_VAZIA,
-            cadastro_exemplo.montar_parametros(objeto),
-        )
-    simular_janela(api, conta, hoje, RESPOSTA_VAZIA, {}, {})
+    """Registra as consultas da revisão para uma conta sem entrega."""
+    simular_janela(api, f"act_{id_meta_conta}", hoje, RESPOSTA_VAZIA, {}, {}, desde)

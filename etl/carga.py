@@ -95,7 +95,7 @@ COLUNAS_ALCANCE_PERIODO: Final = (
 )
 
 # A data de referência está no fuso da conta (ADR-0009 §2), e o hoje também.
-# A conta sem fuso, que ainda não teve a primeira extração, usa o dia em UTC:
+# A conta sem fuso, que ainda não teve a carga inicial, usa o dia em UTC:
 # sem o coalesce, a comparação com nulo nunca apagaria as respostas dela.
 APAGAR_RESPOSTAS_VENCIDAS: Final = """
 DELETE FROM bruto.resposta_api AS resposta

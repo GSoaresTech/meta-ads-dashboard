@@ -1,5 +1,6 @@
-"""A janela de reprocessamento e o ponto de entrada da rotina diária, sem banco
-nem rede. O que depende do banco está em tests/test_rotina_diaria_banco.py.
+"""A janela de reprocessamento, o início do alcance e o ponto de entrada da
+revisão diária, sem banco nem rede. O que depende do banco está em
+tests/test_rotina_diaria_banco.py.
 """
 
 from datetime import date
@@ -9,7 +10,11 @@ import pytest
 
 from etl import rotina_diaria
 from etl.execucao import CODIGO_SAIDA_FALHA, CODIGO_SAIDA_SUCESSO
-from etl.rotina_diaria import calcular_janela_reprocessamento, main
+from etl.rotina_diaria import (
+    calcular_inicio_alcance,
+    calcular_janela_reprocessamento,
+    main,
+)
 
 SENHA_FICTICIA = "senha-ficticia-do-banco"
 URL_FICTICIA = f"postgresql://etl:{SENHA_FICTICIA}@banco.ficticio.invalid:5432/postgres"
@@ -35,6 +40,41 @@ def test_janela_cruza_a_virada_do_ano() -> None:
     assert calcular_janela_reprocessamento(date(2027, 1, 10)) == (
         date(2026, 12, 13),
         date(2027, 1, 9),
+    )
+
+
+# A janela da revisão de 01/12/2026.
+INICIO_JANELA = date(2026, 11, 3)
+FIM_JANELA = date(2026, 11, 30)
+
+
+def test_alcance_no_dia_normal_e_so_o_dos_periodos_de_ontem() -> None:
+    # A revisão de 30/11 extraiu até 29/11 (ADR-0017).
+    assert (
+        calcular_inicio_alcance(INICIO_JANELA, FIM_JANELA, date(2026, 11, 29))
+        == FIM_JANELA
+    )
+
+
+def test_alcance_retoma_do_dia_seguinte_ao_ultimo_extraido_depois_de_uma_falha() -> (
+    None
+):
+    # A revisão de 30/11, com ontem em 29/11, falhou: a de 01/12 relê também
+    # os períodos de 29/11, e o mês que terminasse nele não fica cortado.
+    assert calcular_inicio_alcance(
+        INICIO_JANELA, FIM_JANELA, date(2026, 11, 28)
+    ) == date(2026, 11, 29)
+
+
+def test_alcance_refeito_no_mesmo_dia_continua_nos_periodos_de_ontem() -> None:
+    assert calcular_inicio_alcance(INICIO_JANELA, FIM_JANELA, FIM_JANELA) == FIM_JANELA
+
+
+def test_alcance_sem_extracao_ou_parado_ha_mais_de_28_dias_comeca_na_janela() -> None:
+    assert calcular_inicio_alcance(INICIO_JANELA, FIM_JANELA, None) == INICIO_JANELA
+    assert (
+        calcular_inicio_alcance(INICIO_JANELA, FIM_JANELA, date(2026, 9, 30))
+        == INICIO_JANELA
     )
 
 
