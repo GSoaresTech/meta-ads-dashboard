@@ -524,9 +524,9 @@ def test_quebras_resolvem_o_resultado_pelo_investimento_carregado_na_execucao(
     # A campanha tem dois conjuntos com resultados diferentes, e o de maior
     # investimento nos últimos 28 dias decide (ADR-0007). O investimento vem
     # dos insights da mesma execução: com as quebras antes deles, o empate
-    # sem investimento escolheria o conjunto de menor ID, de ThruPlay, e a
-    # ação gravada seria a do engajamento (ADR-0011). A resolução usa o hoje
-    # do banco, então os dias são os de agora.
+    # sem investimento escolheria o conjunto de menor ID, de ThruPlay, sem
+    # resultado principal, e nenhuma ação seria gravada (ADR-0011). A
+    # resolução usa o hoje do banco, então os dias são os de agora.
     instante = agora_utc()
     hoje = instante.astimezone(ZoneInfo(FUSO_BRASILIA)).date()
     ontem = hoje - timedelta(days=1)

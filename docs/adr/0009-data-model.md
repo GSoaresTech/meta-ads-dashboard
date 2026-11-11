@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 03/11/2026
-- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha`, o retorno de `listar_entidades` e de `listar_metricas` e a `listar_resultados` na §4, a carga histórica na §5 e a carga dos rótulos de status na §2, e com os índices da resolução do resultado na §4; e em 10/11/2026, com a assinatura e o retorno de `obter_alcance` na §4
+- Atualizado em: 05/11/2026, com o ponto "Ações das quebras" da §2 substituído pelo ADR-0011, a rotina diária na §5, as regras das credenciais e o retorno de `obter_desempenho` na §4 e os operandos das métricas derivadas na §2; e em 06/11/2026, com a `obter_trilha`, o retorno de `listar_entidades` e de `listar_metricas` e a `listar_resultados` na §4, a carga histórica na §5 e a carga dos rótulos de status na §2, e com os índices da resolução do resultado na §4; em 10/11/2026, com a assinatura e o retorno de `obter_alcance` na §4; e em 11/11/2026, com as regras sem resultado principal e as dos legados de mais de um equivalente na §2
 
 ## Contexto
 
@@ -167,11 +167,11 @@ Estas tabelas são globais, não pertencem a uma empresa e por isso não têm `e
   - `campo_base` guarda o nome da coluna de `metrica_diaria_anuncio` já em português (`investimento`), e não o campo da API (`spend`). A tradução fica só no mapa de campos da ETL, e um teste pgTAP confere que a coluna existe. `tipo_acao` guarda o tipo de ação como a API o entrega, que é o valor gravado na tabela longa de ações.
 - **`resultado_objetivo`**: uma linha por objetivo × meta de otimização (`docs/REQUIREMENTS.md` §7.2).
   - PK `id`. `UNIQUE NULLS NOT DISTINCT (objetivo, meta_otimizacao)`.
-  - Colunas `nome_objetivo`, `metrica_resultado` e `metrica_kpi`, estas duas com FK para `metrica` e anuláveis: "Não classificado" não tem resultado, e o resultado de `OUTCOME_APP_PROMOTION` é *a confirmar* (`docs/REQUIREMENTS.md` §7.2).
+  - Colunas `nome_objetivo`, `metrica_resultado` e `metrica_kpi`, estas duas com FK para `metrica` e anuláveis: "Não classificado" não tem resultado, nem as regras cujo resultado a ETL não extrai ou depende do evento ou do destino do conjunto (`docs/REQUIREMENTS.md` §7.2).
   - `meta_otimizacao` nula significa "qualquer". `objetivo` nulo é a linha única de "Não classificado", que guarda o rótulo e as métricas de apoio do caso sem catálogo. Um `CHECK` impede objetivo nulo com meta preenchida.
   - A precedência do ADR-0007 resolve "qualquer, exceto `CONVERSATIONS`": a linha específica vence a genérica.
 - **`metrica_apoio_resultado`**: uma linha por resultado × métrica de apoio. PK `(resultado_objetivo_id, metrica)`. `UNIQUE (resultado_objetivo_id, ordem)`.
-- **`objetivo_equivalente`**: uma linha por objetivo legado. PK `objetivo_legado`. Coluna `objetivo`, o objetivo atual equivalente, pela tabela oficial resumida no `docs/REQUIREMENTS.md` §7.2. Os legados com mais de um equivalente (`CONVERSIONS`, `VIDEO_VIEWS`) seguem *a confirmar*, e os sem equivalente oficial (`LOCAL_AWARENESS`, `OFFER_CLAIMS`) não têm o que gravar até a Q-10 ser resolvida.
+- **`objetivo_equivalente`**: uma linha por objetivo legado. PK `objetivo_legado`. Coluna `objetivo`, o objetivo atual equivalente, pela tabela oficial resumida no `docs/REQUIREMENTS.md` §7.2. Os legados com mais de um equivalente (`CONVERSIONS`, `VIDEO_VIEWS`) não entram: a regra deles fica em `resultado_objetivo`, no próprio objetivo legado, e a tabela continua de um legado para um objetivo atual. Os sem equivalente oficial (`LOCAL_AWARENESS`, `OFFER_CLAIMS`) também não entram e ficam em "Não classificado".
 - **`rotulo_valor_api`**: uma linha por domínio × valor de enum da API. PK `(dominio, valor)`. Coluna `rotulo`.
   - Domínios: `status`, `chamada_acao`, `genero`, `plataforma` e `posicionamento`. Cada domínio ganha as linhas com a visão que o exibe.
   - O `status` é domínio fechado, e todo valor do `CHECK` das entidades tem rótulo: o teste pgTAP lê o `CHECK` e falha se um valor novo vier sem ele. Os rótulos estão no feminino, porque a campanha é a entidade cujo status a tela mostra (RF-37).

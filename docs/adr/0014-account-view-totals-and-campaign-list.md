@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 06/11/2026
+- Atualizado em: 11/11/2026, com as regras sem resultado principal da §7.2 do `docs/REQUIREMENTS.md`
 
 ## Contexto
 
@@ -43,7 +44,7 @@ Pontos decididos neste ADR:
 - **Leitura**: os tipos saem da lista de campanhas, e a `listar_resultados` continua sendo só da empresa. A `listar_entidades` traz o objetivo, o status, o resultado e o KPI de cada campanha (ADR-0009 §4), e a mesma chamada da `obter_desempenho` no intervalo inteiro serve aos totais e à lista.
 - **Custo por resultado**: a coluna é o KPI resolvido da campanha, com o rótulo do catálogo.
 - **Tabela**: uma linha por campanha com entrega no período, em ordem de nome, com o rótulo do catálogo em cada célula de métrica.
-- **Sem resultado no catálogo**: a campanha "Não classificado" aparece na lista, com "—" no resultado e no custo, e não gera tipo nos totais. O investimento dela continua somando no total da conta.
+- **Sem resultado no catálogo**: a campanha sem resultado principal, como a "Não classificado" e as das regras sem resultado (`docs/REQUIREMENTS.md` §7.2), aparece na lista, com "—" no resultado e no custo, e não gera tipo nos totais. O investimento dela continua somando no total da conta.
 - **Métrica fora da `obter_desempenho`**: o alcance e o custo por mil pessoas alcançadas aparecem como "Não disponível", como no ADR-0013.
 
 ## Consequências

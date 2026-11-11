@@ -36,7 +36,7 @@ SELECT ok(
 
 -- A empresa A tem uma conta em BRL e outra em USD. Em BRL: vendas com entrega
 -- em setembro e em outubro, cadastros só em setembro, duas campanhas de
--- conversas em outubro, uma promoção de app sem resultado no catálogo e um
+-- conversas em outubro, uma de vídeo sem resultado principal no catálogo e um
 -- tráfego sobrescrito para cadastros, em outubro. Em USD: vendas em outubro. A
 -- empresa B tem tráfego em outubro, que nunca pode aparecer para A.
 INSERT INTO normalizado.empresa (nome) VALUES ('Empresa Teste A'), ('Empresa Teste B');
@@ -62,7 +62,7 @@ FROM (
     ('611111111111111', '620000000000000002', 'Campanha Teste Cadastros', 'OUTCOME_LEADS'),
     ('611111111111111', '620000000000000003', 'Campanha Teste Conversas Um', 'OUTCOME_ENGAGEMENT'),
     ('611111111111111', '620000000000000004', 'Campanha Teste Conversas Dois', 'OUTCOME_ENGAGEMENT'),
-    ('611111111111111', '620000000000000005', 'Campanha Teste App', 'OUTCOME_APP_PROMOTION'),
+    ('611111111111111', '620000000000000005', 'Campanha Teste Vídeo', 'OUTCOME_ENGAGEMENT'),
     ('611111111111111', '620000000000000006', 'Campanha Teste Sobrescrita', 'OUTCOME_TRAFFIC'),
     ('611111111111112', '620000000000000007', 'Campanha Teste Vendas Dólar', 'OUTCOME_SALES'),
     ('622222222222221', '620000000000000008', 'Campanha Teste B', 'OUTCOME_TRAFFIC')
@@ -70,7 +70,11 @@ FROM (
 JOIN normalizado.conta_anuncio AS c ON c.id_meta = v.conta;
 INSERT INTO normalizado.conjunto_anuncio (empresa_id, campanha_id, id_meta, meta_otimizacao, status, execucao_id)
 SELECT c.empresa_id, c.id, '63' || right(c.id_meta, 16),
-  CASE WHEN c.nome LIKE 'Campanha Teste Conversas%' THEN 'CONVERSATIONS' END, 'ACTIVE', c.execucao_id
+  CASE
+    WHEN c.nome LIKE 'Campanha Teste Conversas%' THEN 'CONVERSATIONS'
+    WHEN c.nome = 'Campanha Teste Vídeo' THEN 'THRUPLAY'
+  END,
+  'ACTIVE', c.execucao_id
 FROM normalizado.campanha AS c
 JOIN normalizado.empresa AS e ON e.id = c.empresa_id
 WHERE e.nome IN ('Empresa Teste A', 'Empresa Teste B');
@@ -90,7 +94,7 @@ FROM (
     ('Anúncio de Campanha Teste Cadastros', '2026-09-15'),
     ('Anúncio de Campanha Teste Conversas Um', '2026-10-15'),
     ('Anúncio de Campanha Teste Conversas Dois', '2026-10-16'),
-    ('Anúncio de Campanha Teste App', '2026-10-15'),
+    ('Anúncio de Campanha Teste Vídeo', '2026-10-15'),
     ('Anúncio de Campanha Teste Sobrescrita', '2026-10-15'),
     ('Anúncio de Campanha Teste Vendas Dólar', '2026-10-15'),
     ('Anúncio de Campanha Teste B', '2026-10-15')
@@ -143,9 +147,10 @@ FROM (
     ('2026-10-31', '2026-10-01', 'início depois do fim é recusado')
 ) AS caso (inicio, fim, descricao);
 
--- Um tipo por moeda, sem repetir o das duas campanhas de conversas. A promoção
--- de app, sem resultado no catálogo, não gera linha, e a sobrescrita vale no
--- lugar da regra do objetivo: o tráfego conta como cadastros.
+-- Um tipo por moeda, sem repetir o das duas campanhas de conversas. A de
+-- vídeo, sem resultado principal no catálogo, não gera linha, e a
+-- sobrescrita vale no lugar da regra do objetivo: o tráfego conta como
+-- cadastros.
 SELECT results_eq(
   $$ SELECT * FROM pg_temp.resultados('empresa_a', 'Empresa Teste A', '2026-10-01', '2026-10-31') $$,
   $$
