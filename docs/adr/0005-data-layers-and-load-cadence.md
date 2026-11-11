@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 30/10/2026
-- Atualizado em: 04/11/2026, com a expiração da URL da miniatura, 05/11/2026, com o horário da execução diária, e 06/11/2026, com o disparo da carga histórica
+- Atualizado em: 04/11/2026, com a expiração da URL da miniatura, 05/11/2026, com o horário da execução diária, 06/11/2026, com o disparo da carga histórica, e 11/11/2026, com a cadência substituída pelo ADR-0017
 
 ## Contexto
 
@@ -31,18 +31,7 @@ O tratamento de dados é intensivo. A Meta revisa conversões de dias passados (
 - `normalizado`: modelo em 3FN, fonte da verdade.
 - `analitico`: views e funções lidas pelo painel.
 
-**Cadência**
-- **Horária**, em minuto quebrado (ex.: `17 * * * *`) para fugir do pico do início da hora (R-08): hoje e ontem, com métricas e ações no nível de anúncio e quebras por campanha.
-- **Diária**, de madrugada, também em minuto quebrado: `43 6 * * *`, 03:43 em Brasília, porque o cron do GitHub usa UTC. Executa:
-  - reprocessamento dos **28 dias** anteriores (R-17);
-  - alcance e impressões por semana ISO, mês e ano (ADR-0006);
-  - cadastro de entidades e criativos;
-  - cópia de miniaturas para o Storage, a partir do `thumbnail_url` lido na mesma execução, porque a URL expira em poucos dias e a guardada em `bruto` pode já ter vencido (R-26);
-  - retenção de `bruto`;
-  - registro do uso das cotas do plano.
-- **Histórica**: ao cadastrar uma conta, importa até 37 meses fatiados por mês. Cada fatia é uma transação atômica e idempotente, e a carga pode ser retomada pela tabela de controle.
-  - Roda como job da carga diária, depois da rotina, para que a conta nova já tenha o fuso e o cadastro, e por disparo manual, para retomar sem esperar a madrugada seguinte.
-  - Cada execução deixa de começar fatias depois de 3 h e cabe nas 5 h do RNF-07, abaixo das 6 h por job do Actions (R-07). As 2 h restantes cobrem a fatia em andamento quando a cota da conta se esgota e cada chamada espera a recuperação (R-37). A execução seguinte continua de onde ela parou.
+**Cadência**: substituída pelo ADR-0017. A horária continua com hoje e ontem. A diária vira uma revisão leve dos 28 dias, sem o cadastro completo e com o alcance só dos períodos que contêm ontem, salvo depois de uma falha. O cadastro completo passa a rodar uma vez por conta, na carga inicial, antes da carga histórica.
 
 **Recuperação**
 - Banco: backup diário automático do Supabase, com a retenção do plano contratado (R-01).

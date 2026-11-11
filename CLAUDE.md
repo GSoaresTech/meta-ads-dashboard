@@ -48,8 +48,8 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/python -m pytest -m integracao`: roda só os testes de integração, que exigem o banco local de pé (`supabase start`).
 - `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
 - `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
-- `.venv/bin/python -m etl.rotina_diaria`: roda a rotina diária para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente.
-- `.venv/bin/python -m etl.carga_historica`: roda a carga histórica para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Planeja as fatias das contas novas e continua da primeira fatia não concluída.
+- `.venv/bin/python -m etl.rotina_diaria`: roda a revisão diária leve para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Lê os 28 dias anteriores e o alcance da semana, do mês e do ano de ontem, ou dos dias perdidos depois de uma falha, de cada conta que já teve a carga inicial, sem o cadastro completo (ADR-0017).
+- `.venv/bin/python -m etl.carga_historica`: roda a carga inicial para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Lê o cadastro completo de cada conta que ainda não o tem, em todas as empresas, e depois planeja as fatias das contas novas e continua da primeira fatia não concluída.
 
 Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
 - `npm ci`: instala as dependências exatamente como fixadas no `package-lock.json`.
@@ -77,10 +77,10 @@ Meta API ──extrair──▶ bruto ──transformar──▶ normalizado ─
 - **`normalizado`**: modelo em 3FN, com chaves e restrições, nomes em português. É a fonte da verdade.
 - **`analitico`**: views e funções lidas pelo painel; é o único lugar com desnormalização. O painel nunca lê `bruto` nem `normalizado`.
 
-Toda execução, seja horária, diária ou histórica (ADR-0005), segue a ordem extrair → transformar → carregar:
+Toda execução, seja horária, diária ou de carga inicial (ADR-0017), segue a ordem extrair → transformar → carregar:
 1. **Extrair**: faz o I/O de rede, fora de qualquer transação.
 2. **Transformar**: funções puras.
-3. **Carregar**: uma transação curta por empresa ou por fatia.
+3. **Carregar**: uma transação curta por empresa, por fatia ou pelo cadastro de uma conta.
 
 ## 4. Multiempresa
 
@@ -112,7 +112,7 @@ Toda execução, seja horária, diária ou histórica (ADR-0005), segue a ordem 
 
 ## 6. Integridade e ACID
 
-- **Atomicidade**: cada carga de empresa, ou de fatia histórica, roda numa única transação por conexão direta (`psycopg`). Nunca carregue via PostgREST, `supabase-js` ou `supabase-py`, em que cada requisição é uma transação isolada.
+- **Atomicidade**: cada carga de empresa, de fatia histórica ou do cadastro de uma conta na carga inicial roda numa única transação por conexão direta (`psycopg`). Nunca carregue via PostgREST, `supabase-js` ou `supabase-py`, em que cada requisição é uma transação isolada.
 - **Consistência**: as regras moram no banco, com PK, FK, `NOT NULL`, `UNIQUE` e `CHECK` (moeda, datas, valores ≥ 0, status em domínio fechado). Validação no código não substitui restrição.
 - **Isolamento**: o leitor vê o estado anterior ou o posterior à transação, nunca o meio. Execuções concorrentes da mesma empresa são impedidas com `pg_try_advisory_xact_lock` pela chave da empresa (RF-19).
 - **Durabilidade e recuperação**: o banco tem o backup diário automático do Supabase. As métricas da Meta também podem ser recuperadas por reextração, até 37 meses, e o schema é reconstruível pelas migrations (ADR-0005).
