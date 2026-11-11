@@ -1,10 +1,11 @@
 -- Prova o conteúdo do catálogo carregado por migration a partir do
--- REQUIREMENTS §7, com os enums confirmados na API (R-40, R-41): as regras
--- de resultado apontam para métricas existentes, os textos são de negócio e
--- os casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
+-- REQUIREMENTS §7, com os enums confirmados na API (R-40, R-41) e a
+-- classificação das combinações observadas nas contas: as regras de
+-- resultado apontam para métricas existentes, os textos são de negócio e os
+-- casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
 -- ADR-0007; ADR-0009 §2).
 BEGIN;
-SELECT plan(23);
+SELECT plan(24);
 
 SELECT isnt_empty('SELECT 1 FROM normalizado.metrica', 'o catálogo de métricas está carregado');
 SELECT isnt_empty('SELECT 1 FROM normalizado.resultado_objetivo', 'o catálogo de resultado por objetivo está carregado');
@@ -27,8 +28,9 @@ SELECT is_empty(
   $$,
   'toda regra de resultado aponta para métricas existentes: resultado, KPI e apoio'
 );
--- Só "Não classificado" e o resultado a confirmar ficam sem os dois; nenhuma
--- linha tem só um deles.
+-- As regras sem resultado principal ficam sem os dois: "Não classificado" e
+-- as de resultado que a ETL não extrai ou que depende do evento ou do
+-- destino do conjunto (REQUIREMENTS §7.2). Nenhuma linha tem só um deles.
 SELECT is_empty(
   $$
   SELECT nome_objetivo
@@ -64,9 +66,10 @@ SELECT results_eq(
   'existe uma única linha sem objetivo, "Não classificado", sem resultado nem KPI'
 );
 
--- O mapa inteiro, como transcrito do REQUIREMENTS §7.2 da migration de
--- carga. Uma mudança no catálogo global entra por migration e atualiza esta
--- conferência no mesmo commit (ADR-0007).
+-- O mapa inteiro, como as migrations de carga e de classificação do
+-- catálogo o gravam (REQUIREMENTS §7.2). Uma mudança no catálogo global
+-- entra por migration e atualiza esta conferência no mesmo commit
+-- (ADR-0007).
 SELECT results_eq(
   $$
   SELECT r.objetivo, r.meta_otimizacao, r.nome_objetivo, r.metrica_resultado, r.metrica_kpi,
@@ -78,16 +81,23 @@ SELECT results_eq(
   $$,
   $$
   VALUES
-    ('OUTCOME_APP_PROMOTION', NULL, 'Promoção de app', NULL, NULL, ARRAY['investimento', 'cliques_link']),
+    ('CONVERSIONS', NULL, 'Conversões (objetivo antigo)', NULL, NULL, ARRAY['cadastros', 'compras', 'cliques_link']),
+    ('OUTCOME_APP_PROMOTION', NULL, 'Promoção de app', 'instalacoes_app', 'custo_instalacao', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_AWARENESS', NULL, 'Reconhecimento', 'alcance', 'custo_mil_alcance', ARRAY['frequencia', 'impressoes', 'cpm']),
     ('OUTCOME_ENGAGEMENT', NULL, 'Engajamento', 'interacoes_publicacao', 'custo_interacao', ARRAY['alcance', 'ctr', 'cpm']),
     ('OUTCOME_ENGAGEMENT', 'CONVERSATIONS', 'Conversas', 'conversas_iniciadas', 'custo_conversa', ARRAY['cliques_link', 'ctr', 'cpm']),
+    ('OUTCOME_ENGAGEMENT', 'OFFSITE_CONVERSIONS', 'Conversões no site', NULL, NULL, ARRAY['cliques_link', 'visualizacoes_pagina_destino', 'ctr']),
+    ('OUTCOME_ENGAGEMENT', 'THRUPLAY', 'Visualizações de vídeo', NULL, NULL, ARRAY['alcance', 'impressoes', 'cpm']),
     ('OUTCOME_LEADS', NULL, 'Cadastros', 'cadastros', 'custo_cadastro', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_LEADS', 'CONVERSATIONS', 'Cadastros por conversa', 'conversas_iniciadas', 'custo_conversa', ARRAY['cadastros', 'ctr']),
     ('OUTCOME_SALES', NULL, 'Vendas', 'compras', 'custo_compra', ARRAY['valor_compras', 'roas', 'cliques_link']),
     ('OUTCOME_SALES', 'CONVERSATIONS', 'Vendas por conversa', 'conversas_iniciadas', 'custo_conversa', ARRAY['compras', 'valor_compras']),
     ('OUTCOME_TRAFFIC', NULL, 'Tráfego', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'visualizacoes_pagina_destino']),
+    ('OUTCOME_TRAFFIC', 'CONVERSATIONS', 'Tráfego para conversas', 'conversas_iniciadas', 'custo_conversa', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_TRAFFIC', 'LANDING_PAGE_VIEWS', 'Tráfego', 'visualizacoes_pagina_destino', 'custo_visualizacao_pagina', ARRAY['cliques_link', 'ctr', 'cpc']),
+    ('OUTCOME_TRAFFIC', 'PROFILE_VISIT', 'Visitas ao perfil', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'alcance']),
+    ('OUTCOME_TRAFFIC', 'VISIT_INSTAGRAM_PROFILE', 'Visitas ao perfil', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'alcance']),
+    ('VIDEO_VIEWS', NULL, 'Visualizações de vídeo (objetivo antigo)', NULL, NULL, ARRAY['alcance', 'impressoes', 'cpm']),
     (NULL, NULL, 'Não classificado', NULL, NULL, ARRAY['investimento', 'impressoes', 'cliques_link'])
   $$,
   'cada regra tem o nome, o resultado, o KPI e as métricas de apoio, em ordem, do REQUIREMENTS §7.2'
@@ -137,7 +147,7 @@ SELECT results_eq(
   $$
   SELECT objetivo
   FROM normalizado.resultado_objetivo
-  WHERE objetivo IS NOT NULL AND meta_otimizacao IS NULL
+  WHERE objetivo ~ '^OUTCOME_' AND meta_otimizacao IS NULL
   ORDER BY objetivo
   $$,
   $$
@@ -164,8 +174,10 @@ SELECT is_empty(
   'toda meta de otimização do catálogo é um valor da referência do conjunto (R-41)'
 );
 
--- Objetivos legados: só os de equivalente único na tabela oficial (R-40). Os
--- de mais de um equivalente e os sem equivalente esperam a Q-10.
+-- Objetivos legados: os de equivalente único passam pela tabela oficial
+-- (R-40). Os de mais de um equivalente, que depende do evento ou do destino
+-- do conjunto, têm regra própria sem resultado principal, e os sem
+-- equivalente oficial ficam em "Não classificado" (REQUIREMENTS §7.2).
 SELECT results_eq(
   $$
   SELECT legado
@@ -175,10 +187,21 @@ SELECT results_eq(
     'PRODUCT_CATALOG_SALES', 'REACH', 'STORE_VISITS', 'VIDEO_VIEWS'
   ]) AS legado
   WHERE NOT EXISTS (SELECT 1 FROM normalizado.objetivo_equivalente AS e WHERE e.objetivo_legado = legado)
+    AND NOT EXISTS (SELECT 1 FROM normalizado.resultado_objetivo AS r WHERE r.objetivo = legado)
   ORDER BY legado
   $$,
-  $$ VALUES ('CONVERSIONS'), ('LOCAL_AWARENESS'), ('OFFER_CLAIMS'), ('VIDEO_VIEWS') $$,
-  'todo objetivo legado da API tem equivalente, salvo os que dependem da Q-10'
+  $$ VALUES ('LOCAL_AWARENESS'), ('OFFER_CLAIMS') $$,
+  'todo objetivo legado da API tem equivalente ou regra própria, salvo os sem equivalente oficial'
+);
+SELECT results_eq(
+  $$
+  SELECT r.objetivo, r.meta_otimizacao, r.metrica_resultado
+  FROM normalizado.resultado_objetivo AS r
+  WHERE r.objetivo IS NOT NULL AND r.objetivo !~ '^OUTCOME_'
+  ORDER BY r.objetivo
+  $$,
+  $$ VALUES ('CONVERSIONS', NULL::text, NULL::text), ('VIDEO_VIEWS', NULL, NULL) $$,
+  'só os legados de mais de um equivalente têm regra própria, para qualquer meta e sem resultado principal'
 );
 SELECT is(
   (SELECT count(*) FROM normalizado.objetivo_equivalente),
@@ -202,7 +225,7 @@ SELECT is_empty(
   FROM normalizado.resultado_objetivo AS r
   JOIN normalizado.objetivo_equivalente AS e ON e.objetivo_legado = r.objetivo
   $$,
-  'nenhum objetivo legado tem regra própria: ele passa pelo equivalente'
+  'nenhum objetivo legado com equivalente tem regra própria: ele passa pelo equivalente'
 );
 
 -- A origem de cada métrica existe no banco, e a aditividade segue as regras
@@ -247,6 +270,7 @@ SELECT results_eq(
     ('custo_cadastro', 'investimento', 'cadastros', 1::numeric),
     ('custo_compra', 'investimento', 'compras', 1::numeric),
     ('custo_conversa', 'investimento', 'conversas_iniciadas', 1::numeric),
+    ('custo_instalacao', 'investimento', 'instalacoes_app', 1::numeric),
     ('custo_interacao', 'investimento', 'interacoes_publicacao', 1::numeric),
     ('custo_mil_alcance', 'investimento', 'alcance', 1000::numeric),
     ('custo_visualizacao_pagina', 'investimento', 'visualizacoes_pagina_destino', 1::numeric),

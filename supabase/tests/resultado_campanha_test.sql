@@ -46,11 +46,12 @@ FROM normalizado.conta_anuncio AS c
 JOIN normalizado.execucao_carga AS x USING (empresa_id);
 
 -- Uma campanha da empresa A por caso, com um conjunto, salvo no caso sem
--- conjunto. O caso guarda a entrada e o resultado esperado. Os 15
--- primeiros são as linhas do REQUIREMENTS §7.2, uma por meta de otimização;
--- os demais cobrem a regra específica fora daquela tabela, o legado com e
--- sem equivalente, o resultado a confirmar, o objetivo desconhecido e o
--- conjunto sem meta.
+-- conjunto. O caso guarda a entrada e o resultado esperado. Os casos de 1 a
+-- 15, o 17, o 21, o 24 e o 26 são combinações da tabela do REQUIREMENTS
+-- §7.2. Os demais cobrem a regra específica fora dela (16), o legado com
+-- equivalente na regra genérica (18), a promoção de app (19), o objetivo
+-- desconhecido (20), o conjunto sem meta (22), a campanha sem conjunto (23)
+-- e o legado sem equivalente oficial (25).
 CREATE TEMPORARY TABLE caso (
   numero integer PRIMARY KEY,
   objetivo text NOT NULL,
@@ -64,26 +65,30 @@ INSERT INTO caso (numero, objetivo, meta_otimizacao, nome_objetivo, metrica_resu
   (1, 'OUTCOME_AWARENESS', 'REACH', 'Reconhecimento', 'alcance', 'custo_mil_alcance'),
   (2, 'OUTCOME_ENGAGEMENT', 'CONVERSATIONS', 'Conversas', 'conversas_iniciadas', 'custo_conversa'),
   (3, 'OUTCOME_ENGAGEMENT', 'POST_ENGAGEMENT', 'Engajamento', 'interacoes_publicacao', 'custo_interacao'),
-  (4, 'OUTCOME_ENGAGEMENT', 'THRUPLAY', 'Engajamento', 'interacoes_publicacao', 'custo_interacao'),
-  (5, 'OUTCOME_ENGAGEMENT', 'OFFSITE_CONVERSIONS', 'Engajamento', 'interacoes_publicacao', 'custo_interacao'),
+  (4, 'OUTCOME_ENGAGEMENT', 'THRUPLAY', 'Visualizações de vídeo', NULL, NULL),
+  (5, 'OUTCOME_ENGAGEMENT', 'OFFSITE_CONVERSIONS', 'Conversões no site', NULL, NULL),
   (6, 'OUTCOME_LEADS', 'OFFSITE_CONVERSIONS', 'Cadastros', 'cadastros', 'custo_cadastro'),
   (7, 'OUTCOME_LEADS', 'CONVERSATIONS', 'Cadastros por conversa', 'conversas_iniciadas', 'custo_conversa'),
   (8, 'OUTCOME_SALES', 'CONVERSATIONS', 'Vendas por conversa', 'conversas_iniciadas', 'custo_conversa'),
   (9, 'OUTCOME_SALES', 'OFFSITE_CONVERSIONS', 'Vendas', 'compras', 'custo_compra'),
   (10, 'OUTCOME_SALES', 'VALUE', 'Vendas', 'compras', 'custo_compra'),
-  (11, 'OUTCOME_TRAFFIC', 'CONVERSATIONS', 'Tráfego', 'cliques_link', 'cpc'),
-  (12, 'OUTCOME_TRAFFIC', 'PROFILE_VISIT', 'Tráfego', 'cliques_link', 'cpc'),
-  (13, 'OUTCOME_TRAFFIC', 'VISIT_INSTAGRAM_PROFILE', 'Tráfego', 'cliques_link', 'cpc'),
-  (14, 'LINK_CLICKS', 'VISIT_INSTAGRAM_PROFILE', 'Tráfego', 'cliques_link', 'cpc'),
+  (11, 'OUTCOME_TRAFFIC', 'CONVERSATIONS', 'Tráfego para conversas', 'conversas_iniciadas', 'custo_conversa'),
+  (12, 'OUTCOME_TRAFFIC', 'PROFILE_VISIT', 'Visitas ao perfil', 'cliques_link', 'cpc'),
+  (13, 'OUTCOME_TRAFFIC', 'VISIT_INSTAGRAM_PROFILE', 'Visitas ao perfil', 'cliques_link', 'cpc'),
+  (14, 'LINK_CLICKS', 'VISIT_INSTAGRAM_PROFILE', 'Visitas ao perfil', 'cliques_link', 'cpc'),
   (15, 'LINK_CLICKS', 'AUTOMATIC_OBJECTIVE', 'Tráfego', 'cliques_link', 'cpc'),
   (16, 'OUTCOME_TRAFFIC', 'LANDING_PAGE_VIEWS', 'Tráfego', 'visualizacoes_pagina_destino', 'custo_visualizacao_pagina'),
   (17, 'MESSAGES', 'CONVERSATIONS', 'Conversas', 'conversas_iniciadas', 'custo_conversa'),
   (18, 'MESSAGES', 'POST_ENGAGEMENT', 'Engajamento', 'interacoes_publicacao', 'custo_interacao'),
-  (19, 'OUTCOME_APP_PROMOTION', 'APP_INSTALLS', 'Promoção de app', NULL, NULL),
+  (19, 'OUTCOME_APP_PROMOTION', 'APP_INSTALLS', 'Promoção de app', 'instalacoes_app', 'custo_instalacao'),
   (20, 'OUTCOME_OBJETIVO_FUTURO', 'REACH', 'Não classificado', NULL, NULL),
-  (21, 'CONVERSIONS', 'OFFSITE_CONVERSIONS', 'Não classificado', NULL, NULL),
+  (21, 'CONVERSIONS', 'OFFSITE_CONVERSIONS', 'Conversões (objetivo antigo)', NULL, NULL),
   (22, 'OUTCOME_LEADS', NULL, 'Cadastros', 'cadastros', 'custo_cadastro');
 INSERT INTO caso VALUES (23, 'OUTCOME_SALES', NULL, 'Vendas', 'compras', 'custo_compra', false);
+INSERT INTO caso (numero, objetivo, meta_otimizacao, nome_objetivo, metrica_resultado, metrica_kpi) VALUES
+  (24, 'VIDEO_VIEWS', 'THRUPLAY', 'Visualizações de vídeo (objetivo antigo)', NULL, NULL),
+  (25, 'LOCAL_AWARENESS', 'REACH', 'Não classificado', NULL, NULL),
+  (26, 'OUTCOME_TRAFFIC', 'LINK_CLICKS', 'Tráfego', 'cliques_link', 'cpc');
 
 -- O ID da Meta da campanha do caso, 1200000000000003NN, e o do conjunto,
 -- 1210000000000003NN.
@@ -195,7 +200,7 @@ SELECT results_eq(
   $$
   SELECT nome_objetivo, metrica_resultado
   FROM resolvido_a
-  WHERE id_meta = pg_temp.id_meta_caso('120', 21)
+  WHERE id_meta = pg_temp.id_meta_caso('120', 25)
   $$,
   $$ VALUES ('Não classificado', NULL::text) $$,
   'campanha com objetivo fora do catálogo exibe "Não classificado", sem resultado (RF-15)'
@@ -208,7 +213,7 @@ SELECT results_eq(
   ) AS resolvido
   JOIN normalizado.campanha AS campanha ON campanha.id = resolvido.campanha_id
   JOIN normalizado.metrica_apoio_resultado AS apoio ON apoio.resultado_objetivo_id = resolvido.resultado_objetivo_id
-  WHERE campanha.id_meta = pg_temp.id_meta_caso('120', 21)
+  WHERE campanha.id_meta = pg_temp.id_meta_caso('120', 25)
   ORDER BY apoio.ordem
   $$,
   $$ VALUES ('investimento'), ('impressoes'), ('cliques_link') $$,

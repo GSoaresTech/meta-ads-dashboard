@@ -673,8 +673,8 @@ def test_regiao_sem_acao_de_fora_da_meta_fica_sem_linha_e_nao_com_zero() -> None
 
 
 def test_campanha_sem_resultado_de_acao_fica_so_com_as_metricas_base() -> None:
-    # Alcance, "Não classificado" e o resultado a confirmar não são tipos de
-    # ação: a campanha não entra no mapa (ADR-0011).
+    # Alcance, "Não classificado" e as regras sem resultado principal não são
+    # tipos de ação: a campanha não entra no mapa (ADR-0011).
     linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
 
     quebras = transformar_quebra(TipoQuebra.IDADE_GENERO, linhas, {})

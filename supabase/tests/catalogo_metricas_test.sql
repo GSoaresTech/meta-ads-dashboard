@@ -69,8 +69,8 @@ FROM (
     ('metrica_apoio_resultado', 'ordem'),
     ('objetivo_equivalente', 'objetivo')
 ) AS coluna_obrigatoria (tabela, coluna);
--- "Qualquer" meta, "Não classificado" e o resultado a confirmar de
--- OUTCOME_APP_PROMOTION (REQUIREMENTS §7.2).
+-- "Qualquer" meta, "Não classificado" e as regras sem resultado principal
+-- (REQUIREMENTS §7.2).
 SELECT col_is_null('normalizado', 'resultado_objetivo', coluna, format('resultado_objetivo.%s é anulável', coluna))
 FROM unnest(ARRAY['objetivo', 'meta_otimizacao', 'metrica_resultado', 'metrica_kpi']) AS coluna;
 

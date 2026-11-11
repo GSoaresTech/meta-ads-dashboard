@@ -440,6 +440,7 @@ SELECT results_eq(
     ('custo_cadastro', NULL),
     ('custo_compra', round(75.50 / 2, 12)),
     ('custo_conversa', round(75.50 / 4, 12)),
+    ('custo_instalacao', NULL),
     ('custo_interacao', NULL),
     ('custo_visualizacao_pagina', NULL),
     ('roas', round(150.00 / 75.50, 12))

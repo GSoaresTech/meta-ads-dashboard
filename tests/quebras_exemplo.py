@@ -39,9 +39,9 @@ QUEBRAS = (
     ),
     ("regiao", "region", "quebra_regiao_campanha"),
 )
-# O tipo de ação do resultado principal de cada campanha das fixtures, pelo
-# catálogo: Engajamento (ThruPlay cai na regra de "qualquer"), Cadastros e
-# Vendas.
+# O tipo de ação do resultado principal de cada campanha das fixtures, como
+# a transformação o recebe. Nos testes dela, as campanhas de ThruPlay entram
+# com as interações, para que toda quebra tenha ação de mais de uma campanha.
 TIPOS_ACAO_RESULTADO = {
     "995000000000000002": "post_engagement",
     "995000000000000003": "lead",
@@ -49,6 +49,9 @@ TIPOS_ACAO_RESULTADO = {
     "995000000000000005": "omni_purchase",
     ID_META_CAMPANHA_AUSENTE: "omni_purchase",
 }
+# As campanhas de ThruPlay não têm resultado principal no catálogo
+# (REQUIREMENTS §7.2): a resolução no banco não lhes dá tipo de ação.
+CAMPANHAS_SEM_RESULTADO = frozenset({"995000000000000002", "995000000000000004"})
 type Fixtures = dict[str, dict]
 
 

@@ -26,6 +26,7 @@ from tests.cadastro_exemplo import ID_META_CONTA
 from tests.conftest import LIMPEZA_EMPRESA, EmpresaTeste, criar_empresa
 from tests.insights_exemplo import FIM, INICIO
 from tests.quebras_exemplo import (
+    CAMPANHAS_SEM_RESULTADO,
     ID_META_CAMPANHA_AUSENTE,
     TIPOS_ACAO_RESULTADO,
     Fixtures,
@@ -195,6 +196,21 @@ def ler_quebras(conexao: psycopg.Connection, empresa_id: UUID) -> list[tuple]:
     return conexao.execute(LER_QUEBRAS, (empresa_id,)).fetchall()
 
 
+def sobrescrever_com_interacoes(
+    conexao_operador: psycopg.Connection, empresa_id: UUID
+) -> None:
+    """Dá às campanhas de ThruPlay, sem resultado principal no catálogo, as
+    interações como resultado, que vêm em todas as quebras, inclusive na
+    região (RF-49)."""
+    conexao_operador.execute(
+        "INSERT INTO normalizado.sobrescrita_resultado_campanha"
+        " (empresa_id, campanha_id, metrica_resultado, metrica_kpi)"
+        " SELECT empresa_id, id, 'interacoes_publicacao', 'custo_interacao'"
+        " FROM normalizado.campanha WHERE empresa_id = %s AND id_meta = ANY(%s)",
+        (empresa_id, list(CAMPANHAS_SEM_RESULTADO)),
+    )
+
+
 def ler_acoes(conexao: psycopg.Connection, empresa_id: UUID) -> list[tuple]:
     return conexao.execute(LER_ACOES, (empresa_id,)).fetchall()
 
@@ -230,7 +246,8 @@ def test_quebras_vem_como_a_api_as_devolveu_com_a_acao_do_resultado(
     com_insights: EmpresaTeste,
 ) -> None:
     # O tipo de ação de cada campanha vem da resolução do resultado
-    # principal no banco (ADR-0011), e não da resposta.
+    # principal no banco (ADR-0011), e não da resposta. As campanhas sem
+    # resultado principal ficam sem ações.
     status = executar_quebras(conectar_etl, com_insights.empresa_id, ler_fixtures())
 
     assert status is StatusExecucao.SUCESSO
@@ -254,6 +271,7 @@ def test_quebras_vem_como_a_api_as_devolveu_com_a_acao_do_resultado(
         (id_meta, tipo)
         for id_meta, tipo in TIPOS_ACAO_RESULTADO.items()
         if id_meta != ID_META_CAMPANHA_AUSENTE
+        and id_meta not in CAMPANHAS_SEM_RESULTADO
     }
 
 
@@ -264,11 +282,12 @@ def test_regiao_sem_acao_de_fora_da_meta_fica_sem_linha_e_nao_com_zero(
 ) -> None:
     # Cadastros e compras não vêm na região (R-23), e a carga não completa
     # com zero: a falta é "não disponível" na leitura (ADR-0011).
+    sobrescrever_com_interacoes(conexao_operador, com_insights.empresa_id)
     executar_quebras(conectar_etl, com_insights.empresa_id, ler_fixtures())
 
     acoes = ler_acoes(conexao_operador, com_insights.empresa_id)
     na_regiao = {id_meta for id_meta, tipo, _, _ in acoes if tipo == "regiao"}
-    assert na_regiao == {"995000000000000002", "995000000000000004"}
+    assert na_regiao == CAMPANHAS_SEM_RESULTADO
     assert all(quantidade > 0 for *_, quantidade in acoes)
 
 
@@ -395,16 +414,10 @@ def test_acao_que_some_na_revisao_sai_e_a_categoria_fica(
 ) -> None:
     # Critério do RF-17 para a tabela longa: a categoria continua na
     # resposta, sem a ação do resultado, e a ação antiga não fica órfã.
+    sobrescrever_com_interacoes(conexao_operador, com_insights.empresa_id)
     executar_quebras(conectar_etl, com_insights.empresa_id, ler_fixtures())
     fixtures = ler_fixtures()
     revista = listar_linhas(fixtures, "regiao")[0]
-    revista["actions"] = [
-        item for item in revista["actions"] if item["action_type"] != "post_engagement"
-    ]
-
-    status = executar_quebras(conectar_etl, com_insights.empresa_id, fixtures)
-
-    assert status is StatusExecucao.SUCESSO
     grao = (
         revista["campaign_id"],
         date.fromisoformat(revista["date_start"]),
@@ -412,6 +425,19 @@ def test_acao_que_some_na_revisao_sai_e_a_categoria_fica(
         revista["region"],
         None,
     )
+    antes = [
+        linha
+        for linha in ler_quebras(conexao_operador, com_insights.empresa_id)
+        if linha[:5] == grao
+    ]
+    assert [linha[8] for linha in antes] == ["post_engagement"]
+    revista["actions"] = [
+        item for item in revista["actions"] if item["action_type"] != "post_engagement"
+    ]
+
+    status = executar_quebras(conectar_etl, com_insights.empresa_id, fixtures)
+
+    assert status is StatusExecucao.SUCESSO
     linhas = [
         linha
         for linha in ler_quebras(conexao_operador, com_insights.empresa_id)
