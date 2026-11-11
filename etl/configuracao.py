@@ -77,11 +77,12 @@ RETENCAO_BRUTO_DIAS = 35
 HISTORICO_MAXIMO_MESES = 37
 MARGEM_LIMITE_HISTORICO_DIAS = 1
 # Cada execução histórica cabe em 5 h (RNF-07), abaixo das 6 h por job do
-# Actions (R-07). Depois de 3 h, nenhuma fatia nova começa, e a que está em
-# andamento termina; a execução seguinte continua da primeira não concluída.
-# As 2 h restantes cobrem a fatia em andamento quando a cota da conta se
-# esgota: com o uso acima de LIMITE_USO_PERCENTUAL, cada chamada espera até
-# ESPERA_MAXIMA_SEGUNDOS, e uma fatia faz até cerca de 18 chamadas (R-37).
+# Actions (R-07). Depois de 3 h, nenhuma etapa nova, de cadastro ou de fatia,
+# começa, e a que está em andamento termina; a execução seguinte continua da
+# primeira não concluída. As 2 h restantes cobrem a etapa em andamento quando
+# a cota da conta se esgota: com o uso acima de LIMITE_USO_PERCENTUAL, cada
+# chamada espera até ESPERA_MAXIMA_SEGUNDOS, e uma fatia faz até cerca de 18
+# chamadas (R-37).
 DURACAO_MAXIMA_HISTORICA_SEGUNDOS = 3 * 60 * 60
 
 

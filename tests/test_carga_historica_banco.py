@@ -1,6 +1,7 @@
 """Prova, contra o banco local e com a API simulada pelas fixtures, a carga
-histórica de ponta a ponta: a conta nova detectada pela falta de fatias
-(RF-22), uma fatia por mês até 37 meses (RF-07; R-19), a retomada da fatia que
+inicial de ponta a ponta: o cadastro completo da conta recém-cadastrada antes
+das fatias (RF-01, RF-22; ADR-0017), a conta nova detectada pela falta de
+fatias, uma fatia por mês até 37 meses (RF-07; R-19), a retomada da fatia que
 falhou com o estado final igual ao de uma carga sem interrupção, a fatia
 idempotente, o prazo da execução (RNF-07) e o lock da empresa (RF-19). Exige o
 banco local de pé.
@@ -31,7 +32,8 @@ from etl.execucao import (
     StatusExecucao,
     executar_empresa,
 )
-from etl.extracao import agora_utc
+from etl.extracao import agora_utc, montar_campos
+from etl.mapa_campos import ObjetoApi
 from tests import cadastro_exemplo
 from tests.cadastro_exemplo import CONTA, ID_META_CONTA
 from tests.carga_historica_exemplo import (
@@ -39,6 +41,7 @@ from tests.carga_historica_exemplo import (
     MARCO,
     NOVEMBRO,
     OUTUBRO,
+    RESPOSTA_VAZIA,
     RespostasFatia,
     calcular_intervalo,
     calcular_limite,
@@ -49,12 +52,15 @@ from tests.carga_historica_exemplo import (
     simular_insights_fatia,
 )
 from tests.conftest import LIMPEZA_EMPRESA, URL_BANCO_LOCAL, EmpresaTeste, criar_empresa
+from tests.insights_exemplo import ID_META_ANUNCIO_AUSENTE
 
 pytestmark = pytest.mark.integracao
 
 NOME_EMPRESA = "Empresa Exemplo Histórica"
 NOME_OUTRA_EMPRESA = "Empresa Exemplo Histórica B"
 ID_META_OUTRA_CONTA = "996000000000002"
+# Vem antes da conta das fixtures de cadastro na ordem do ID da Meta.
+ID_META_CONTA_SEM_PERMISSAO = "994000000000003"
 TOKEN = "EAAFicticio0000000000000000000000000000000000ZZ"
 # A conexão do ponto de entrada não passa pelo SET ROLE de conectar_etl.
 URL_BANCO_ETL = f"{URL_BANCO_LOCAL}?options=-crole%3Detl_carga"
@@ -84,6 +90,11 @@ WHERE conta_anuncio_id = %s ORDER BY mes_referencia
 LER_ERRO_EXECUCAO = """
 SELECT status, erro FROM normalizado.execucao_carga
 WHERE empresa_id = %s AND tipo = 'historica'
+"""
+
+LER_ERROS_EXECUCOES = """
+SELECT status, erro FROM normalizado.execucao_carga
+WHERE empresa_id = %s AND tipo = 'historica' ORDER BY iniciado_em
 """
 
 LER_EXECUCOES = """
@@ -164,8 +175,9 @@ def apagar_empresas_historica(conexao: psycopg.Connection) -> None:
 def criar_empresa_com_cadastro(
     conectar: Callable[[], psycopg.Connection], conexao: psycopg.Connection
 ) -> EmpresaTeste:
-    """A empresa com a conta das fixtures de cadastro já carregadas, como a
-    execução diária as deixa: com fuso, moeda e as entidades não excluídas."""
+    """A empresa com a conta das fixtures de cadastro já carregadas, como o
+    cadastro completo as deixa: com fuso, moeda e as entidades não
+    excluídas."""
     criada = criar_empresa(conexao, NOME_EMPRESA, ID_META_CONTA, indice=1)
     with responses.RequestsMock(registry=OrderedRegistry) as api:
         cadastro_exemplo.simular_cadastro(api, cadastro_exemplo.ler_fixtures())
@@ -190,8 +202,19 @@ def empresa(
         apagar_empresas_historica(conexao_operador)
 
 
+@pytest.fixture
+def empresa_nova(conexao_operador: psycopg.Connection) -> Iterator[EmpresaTeste]:
+    """A empresa com a conta das fixtures de cadastro recém-cadastrada pela
+    área do operador: só o ID da Meta, sem fuso nem entidades."""
+    apagar_empresas_historica(conexao_operador)
+    try:
+        yield criar_empresa(conexao_operador, NOME_EMPRESA, ID_META_CONTA, indice=1)
+    finally:
+        apagar_empresas_historica(conexao_operador)
+
+
 def criar_outra_empresa(conexao: psycopg.Connection) -> EmpresaTeste:
-    """Uma empresa cuja conta já teve a primeira extração, sem entidades."""
+    """Uma empresa cuja conta já teve o cadastro completo, sem entidades."""
     outra = criar_empresa(conexao, NOME_OUTRA_EMPRESA, ID_META_OUTRA_CONTA, indice=2)
     definir_fuso(conexao, outra.conta_id)
     return outra
@@ -243,6 +266,60 @@ def ler_execucoes(conexao: psycopg.Connection, empresa_id: UUID) -> list[tuple]:
     return conexao.execute(LER_EXECUCOES, (empresa_id,)).fetchall()
 
 
+def inserir_conta(conexao: psycopg.Connection, empresa_id: UUID, id_meta: str) -> UUID:
+    """Uma conta recém-cadastrada, só com o ID da Meta."""
+    return conexao.execute(
+        "INSERT INTO normalizado.conta_anuncio (empresa_id, id_meta)"
+        " VALUES (%s, %s) RETURNING id",
+        (empresa_id, id_meta),
+    ).fetchone()[0]
+
+
+def simular_cadastro_vazio(api: responses.RequestsMock, id_meta_conta: str) -> None:
+    """O cadastro completo de uma conta sem entidades, no fuso de Brasília."""
+    conta = f"act_{id_meta_conta}"
+    fixture = cadastro_exemplo.ler_fixtures()["cadastro_conta"]
+    fixture["corpo"] |= {"id": conta}
+    cadastro_exemplo.simular(
+        api, conta, fixture, {"fields": montar_campos(ObjetoApi.CONTA)}
+    )
+    for aresta, objeto in (
+        ("ads", ObjetoApi.ANUNCIO),
+        ("adsets", ObjetoApi.CONJUNTO),
+        ("campaigns", ObjetoApi.CAMPANHA),
+    ):
+        cadastro_exemplo.simular(
+            api,
+            f"{conta}/{aresta}",
+            RESPOSTA_VAZIA,
+            cadastro_exemplo.montar_parametros(objeto),
+        )
+
+
+def vencer_no_fim(api: responses.RequestsMock) -> Callable[[], float]:
+    """Um cronômetro que chega ao prazo quando a última chamada simulada foi
+    feita: a etapa em andamento termina, e nenhuma outra começa."""
+    chamadas = len(api.registered())
+    return lambda: PRAZO if len(api.calls) >= chamadas else 0.0
+
+
+def ler_fuso(conexao: psycopg.Connection, conta_id: UUID) -> str | None:
+    return conexao.execute(
+        "SELECT fuso_horario FROM normalizado.conta_anuncio WHERE id = %s",
+        (conta_id,),
+    ).fetchone()[0]
+
+
+def listar_anuncios_cadastro() -> set[str]:
+    """Os anúncios das arestas do cadastro, sem os lidos pelo ID."""
+    fixtures = cadastro_exemplo.ler_fixtures()
+    return {
+        anuncio["id"]
+        for nome in ("cadastro_anuncios_pagina_1", "cadastro_anuncios_pagina_2")
+        for anuncio in fixtures[nome]["corpo"]["data"]
+    }
+
+
 def ler_estado_natural(
     conexao: psycopg.Connection, empresa_id: UUID
 ) -> dict[str, set[tuple]]:
@@ -287,9 +364,9 @@ def test_conta_nova_ganha_uma_fatia_por_mes_e_carrega_o_historico(
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # O critério do RF-22: a conta com a primeira extração feita e sem
-    # fatias é nova, e a execução seguinte planeja e carrega o histórico
-    # dela, do limite de 37 meses até ontem, sem mudança de código (RF-07).
+    # A conta com o cadastro completo e sem fatias é nova, e a execução
+    # seguinte planeja e carrega o histórico dela, do limite de 37 meses até
+    # ontem, sem mudança de código (RF-07; RF-22).
     assert ler_fatias(conexao_operador, empresa.empresa_id) == []
 
     codigo = executar_historica(conectar_etl, [empresa.empresa_id], simular_tudo)
@@ -471,8 +548,9 @@ def test_conta_com_historico_concluido_nao_gera_execucao(
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # Com todas as fatias concluídas, a execução seguinte não chama a API
-    # nem registra execução: a rotina diária cuida dos dias novos.
+    # Com o cadastro e todas as fatias concluídos, a execução seguinte não
+    # chama a API, nem para o cadastro, que roda uma vez por conta, e não
+    # registra execução: a revisão diária cuida dos dias novos (ADR-0017).
     executar_historica(conectar_etl, [empresa.empresa_id], simular_tudo)
     execucoes = ler_execucoes(conexao_operador, empresa.empresa_id)
 
@@ -482,22 +560,232 @@ def test_conta_com_historico_concluido_nao_gera_execucao(
     assert ler_execucoes(conexao_operador, empresa.empresa_id) == execucoes
 
 
-def test_conta_sem_fuso_espera_a_primeira_extracao(
+def test_conta_recem_cadastrada_recebe_o_cadastro_e_o_historico_na_carga_inicial(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa_nova: EmpresaTeste,
+) -> None:
+    # O critério do RF-22, com a carga inicial no lugar da execução diária: a
+    # conta acabou de ser cadastrada, só com o ID da Meta, e a execução
+    # seguinte lê o cadastro completo dela (RF-01), que dá o fuso, e só então
+    # planeja e carrega o histórico (RF-07), sem mudança de código
+    # (ADR-0017). A simulação responde na ordem: o cadastro antes das fatias.
+    def simular_carga_inicial(api: responses.RequestsMock) -> None:
+        cadastro_exemplo.simular_cadastro(api, cadastro_exemplo.ler_fixtures())
+        simular_tudo(api)
+
+    codigo = executar_historica(
+        conectar_etl, [empresa_nova.empresa_id], simular_carga_inicial
+    )
+
+    assert codigo == CODIGO_SAIDA_SUCESSO
+    assert ler_fuso(conexao_operador, empresa_nova.conta_id) == FUSO_BRASILIA
+    assert {
+        id_meta
+        for id_meta, _, _ in ler_estado_natural(
+            conexao_operador, empresa_nova.empresa_id
+        )["anuncios"]
+    } == {*listar_anuncios_cadastro(), ID_META_ANUNCIO_AUSENTE}
+    assert ler_fatias(conexao_operador, empresa_nova.empresa_id) == [
+        (mes, "concluida") for mes in MESES
+    ]
+    # Uma execução para o cadastro e outra para as fatias.
+    assert ler_execucoes(conexao_operador, empresa_nova.empresa_id) == [
+        ("historica", "sucesso"),
+        ("historica", "sucesso"),
+    ]
+    contagens = dict(
+        conexao_operador.execute(
+            LER_CONTAGENS_HISTORICA, (empresa_nova.empresa_id,)
+        ).fetchall()
+    )
+    assert contagens["anuncio"] > 0
+
+
+def test_falha_no_cadastro_de_uma_conta_nao_segura_o_cadastro_nem_o_historico_da_outra(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa_nova: EmpresaTeste,
+) -> None:
+    # A empresa acabou de cadastrar duas contas, e a leitura do cadastro da
+    # primeira, na ordem do ID da Meta, falha na API, como falharia a cada
+    # execução sem permissão na conta. A segunda recebe o cadastro e o
+    # histórico, e a primeira fica sem fuso e sem fatias, para a execução
+    # seguinte tentar de novo. A execução dos cadastros fica como falha
+    # (RF-22; RF-50).
+    with conexao_operador.transaction():
+        sem_permissao = inserir_conta(
+            conexao_operador, empresa_nova.empresa_id, ID_META_CONTA_SEM_PERMISSAO
+        )
+
+    def simular_execucao(api: responses.RequestsMock) -> None:
+        cadastro_exemplo.simular(
+            api,
+            f"act_{ID_META_CONTA_SEM_PERMISSAO}",
+            ERRO_PERMISSAO,
+            {"fields": montar_campos(ObjetoApi.CONTA)},
+        )
+        cadastro_exemplo.simular_cadastro(api, cadastro_exemplo.ler_fixtures())
+        simular_tudo(api)
+
+    codigo = executar_historica(
+        conectar_etl, [empresa_nova.empresa_id], simular_execucao
+    )
+
+    assert codigo == CODIGO_SAIDA_FALHA
+    assert ler_fuso(conexao_operador, empresa_nova.conta_id) == FUSO_BRASILIA
+    assert conexao_operador.execute(
+        LER_FATIAS_CONTA, (empresa_nova.conta_id,)
+    ).fetchall() == [(mes, "concluida") for mes in MESES]
+    assert ler_fuso(conexao_operador, sem_permissao) is None
+    assert conexao_operador.execute(LER_FATIAS_CONTA, (sem_permissao,)).fetchall() == []
+    (status_cadastros, erro), status_fatias = conexao_operador.execute(
+        LER_ERROS_EXECUCOES, (empresa_nova.empresa_id,)
+    ).fetchall()
+    assert status_cadastros == "falha"
+    assert erro.startswith(ErroPermissao.__name__)
+    assert status_fatias == ("sucesso", None)
+
+
+def test_conta_nova_de_outra_empresa_recebe_o_cadastro_antes_das_fatias_da_primeira(
     conectar_etl: Callable[[], psycopg.Connection],
     conexao_operador: psycopg.Connection,
     empresa: EmpresaTeste,
 ) -> None:
-    # Sem o fuso, que vem da primeira extração da rotina diária, não há como
-    # saber o hoje da conta nem o limite de 37 meses (R-19).
+    # A primeira empresa tem o histórico inteiro a carregar, e o prazo vence
+    # durante as fatias dela, como pode acontecer por várias execuções. A
+    # outra acabou de cadastrar uma conta: o cadastro dela vem antes de
+    # qualquer fatia, e a conta entra na revisão diária seguinte sem esperar o
+    # histórico da primeira (RF-22; ADR-0017). As fatias dela ficam para a
+    # execução seguinte.
     outra = criar_empresa(
         conexao_operador, NOME_OUTRA_EMPRESA, ID_META_OUTRA_CONTA, indice=2
     )
 
-    codigo = executar_historica(conectar_etl, [outra.empresa_id], lambda api: None)
+    def simular_execucao(api: responses.RequestsMock) -> None:
+        simular_cadastro_vazio(api, ID_META_OUTRA_CONTA)
+        simular_historico(api, MESES[:3], montar_respostas())
+
+    codigo = executar_historica(
+        conectar_etl,
+        [empresa.empresa_id, outra.empresa_id],
+        simular_execucao,
+        cronometro=vencer_no_fim,
+    )
 
     assert codigo == CODIGO_SAIDA_SUCESSO
+    assert ler_fuso(conexao_operador, outra.conta_id) == FUSO_BRASILIA
     assert ler_fatias(conexao_operador, outra.empresa_id) == []
-    assert ler_execucoes(conexao_operador, outra.empresa_id) == []
+    assert ler_execucoes(conexao_operador, outra.empresa_id) == [
+        ("historica", "sucesso")
+    ]
+    assert conexao_operador.execute(
+        LER_FATIAS_CONTA, (empresa.conta_id,)
+    ).fetchall() == [
+        *((mes, "concluida") for mes in MESES[:3]),
+        *((mes, "pendente") for mes in MESES[3:]),
+    ]
+
+
+def test_prazo_esgotado_no_cadastro_deixa_as_outras_contas_para_a_proxima_execucao(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa_nova: EmpresaTeste,
+) -> None:
+    # O prazo vence durante o cadastro da primeira conta nova: ele termina, e
+    # o da segunda não começa, nem as fatias, para a execução caber no RNF-07.
+    # A segunda conta continua sem fuso, e a execução seguinte lê o cadastro
+    # dela.
+    with conexao_operador.transaction():
+        segunda_conta = inserir_conta(
+            conexao_operador, empresa_nova.empresa_id, ID_META_OUTRA_CONTA
+        )
+
+    codigo = executar_historica(
+        conectar_etl,
+        [empresa_nova.empresa_id],
+        lambda api: cadastro_exemplo.simular_cadastro(
+            api, cadastro_exemplo.ler_fixtures()
+        ),
+        cronometro=vencer_no_fim,
+    )
+
+    assert codigo == CODIGO_SAIDA_SUCESSO
+    assert ler_fuso(conexao_operador, empresa_nova.conta_id) == FUSO_BRASILIA
+    assert ler_fuso(conexao_operador, segunda_conta) is None
+    assert ler_fatias(conexao_operador, empresa_nova.empresa_id) == []
+    assert ler_execucoes(conexao_operador, empresa_nova.empresa_id) == [
+        ("historica", "sucesso")
+    ]
+
+
+def test_interrupcao_no_cadastro_fecha_o_registro_e_deixa_a_conta_sem_fuso(
+    monkeypatch: pytest.MonkeyPatch,
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa_nova: EmpresaTeste,
+) -> None:
+    # O Actions cancela o job com SIGINT no meio da carga do cadastro, já na
+    # transação: nada do cadastro fica, a conta continua sem fuso para a
+    # execução seguinte, e a execução fica registrada como falha (RF-20).
+    def interromper(*argumentos: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(carga_historica, "carregar_cadastro_conta", interromper)
+
+    with pytest.raises(KeyboardInterrupt):
+        executar_historica(
+            conectar_etl,
+            [empresa_nova.empresa_id],
+            lambda api: cadastro_exemplo.simular_cadastro(
+                api, cadastro_exemplo.ler_fixtures()
+            ),
+        )
+
+    status, erro = conexao_operador.execute(
+        LER_ERRO_EXECUCAO, (empresa_nova.empresa_id,)
+    ).fetchone()
+    assert (status, erro) == ("falha", "KeyboardInterrupt")
+    assert ler_fuso(conexao_operador, empresa_nova.conta_id) is None
+    assert (
+        conexao_operador.execute(
+            "SELECT count(*) FROM normalizado.anuncio WHERE empresa_id = %s",
+            (empresa_nova.empresa_id,),
+        ).fetchone()[0]
+        == 0
+    )
+
+
+def test_lock_ocupado_deixa_a_conta_nova_sem_cadastro_e_a_execucao_ignorada(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    empresa_nova: EmpresaTeste,
+) -> None:
+    # Outra execução da empresa segura o lock: o cadastro, já extraído, não é
+    # carregado, a conta fica sem fuso e sem fatias, e a execução termina como
+    # ignorada (RF-19). A execução seguinte lê o cadastro de novo.
+    with (
+        psycopg.connect(URL_BANCO_LOCAL, autocommit=True) as outra_execucao,
+        outra_execucao.transaction(),
+    ):
+        outra_execucao.execute(
+            "SELECT pg_advisory_xact_lock(%s)",
+            (calcular_chave_lock(empresa_nova.empresa_id),),
+        )
+        codigo = executar_historica(
+            conectar_etl,
+            [empresa_nova.empresa_id],
+            lambda api: cadastro_exemplo.simular_cadastro(
+                api, cadastro_exemplo.ler_fixtures()
+            ),
+        )
+
+    assert codigo == CODIGO_SAIDA_SUCESSO
+    assert ler_fuso(conexao_operador, empresa_nova.conta_id) is None
+    assert ler_fatias(conexao_operador, empresa_nova.empresa_id) == []
+    assert ler_execucoes(conexao_operador, empresa_nova.empresa_id) == [
+        ("historica", "ignorada")
+    ]
 
 
 def test_conta_inativa_fica_fora_da_carga_historica(
@@ -745,7 +1033,7 @@ def test_retomada_depois_que_o_limite_andou_corta_a_primeira_fatia_no_limite_nov
     # 08/12/2023: outubro e novembro de 2023 saíram inteiros do limite e são
     # concluídos sem chamada à API, e dezembro começa no limite novo. As
     # fatias não planejadas, de dezembro de 2026 e janeiro de 2027, ficam com
-    # a rotina diária.
+    # a revisão diária.
     with (
         psycopg.connect(URL_BANCO_LOCAL, autocommit=True) as outra_execucao,
         outra_execucao.transaction(),
