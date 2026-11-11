@@ -531,15 +531,18 @@ def carregar_fatia(
     """Na transação com o lock: a janela do mês, a conferência de que as
     linhas da fatia têm resposta bruta (RF-09) e a marca concluida, juntas,
     para que a fatia interrompida nunca apareça como concluída (ADR-0009 §5).
-    A contagem do bruto é a da fatia, e não a da execução inteira."""
-    antes = contar_respostas_brutas(conexao, empresa_id, execucao_id)
-    contagens = (
-        carregar_janela_conta(conexao, empresa_id, execucao_id, fatia.janela)
-        if fatia.janela is not None
-        else {}
+    """
+    janela = fatia.janela
+    contagens = carregar_com_rastreio_etapa(
+        conexao,
+        empresa_id,
+        execucao_id,
+        lambda: (
+            carregar_janela_conta(conexao, empresa_id, execucao_id, janela)
+            if janela is not None
+            else {}
+        ),
     )
-    respostas = contar_respostas_brutas(conexao, empresa_id, execucao_id) - antes
-    conferir_rastreio(contagens, respostas)
     parametros = {
         "empresa_id": empresa_id,
         "conta_anuncio_id": fatia.conta_anuncio_id,
@@ -548,6 +551,22 @@ def carregar_fatia(
     }
     if conexao.execute(CONCLUIR_FATIA, parametros).rowcount != 1:
         raise ErroFatiaAusente("fatia sem registro em fatia_historica")
+    return contagens
+
+
+def carregar_com_rastreio_etapa(
+    conexao: psycopg.Connection,
+    empresa_id: UUID,
+    execucao_id: UUID,
+    carregar: Callable[[], Contagens],
+) -> Contagens:
+    """Roda uma etapa da execução na transação dela e confere que as linhas
+    da etapa têm resposta bruta (RF-09). A contagem do bruto é a da etapa, e
+    não a da execução inteira, que já tem as etapas confirmadas antes."""
+    antes = contar_respostas_brutas(conexao, empresa_id, execucao_id)
+    contagens = carregar()
+    respostas = contar_respostas_brutas(conexao, empresa_id, execucao_id) - antes
+    conferir_rastreio(contagens, respostas)
     return {**contagens, TABELA_BRUTO: respostas}
 
 
