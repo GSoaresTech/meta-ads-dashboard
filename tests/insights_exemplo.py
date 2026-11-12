@@ -62,7 +62,10 @@ def montar_parametros_insights(inicio: date = INICIO, fim: date = FIM) -> dict:
         "time_range": json.dumps(
             {"since": inicio.isoformat(), "until": fim.isoformat()}
         ),
-        "fields": "ad_id,spend,impressions,reach,actions,action_values",
+        "fields": (
+            "ad_id,spend,impressions,reach,actions,action_values,"
+            "results,video_thruplay_watched_actions,conversions"
+        ),
         "filtering": json.dumps(
             [
                 {

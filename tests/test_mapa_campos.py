@@ -98,6 +98,51 @@ def test_traduz_acoes_e_valores_em_listas_tipadas() -> None:
     ]
 
 
+def test_traduz_resultados_e_as_listas_de_fora_de_actions() -> None:
+    # Formatos verificados na API (R-24): o value de results vem em texto, e
+    # o da visita ao perfil, sem attribution_windows.
+    linha = {
+        "ad_id": "990000000000301",
+        "date_start": "2026-10-01",
+        "date_stop": "2026-10-01",
+        "results": [
+            {
+                "indicator": "video_thruplay_watched_actions",
+                "values": [{"value": "243", "attribution_windows": ["default"]}],
+            }
+        ],
+        "video_thruplay_watched_actions": [
+            {"action_type": "video_view", "value": "243"}
+        ],
+        "conversions": [{"action_type": "contact_website", "value": "6"}],
+    }
+
+    traduzida = traduzir_registro(ObjetoApi.INSIGHTS, linha)
+
+    assert traduzida["resultados"] == [
+        {
+            "indicador": "video_thruplay_watched_actions",
+            "valores": [{"quantidade": 243, "janelas_atribuicao": ["default"]}],
+        }
+    ]
+    assert traduzida["visualizacoes_thruplay"] == [
+        {"tipo_acao": "video_view", "quantidade": 243}
+    ]
+    assert traduzida["conversoes"] == [
+        {"tipo_acao": "contact_website", "quantidade": 6}
+    ]
+
+
+def test_resultado_sem_janela_e_sem_valores_fica_com_os_dois_nulos() -> None:
+    traduzida = traduzir_registro(
+        ObjetoApi.RESULTADO, {"indicator": "profile_visit_view"}
+    )
+
+    assert traduzida == {"indicador": "profile_visit_view", "valores": None}
+    valor = traduzir_registro(ObjetoApi.VALOR_RESULTADO, {"value": "60"})
+    assert valor == {"quantidade": 60, "janelas_atribuicao": None}
+
+
 def test_traduz_quebras_de_insights() -> None:
     linha = {
         "campaign_id": "990000000000101",
@@ -217,6 +262,9 @@ def test_erro_de_campo_nao_mapeado_nao_expoe_valores() -> None:
         (ObjetoApi.INSIGHTS, {"actions": {"action_type": "link_click"}}),
         (ObjetoApi.INSIGHTS, {"actions": ["não é objeto"]}),
         (ObjetoApi.ANUNCIO, {"creative": "990000000000401"}),
+        (ObjetoApi.VALOR_RESULTADO, {"attribution_windows": "default"}),
+        (ObjetoApi.VALOR_RESULTADO, {"attribution_windows": [7]}),
+        (ObjetoApi.VALOR_RESULTADO, {"attribution_windows": [" "]}),
     ],
 )
 def test_recusa_estrutura_fora_do_tipo(objeto: ObjetoApi, registro: object) -> None:

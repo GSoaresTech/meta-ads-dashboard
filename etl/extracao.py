@@ -57,6 +57,11 @@ ARESTAS_CADASTRO: Final[Mapping[Endpoint, ObjetoApi]] = {
 }
 
 
+# Os resultados que a Meta conta fora de actions: a visita ao perfil, que só
+# vem em results, o ThruPlay e o contato no site (R-24). O profile_visit_view
+# não é pedido como campo: ele não volta em nenhuma linha, e o resultado do
+# job assíncrono recusa a leitura com o código 100.
+CAMPOS_RESULTADOS: Final = ("results", "video_thruplay_watched_actions", "conversions")
 # Os campos de AdsInsights do RF-02. Os cliques no link vêm de actions, pelo
 # tipo link_click (métrica cliques_link do catálogo), e date_start e date_stop vêm
 # em toda linha sem ser pedidos. Sem use_unified_attribution_setting nem
@@ -69,6 +74,7 @@ CAMPOS_INSIGHTS_DIARIOS: Final = (
     "reach",
     "actions",
     "action_values",
+    *CAMPOS_RESULTADOS,
 )
 NIVEL_ANUNCIO: Final = "ad"
 INCREMENTO_DIARIO: Final = "1"
@@ -103,8 +109,8 @@ DIMENSOES_QUEBRA: Final[Mapping[TipoQuebra, tuple[str, ...]]] = {
     TipoQuebra.PLATAFORMA_POSICIONAMENTO: ("publisher_platform", "platform_position"),
     TipoQuebra.REGIAO: ("region",),
 }
-# As métricas-base e as ações, como nos insights diários, sem janela pedida
-# (ADR-0007; R-22). Sem action_breakdowns, a API acrescenta action_type
+# As métricas-base, as ações e os resultados fora de actions, como nos
+# insights diários, sem janela pedida (ADR-0007; R-22). Sem action_breakdowns, a API acrescenta action_type
 # sozinha (R-23); as dimensões da quebra vêm em toda linha sem ser pedidas.
 CAMPOS_QUEBRAS: Final = (
     "campaign_id",
@@ -113,6 +119,7 @@ CAMPOS_QUEBRAS: Final = (
     "reach",
     "actions",
     "action_values",
+    *CAMPOS_RESULTADOS,
 )
 NIVEL_CAMPANHA: Final = "campaign"
 
