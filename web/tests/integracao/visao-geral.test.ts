@@ -356,27 +356,21 @@ describe("visão Geral", () => {
     }
   });
 
-  test.each([
-    ["campanha", "campanhas"],
-    ["anuncio", "anuncios"],
-  ])(
-    "a página de %s continua sem os totais, que chegam com a visão dela",
-    async (tabela, segmento) => {
-      const { rows } = await cliente.query<{ id: string }>(
-        `SELECT id FROM normalizado.${tabela} WHERE empresa_id = $1 LIMIT 1`,
-        [massa.empresaA],
-      );
-      const resposta = await requisitar(
-        `/empresas/${massa.empresaA}/${segmento}/${rows[0].id}?${CONSULTA_SETEMBRO}`,
-        { credencial: massa.tokenA },
-      );
-      const documento = new DOMParser().parseFromString(
-        await resposta.text(),
-        "text/html",
-      );
+  test("a página do anúncio continua sem os totais, que chegam com a visão dela", async () => {
+    const { rows } = await cliente.query<{ id: string }>(
+      "SELECT id FROM normalizado.anuncio WHERE empresa_id = $1 LIMIT 1",
+      [massa.empresaA],
+    );
+    const resposta = await requisitar(
+      `/empresas/${massa.empresaA}/anuncios/${rows[0].id}?${CONSULTA_SETEMBRO}`,
+      { credencial: massa.tokenA },
+    );
+    const documento = new DOMParser().parseFromString(
+      await resposta.text(),
+      "text/html",
+    );
 
-      expect(resposta.status).toBe(200);
-      expect(documento.querySelectorAll("article")).toHaveLength(0);
-    },
-  );
+    expect(resposta.status).toBe(200);
+    expect(documento.querySelectorAll("article")).toHaveLength(0);
+  });
 });

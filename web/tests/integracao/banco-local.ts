@@ -117,6 +117,9 @@ export interface CampanhaTeste {
   objetivo?: string;
   // Sem status, a campanha está ativa.
   status?: string;
+  // A meta de otimização do conjunto, que escolhe a regra do catálogo. Sem
+  // ela, vale a regra de "qualquer" do objetivo (ADR-0007).
+  metaOtimizacao?: string;
   anuncios: AnuncioTeste[];
 }
 
@@ -229,9 +232,15 @@ async function cadastrarCampanha(
   const conjuntoId = await inserirComId(
     cliente,
     `INSERT INTO normalizado.conjunto_anuncio
-       (empresa_id, campanha_id, id_meta, status, execucao_id)
-     VALUES ($1, $2, $3, 'ACTIVE', $4)`,
-    [empresaId, campanhaId, sortearIdMeta(), execucaoId],
+       (empresa_id, campanha_id, id_meta, status, meta_otimizacao, execucao_id)
+     VALUES ($1, $2, $3, 'ACTIVE', $4, $5)`,
+    [
+      empresaId,
+      campanhaId,
+      sortearIdMeta(),
+      campanha.metaOtimizacao ?? null,
+      execucaoId,
+    ],
   );
 
   const ids: IdsEntidades = { [campanha.nome]: campanhaId };
