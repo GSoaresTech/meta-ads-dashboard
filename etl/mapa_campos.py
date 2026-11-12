@@ -8,7 +8,8 @@ sentido entre objetos: `value` é quantidade em `actions` e dinheiro em
 
 Cobre os campos das extrações de RF-01 a RF-04, conferidos em 04/11/2026 nas
 referências da Meta citadas no ADR-0009 e em
-https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/.
+https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/,
+e os dos resultados fora de actions, conferidos na API em 12/11/2026 (R-24).
 Um campo novo entra aqui junto com a extração que o usa.
 
 Os nomes em português são os das colunas de `normalizado` quando o campo vira
@@ -30,11 +31,19 @@ from etl.padronizacao import (
     padronizar_dinheiro,
     padronizar_id_conta,
     padronizar_inteiro,
+    padronizar_lista_texto,
     padronizar_texto,
 )
 
 type ValorTraduzido = (
-    str | int | Decimal | date | None | RegistroTraduzido | list[RegistroTraduzido]
+    str
+    | int
+    | Decimal
+    | date
+    | None
+    | list[str]
+    | RegistroTraduzido
+    | list[RegistroTraduzido]
 )
 type RegistroTraduzido = dict[str, ValorTraduzido]
 
@@ -51,9 +60,13 @@ class ObjetoApi(StrEnum):
     PAGINA = "Page"
     PUBLICACAO = "PagePost"
     INSIGHTS = "AdsInsights"
-    # AdsActionStats aparece em duas listas, e o value muda de tipo entre elas.
+    # AdsActionStats aparece em várias listas, e o value muda de tipo entre
+    # elas: é quantidade em actions, video_thruplay_watched_actions e
+    # conversions, e dinheiro em action_values.
     ACAO = "AdsActionStats em actions"
     VALOR_ACAO = "AdsActionStats em action_values"
+    RESULTADO = "AdsInsightsResult"
+    VALOR_RESULTADO = "AdsInsightsResult em values"
 
 
 class TipoCampo(Enum):
@@ -62,6 +75,7 @@ class TipoCampo(Enum):
     INTEIRO = "inteiro"
     DATA = "data"
     ID_CONTA = "id_conta"
+    LISTA_TEXTO = "lista_texto"
     # Compostos: os itens são outro objeto do mapa.
     LISTA = "lista"
     OBJETO = "objeto"
@@ -84,6 +98,7 @@ PADRONIZADORES: Final[Mapping[TipoCampo, Callable[[object], ValorTraduzido]]] = 
     TipoCampo.INTEIRO: padronizar_inteiro,
     TipoCampo.DATA: padronizar_data,
     TipoCampo.ID_CONTA: padronizar_id_conta,
+    TipoCampo.LISTA_TEXTO: padronizar_lista_texto,
 }
 
 ID_META: Final = Campo("id_meta", TipoCampo.TEXTO)
@@ -168,6 +183,14 @@ MAPA_CAMPOS: Final[Mapping[ObjetoApi, Mapping[str, Campo]]] = {
         "reach": Campo("alcance", TipoCampo.INTEIRO),
         "actions": Campo("acoes", TipoCampo.LISTA, ObjetoApi.ACAO),
         "action_values": Campo("valores_acoes", TipoCampo.LISTA, ObjetoApi.VALOR_ACAO),
+        # Os resultados que a Meta conta fora de actions (R-24): a visita ao
+        # perfil só vem em results; o ThruPlay e o contato no site, também
+        # em listas próprias de AdsActionStats.
+        "results": Campo("resultados", TipoCampo.LISTA, ObjetoApi.RESULTADO),
+        "video_thruplay_watched_actions": Campo(
+            "visualizacoes_thruplay", TipoCampo.LISTA, ObjetoApi.ACAO
+        ),
+        "conversions": Campo("conversoes", TipoCampo.LISTA, ObjetoApi.ACAO),
         "age": Campo("idade", TipoCampo.TEXTO),
         "gender": Campo("genero", TipoCampo.TEXTO),
         "publisher_platform": Campo("plataforma", TipoCampo.TEXTO),
@@ -181,6 +204,18 @@ MAPA_CAMPOS: Final[Mapping[ObjetoApi, Mapping[str, Campo]]] = {
     ObjetoApi.VALOR_ACAO: {
         "action_type": Campo("tipo_acao", TipoCampo.TEXTO),
         "value": Campo("valor", TipoCampo.DINHEIRO),
+    },
+    # O indicator é actions:<tipo de ação> ou o nome de outra métrica, e o
+    # item sem resultado vem sem values (R-24).
+    ObjetoApi.RESULTADO: {
+        "indicator": Campo("indicador", TipoCampo.TEXTO),
+        "values": Campo("valores", TipoCampo.LISTA, ObjetoApi.VALOR_RESULTADO),
+    },
+    # Sem janelas pedidas, attribution_windows é ["default"], e o valor da
+    # visita ao perfil vem sem ela (R-24).
+    ObjetoApi.VALOR_RESULTADO: {
+        "value": Campo("quantidade", TipoCampo.INTEIRO),
+        "attribution_windows": Campo("janelas_atribuicao", TipoCampo.LISTA_TEXTO),
     },
 }
 

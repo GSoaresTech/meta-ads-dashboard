@@ -38,6 +38,19 @@ def padronizar_texto(valor: object) -> str | None:
     return aparado or None
 
 
+def padronizar_lista_texto(valor: object) -> list[str] | None:
+    """Lista de textos, cada um aparado e não vazio, como as janelas de
+    atribuição de um valor de results (R-24)."""
+    if valor is None:
+        return None
+    if not isinstance(valor, list):
+        raise ErroPadronizacao("Esperada lista de textos.")
+    textos = [padronizar_texto(item) for item in valor]
+    if None in textos:
+        raise ErroPadronizacao("Esperada lista de textos não vazios.")
+    return textos
+
+
 def padronizar_dinheiro(valor: object) -> Decimal | None:
     """Converte direto da string da API para Decimal, sem passar por float.
 

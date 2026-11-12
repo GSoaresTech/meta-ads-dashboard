@@ -3,6 +3,7 @@ import json
 from collections import Counter
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -32,6 +33,7 @@ from tests.insights_exemplo import (
 )
 from tests.insights_exemplo import ler_fixtures as ler_fixtures_insights
 
+PASTA_FIXTURES = Path(__file__).parent / "fixtures"
 ID_CRIATIVO_REUTILIZADO = "9950000000000011"
 ID_PAGINA = "995000000000012"
 
@@ -431,6 +433,208 @@ def test_campo_de_insights_nao_pedido_e_recusado_pelo_mapa() -> None:
         transformar_insights(fixtures)
 
 
+def ler_linhas_resultados() -> list[dict]:
+    """Uma linha de cada resultado fora de actions (R-24), uma com o
+    resultado em actions e uma sem entrega, que a API acrescenta quando a
+    consulta pede results."""
+    fixture = PASTA_FIXTURES / "insights_resultados_fora_de_actions.json"
+    return json.loads(fixture.read_text(encoding="utf-8"))["corpo"]["data"]
+
+
+def transformar_linhas(linhas: list[dict]) -> InsightsDiarios:
+    return transformar_insights_diarios([{"data": linhas}])
+
+
+def quantidades_por_tipo(insights: InsightsDiarios) -> dict[tuple, object]:
+    return {
+        (acao["id_meta_anuncio"], acao["tipo_acao"]): acao["quantidade"]
+        for acao in insights.acoes
+    }
+
+
+def test_resultado_fora_de_actions_e_igual_ao_do_indicator_com_ele_como_tipo() -> None:
+    # Critério da #119: o valor gravado é o que a Meta conta em results, e o
+    # tipo é o indicator, com ponto no lugar dos dois-pontos (R-24).
+    linhas = ler_linhas_resultados()
+
+    obtidas = quantidades_por_tipo(transformar_linhas(linhas))
+
+    esperadas = {
+        (linha["ad_id"], item["indicator"].replace(":", ".")): int(
+            item["values"][0]["value"]
+        )
+        for linha in linhas
+        for item in linha["results"]
+        if item.get("values") and not item["indicator"].startswith("actions:")
+    }
+    assert len(esperadas) == 3
+    assert esperadas.items() <= obtidas.items()
+    assert {tipo for _, tipo in esperadas} == {
+        "profile_visit_view",
+        "video_thruplay_watched_actions",
+        "conversions.contact_website",
+    }
+
+
+def test_thruplay_e_contato_vem_do_campo_proprio_mesmo_sem_ser_o_resultado() -> None:
+    # Num conjunto com outro resultado, os dois campos continuam valendo: o
+    # results é só a origem da visita ao perfil, que não vem em outro campo.
+    linhas = ler_linhas_resultados()
+    for linha in linhas[1:3]:
+        linha["results"] = [{"indicator": "actions:post_engagement"}]
+
+    obtidas = quantidades_por_tipo(transformar_linhas(linhas))
+
+    assert obtidas[("995000000000000031", "video_thruplay_watched_actions")] == 243
+    assert obtidas[("995000000000000032", "conversions.contact_website")] == 6
+
+
+def test_visita_ao_perfil_so_vem_de_results() -> None:
+    linhas = ler_linhas_resultados()
+    linhas[0]["results"] = [{"indicator": "actions:link_click"}]
+
+    obtidas = quantidades_por_tipo(transformar_linhas(linhas))
+
+    assert not any(tipo == "profile_visit_view" for _, tipo in obtidas)
+
+
+def test_so_o_contato_no_site_sai_de_conversions() -> None:
+    # Os demais tipos de conversions não são resultado de nenhuma regra, e os
+    # eventos personalizados trazem o nome do evento, fora do formato do tipo
+    # de ação (ADR-0009 §2).
+    insights = transformar_linhas(ler_linhas_resultados())
+
+    tipos = {
+        tipo
+        for anuncio, tipo in quantidades_por_tipo(insights)
+        if anuncio == "995000000000000032"
+    }
+    assert tipos == {
+        "landing_page_view",
+        "link_click",
+        "offsite_conversion.fb_pixel_custom",
+        "conversions.contact_website",
+    }
+
+
+def test_resultado_em_actions_nao_vira_outra_linha() -> None:
+    linhas = ler_linhas_resultados()
+
+    insights = transformar_linhas(linhas)
+
+    tipos = {
+        tipo
+        for anuncio, tipo in quantidades_por_tipo(insights)
+        if anuncio == "995000000000000033"
+    }
+    assert tipos == {item["action_type"] for item in linhas[3]["actions"]}
+
+
+def test_linha_sem_entrega_e_sem_resultado_nao_vira_metrica() -> None:
+    # Com results na consulta, a API devolve também anúncio e dia sem
+    # investimento, impressões nem resultado, que a consulta sem ele não
+    # devolve (R-24).
+    linhas = ler_linhas_resultados()
+
+    insights = transformar_linhas(linhas)
+
+    assert [m["id_meta_anuncio"] for m in insights.metricas] == [
+        linha["ad_id"] for linha in linhas[:4]
+    ]
+    assert all(a["id_meta_anuncio"] != "995000000000000034" for a in insights.acoes)
+
+
+@pytest.mark.parametrize(
+    ("lista", "tipo"),
+    [
+        ("actions", "omni_purchase"),
+        ("action_values", "omni_purchase"),
+        ("video_thruplay_watched_actions", "video_view"),
+        ("conversions", "contact_website"),
+    ],
+)
+def test_linha_sem_entrega_com_acao_continua(lista: str, tipo: str) -> None:
+    # Conversões atribuídas a um dia sem entrega vêm em actions (R-21).
+    linhas = ler_linhas_resultados()
+    linhas[4][lista] = [{"action_type": tipo, "value": "1"}]
+
+    insights = transformar_linhas(linhas)
+
+    assert insights.metricas[-1]["id_meta_anuncio"] == "995000000000000034"
+    assert insights.metricas[-1]["investimento"] == Decimal(0)
+
+
+def test_linha_sem_entrega_com_visita_ao_perfil_continua() -> None:
+    linhas = ler_linhas_resultados()
+    linhas[4]["results"] = [
+        {"indicator": "profile_visit_view", "values": [{"value": "1"}]}
+    ]
+
+    insights = transformar_linhas(linhas)
+
+    assert insights.metricas[-1]["id_meta_anuncio"] == "995000000000000034"
+
+
+def test_resultado_fora_de_actions_repetido_em_actions_e_recusado() -> None:
+    linhas = ler_linhas_resultados()
+    linhas[0]["actions"].append({"action_type": "profile_visit_view", "value": "1"})
+
+    with pytest.raises(ErroInsights):
+        transformar_linhas(linhas)
+
+
+@pytest.mark.parametrize(
+    "resultados",
+    [
+        [
+            {"indicator": "profile_visit_view", "values": [{"value": "60"}]},
+            {"indicator": "profile_visit_view", "values": [{"value": "60"}]},
+        ],
+        [
+            {
+                "indicator": "profile_visit_view",
+                "values": [
+                    {"value": "60", "attribution_windows": ["7d_click"]},
+                    {"value": "4", "attribution_windows": ["1d_view"]},
+                ],
+            }
+        ],
+    ],
+)
+def test_resultado_fora_do_formato_verificado_e_recusado(resultados: list) -> None:
+    # Um item por linha, com no máximo um valor, na janela padrão (R-24):
+    # somar janelas ou indicadores daria um número que a Meta não conta.
+    linhas = ler_linhas_resultados()
+    linhas[0]["results"] = resultados
+
+    with pytest.raises(ErroInsights):
+        transformar_linhas(linhas)
+
+
+@pytest.mark.parametrize(
+    "resultados",
+    [
+        [{"indicator": "reach", "values": [{"value": "9"}, {"value": "3"}]}],
+        [
+            {"indicator": "actions:link_click"},
+            {"indicator": "actions:link_click"},
+        ],
+        [{"values": [{"value": "60"}]}],
+    ],
+)
+def test_indicator_que_nao_e_lido_de_results_nao_e_conferido(
+    resultados: list,
+) -> None:
+    # Só a visita ao perfil é lida de results; os demais resultados vêm por
+    # outros campos, e uma variação neles não derruba a carga.
+    linhas = ler_linhas_resultados()
+    linhas[3]["results"] = resultados
+
+    insights = transformar_linhas(linhas)
+
+    assert len(insights.metricas) == 4
+
+
 def transformar_alcance(
     nivel: NivelAlcance, linhas: list[dict], tipo: TipoPeriodo = TipoPeriodo.SEMANA
 ) -> list[dict[str, object]]:
@@ -670,6 +874,58 @@ def test_regiao_sem_acao_de_fora_da_meta_fica_sem_linha_e_nao_com_zero() -> None
     assert {"995000000000000003", "995000000000000005"} <= {
         quebra["id_meta_campanha"] for quebra in quebras.quebras
     }
+
+
+@pytest.mark.parametrize(
+    ("campo", "valor", "tipo_acao"),
+    [
+        (
+            "results",
+            [{"indicator": "profile_visit_view", "values": [{"value": "12"}]}],
+            "profile_visit_view",
+        ),
+        (
+            "video_thruplay_watched_actions",
+            [{"action_type": "video_view", "value": "12"}],
+            "video_thruplay_watched_actions",
+        ),
+        (
+            "conversions",
+            [{"action_type": "contact_website", "value": "12"}],
+            "conversions.contact_website",
+        ),
+    ],
+)
+def test_resultado_fora_de_actions_da_campanha_vira_acao_da_quebra(
+    campo: str, valor: list, tipo_acao: str
+) -> None:
+    # A quebra grava o tipo do resultado principal (ADR-0011), também quando
+    # ele vem fora de actions.
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+    linha = linhas[0]
+    linha[campo] = valor
+
+    acoes = transformar_quebra(
+        TipoQuebra.IDADE_GENERO, [linha], {linha["campaign_id"]: tipo_acao}
+    ).acoes
+
+    assert [(a["tipo_acao"], a["quantidade"]) for a in acoes] == [(tipo_acao, 12)]
+
+
+def test_linha_de_quebra_sem_entrega_e_sem_resultado_nao_vira_linha() -> None:
+    linhas = ler_linhas_quebra(TipoQuebra.IDADE_GENERO)
+    vazia = {
+        **{chave: linhas[0][chave] for chave in ("campaign_id", "age", "date_start")},
+        "date_stop": linhas[0]["date_stop"],
+        "gender": "unknown",
+        "spend": "0",
+        "impressions": "0",
+        "results": [{"indicator": "profile_visit_view"}],
+    }
+
+    quebras = transformar_quebra(TipoQuebra.IDADE_GENERO, [*linhas, vazia]).quebras
+
+    assert len(quebras) == len(linhas)
 
 
 def test_campanha_sem_resultado_de_acao_fica_so_com_as_metricas_base() -> None:

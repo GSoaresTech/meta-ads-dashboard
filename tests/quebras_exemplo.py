@@ -73,7 +73,10 @@ def montar_parametros_quebra(
             {"since": inicio.isoformat(), "until": fim.isoformat()}
         ),
         "breakdowns": quebras,
-        "fields": "campaign_id,spend,impressions,reach,actions,action_values",
+        "fields": (
+            "campaign_id,spend,impressions,reach,actions,action_values,"
+            "results,video_thruplay_watched_actions,conversions"
+        ),
         "filtering": json.dumps(
             [
                 {

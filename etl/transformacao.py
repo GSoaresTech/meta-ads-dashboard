@@ -1,8 +1,8 @@
 """Transformação pura das respostas da API nas linhas de normalizado: o
 cadastro de uma conta, com a conta, as campanhas, os conjuntos com as janelas
 de atribuição, as Páginas, os criativos e os anúncios (RF-01), e os insights
-diários por anúncio, com as métricas e a tabela longa das ações (RF-02,
-RF-12), as quebras diárias por campanha, com a ação do resultado principal
+diários por anúncio, com as métricas e a tabela longa das ações, inclusive
+os resultados que a Meta conta fora de actions (RF-02, RF-12; R-24), as quebras diárias por campanha, com a ação do resultado principal
 (RF-03), e o alcance por período (RF-04). Os nomes e os tipos vêm do mapa de
 campos (RF-11, RF-13). Sem rede, banco nem relógio (CLAUDE.md §8).
 
@@ -46,6 +46,47 @@ COLUNAS_CRIATIVO = (
 # Os pares de lista da API e medida da tabela longa das ações (RF-12): a
 # quantidade vem de actions, e o valor, de action_values.
 MEDIDAS_ACAO: Final = (("acoes", "quantidade"), ("valores_acoes", "valor"))
+
+
+@dataclass(frozen=True)
+class ResultadoForaDeActions:
+    """Um resultado que a Meta conta fora de actions (R-24): o indicator dele
+    em results e, quando existe, a lista traduzida e o tipo do item que
+    trazem o mesmo valor em todo anúncio, e não só naquele em que ele é o
+    resultado."""
+
+    indicador: str
+    lista: str | None = None
+    tipo_item: str | None = None
+
+    @property
+    def tipo_acao(self) -> str:
+        """O tipo na tabela longa das ações: o indicator, com ponto no lugar
+        dos dois-pontos, que o formato do tipo de ação não aceita (ADR-0009
+        §2)."""
+        return self.indicador.replace(":", ".")
+
+
+# Os resultados das regras do catálogo que não vêm em actions (REQUIREMENTS
+# §7.2). Os demais tipos de conversions não são resultado de nenhuma regra, e
+# os eventos personalizados trazem o nome do evento, fora do formato do tipo
+# de ação.
+RESULTADOS_FORA_DE_ACTIONS: Final = (
+    ResultadoForaDeActions("profile_visit_view"),
+    ResultadoForaDeActions(
+        "video_thruplay_watched_actions", "visualizacoes_thruplay", "video_view"
+    ),
+    ResultadoForaDeActions(
+        "conversions:contact_website", "conversoes", "contact_website"
+    ),
+)
+# Os indicators lidos de results: os dos resultados que não vêm em outro
+# campo.
+INDICADORES_LIDOS_DE_RESULTS: Final = frozenset(
+    resultado.indicador
+    for resultado in RESULTADOS_FORA_DE_ACTIONS
+    if resultado.lista is None
+)
 
 # A entidade de cada nível do alcance por período, pelo ID da Meta; a linha
 # da conta não tem nenhuma, porque é da própria conta consultada.
@@ -268,7 +309,8 @@ def validar_referencias(
 def transformar_insights_diarios(
     paginas: Sequence[Mapping[str, object]],
 ) -> InsightsDiarios:
-    """Uma métrica por linha de insights e uma ação por tipo da linha.
+    """Uma métrica por linha de insights e uma ação por tipo da linha, salvo
+    nas linhas sem entrega nem ação (tem_entrega_ou_acao).
 
     A ausência de um tipo de ação é a ausência da linha, porque a API omite
     os tipos sem ocorrência (CLAUDE.md §5). Um anúncio e dia repetidos são
@@ -280,6 +322,9 @@ def transformar_insights_diarios(
     for registro in ler_registros(paginas):
         linha = traduzir_registro(ObjetoApi.INSIGHTS, registro)
         grao = ler_grao(linha)
+        acoes_linha = combinar_acoes(linha)
+        if not tem_entrega_ou_acao(linha, acoes_linha):
+            continue
         metricas.append(
             {
                 **grao,
@@ -288,7 +333,7 @@ def transformar_insights_diarios(
                 "alcance": linha["alcance"],
             }
         )
-        acoes.extend({**grao, **acao} for acao in combinar_acoes(linha))
+        acoes.extend({**grao, **acao} for acao in acoes_linha)
     repetidos = len(metricas) - len(
         {(m["id_meta_anuncio"], m["data"]) for m in metricas}
     )
@@ -308,23 +353,90 @@ def ler_grao(linha: RegistroTraduzido) -> LinhaCadastro:
     return {"id_meta_anuncio": linha["id_meta_anuncio"], "data": inicio}
 
 
+def tem_entrega_ou_acao(
+    linha: RegistroTraduzido, acoes: Sequence[LinhaCadastro]
+) -> bool:
+    """Com results na consulta, a API devolve também anúncios e dias sem
+    investimento, impressões nem nenhuma ação, que a consulta sem ele não
+    devolve (R-24). Eles não viram linha: a ausência da linha já é a falta de
+    entrega. O dia sem entrega com conversão atribuída continua (R-21)."""
+    return bool(linha["investimento"] or linha["impressoes"] or acoes)
+
+
 def combinar_acoes(linha: RegistroTraduzido) -> list[LinhaCadastro]:
     """Uma linha por tipo de ação, com a quantidade de actions e o valor de
-    action_values (RF-12). O tipo que vem só numa das listas fica com a
-    outra medida nula."""
+    action_values (RF-12), e uma por resultado fora de actions, só com a
+    quantidade. O tipo que vem só numa das listas fica com a outra medida
+    nula."""
     por_tipo: dict[object, LinhaCadastro] = {}
     for lista, medida in MEDIDAS_ACAO:
-        itens = linha[lista] or []
-        tipos = [item["tipo_acao"] for item in itens]
-        if None in tipos or len(set(tipos)) != len(tipos):
-            raise ErroInsights(f"tipo de ação ausente ou repetido em {lista}")
-        for item in itens:
+        for item in ler_itens_acao(linha, lista):
             acao = por_tipo.setdefault(
                 item["tipo_acao"],
                 {"tipo_acao": item["tipo_acao"], "quantidade": None, "valor": None},
             )
             acao[medida] = item[medida]
+    for acao in ler_resultados_fora_de_actions(linha):
+        if acao["tipo_acao"] in por_tipo:
+            raise ErroInsights("resultado fora de actions repetido em actions")
+        por_tipo[acao["tipo_acao"]] = acao
     return list(por_tipo.values())
+
+
+def ler_itens_acao(linha: RegistroTraduzido, lista: str) -> list[RegistroTraduzido]:
+    """Os itens de uma lista de AdsActionStats, cada tipo uma vez só."""
+    itens = linha[lista] or []
+    tipos = [item["tipo_acao"] for item in itens]
+    if None in tipos or len(set(tipos)) != len(tipos):
+        raise ErroInsights(f"tipo de ação ausente ou repetido em {lista}")
+    return itens
+
+
+def ler_resultados_fora_de_actions(linha: RegistroTraduzido) -> list[LinhaCadastro]:
+    """Os resultados fora de actions que vieram na linha, com o indicator
+    como tipo (RESULTADOS_FORA_DE_ACTIONS). O que não veio fica sem linha,
+    como as ações que a API omite."""
+    valores = ler_valores_resultados(linha)
+    acoes = []
+    for resultado in RESULTADOS_FORA_DE_ACTIONS:
+        if resultado.lista is None:
+            quantidade = valores.get(resultado.indicador)
+        else:
+            itens = ler_itens_acao(linha, resultado.lista)
+            quantidade = next(
+                (
+                    i["quantidade"]
+                    for i in itens
+                    if i["tipo_acao"] == resultado.tipo_item
+                ),
+                None,
+            )
+        if quantidade is not None:
+            acoes.append(
+                {
+                    "tipo_acao": resultado.tipo_acao,
+                    "quantidade": quantidade,
+                    "valor": None,
+                }
+            )
+    return acoes
+
+
+def ler_valores_resultados(linha: RegistroTraduzido) -> dict[str, int | None]:
+    """O valor de cada indicator lido de results, no formato verificado:
+    uma vez só na linha, com no máximo um valor, o da janela padrão (R-24).
+    Somar janelas ou repetições daria um número que a Meta não conta. Os
+    demais indicators não são lidos nem conferidos, para que uma variação
+    num resultado que vem por outro campo não derrube a carga."""
+    valores: dict[str, int | None] = {}
+    for item in linha["resultados"] or []:
+        indicador, lista = item["indicador"], item["valores"] or []
+        if indicador not in INDICADORES_LIDOS_DE_RESULTS:
+            continue
+        if indicador in valores or len(lista) > 1:
+            raise ErroInsights("resultado fora do formato verificado")
+        valores[indicador] = lista[0]["quantidade"] if lista else None
+    return valores
 
 
 def transformar_quebras_campanha(
@@ -334,7 +446,8 @@ def transformar_quebras_campanha(
 ) -> QuebrasCampanha:
     """Uma linha por campanha, dia e categoria da resposta de uma quebra, com
     as métricas-base, e a ação do resultado principal da campanha, se veio
-    na linha (RF-03).
+    na linha (RF-03), salvo nas linhas sem entrega nem ação
+    (tem_entrega_ou_acao).
 
     tipos_acao_resultado leva o ID da Meta da campanha ao tipo de ação do
     resultado principal dela; a campanha sem resultado de ação fica fora e
@@ -348,6 +461,9 @@ def transformar_quebras_campanha(
     for registro in ler_registros(paginas):
         linha = traduzir_registro(ObjetoApi.INSIGHTS, registro)
         grao = ler_grao_quebra(linha, tipo)
+        acoes_linha = combinar_acoes(linha)
+        if not tem_entrega_ou_acao(linha, acoes_linha):
+            continue
         quebras.append(
             {
                 **grao,
@@ -358,9 +474,7 @@ def transformar_quebras_campanha(
         )
         tipo_acao = tipos_acao_resultado.get(grao["id_meta_campanha"])
         acoes.extend(
-            {**grao, **acao}
-            for acao in combinar_acoes(linha)
-            if acao["tipo_acao"] == tipo_acao
+            {**grao, **acao} for acao in acoes_linha if acao["tipo_acao"] == tipo_acao
         )
     repetidas = len(quebras) - len(
         {tuple(quebra[coluna] for coluna in GRAO_QUEBRA) for quebra in quebras}
