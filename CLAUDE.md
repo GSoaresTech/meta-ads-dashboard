@@ -49,6 +49,7 @@ ETL (exige Python 3.13 ou mais novo), na raiz do repositório:
 - `.venv/bin/python -m coverage run -m pytest`: roda os mesmos testes medindo a cobertura do pacote `etl`.
 - `.venv/bin/python -m coverage report`: mostra a cobertura medida e falha abaixo de 80% (RNF-19).
 - `.venv/bin/python -m etl.rotina_diaria`: roda a revisão diária leve para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Lê os 28 dias anteriores e o alcance da semana, do mês e do ano de ontem, ou dos dias perdidos depois de uma falha, de cada conta que já teve a carga inicial, sem o cadastro completo (ADR-0017).
+- `.venv/bin/python -m etl.rotina_horaria`: roda a rotina horária para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Lê os insights e as quebras de ontem e hoje de cada conta que já teve a carga inicial e relê pelo ID os anúncios com entrega nesses dias, com o conjunto e a campanha, sem o cadastro completo nem o alcance (ADR-0017).
 - `.venv/bin/python -m etl.carga_historica`: roda a carga inicial para cada empresa ativa, com `TOKEN_SISTEMA_META` e `URL_BANCO` no ambiente. Lê o cadastro completo de cada conta que ainda não o tem, em todas as empresas, e depois planeja as fatias das contas novas e continua da primeira fatia não concluída.
 
 Painel (exige o Node.js na faixa do campo `engines` do `web/package.json`, com o npm que vem junto), em `web/`:
