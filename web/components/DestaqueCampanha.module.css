@@ -1,0 +1,38 @@
+/* O painel do destaque fica no marfim, a superfície dos blocos em destaque
+   (ADR-0015). Os cartões e as séries sobre ele seguem a grade do resumo, que
+   também cabe em 360 px (RF-29). */
+.destaque {
+  padding: var(--espaco-40);
+  border-radius: var(--raio-painel);
+  background: var(--cor-marfim);
+}
+
+.grade {
+  composes: grade from "./ResumoDesempenho.module.css";
+}
+
+.situacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-8) var(--espaco-20);
+  margin: 0 0 var(--espaco-20);
+}
+
+.situacao div {
+  display: flex;
+  gap: var(--espaco-8);
+}
+
+.situacao dt {
+  color: var(--cor-aco);
+}
+
+.situacao dd {
+  margin: 0;
+}
+
+@media (max-width: 40rem) {
+  .destaque {
+    padding: var(--espaco-20) var(--espaco-12);
+  }
+}
