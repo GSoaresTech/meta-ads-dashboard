@@ -4,7 +4,7 @@
 -- pelo calendário (RF-25, RF-32, RF-33, RF-34; RNF-14; REQUIREMENTS §7.1;
 -- ADR-0009 §4).
 BEGIN;
-SELECT plan(45);
+SELECT plan(46);
 
 -- Atributos: o painel_leitor só executa, e a função roda com os privilégios
 -- do postgres, com search_path vazio (ADR-0009 §3 e §4).
@@ -321,6 +321,21 @@ SELECT results_eq(
          ('campanha', '320000000000000002', 30.00)
   $$,
   'RF-32: as campanhas somam 45,50 e 30,00, e a conta, 75,50'
+);
+-- RF-32: a soma dos anúncios é o investimento da campanha.
+SELECT results_eq(
+  $$
+  SELECT r.nivel, e.id_meta, r.valor
+  FROM resultado AS r
+  JOIN entidade_teste AS e ON e.id = r.entidade_id
+  WHERE r.chamada = 'campanha320000000000000001' AND r.granularidade = 'periodo' AND r.metrica = 'investimento'
+  ORDER BY r.nivel DESC, e.id_meta
+  $$,
+  $$
+  VALUES ('campanha', '320000000000000001', 45.50), ('anuncio', '350000000000000001', 35.50),
+         ('anuncio', '350000000000000002', 10.00)
+  $$,
+  'RF-32: os anúncios somam 35,50 e 10,00, e a campanha, 45,50'
 );
 -- Em toda chamada, granularidade, período e moeda, cada métrica aditiva da
 -- entidade em foco é a soma das filhas, e não há filha sem a linha do foco.
