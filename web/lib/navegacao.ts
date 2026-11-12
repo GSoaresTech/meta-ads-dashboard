@@ -39,14 +39,6 @@ export const ROTULOS_NIVEL: Record<Nivel, string> = {
   anuncio: "Anúncio",
 };
 
-// O anúncio é o nível mais detalhado (REQUIREMENTS §3.1).
-export const NIVEIS_FILHOS = {
-  geral: "conta",
-  conta: "campanha",
-  campanha: "anuncio",
-  anuncio: null,
-} as const satisfies Record<Nivel, NivelFilho | null>;
-
 export interface Selecao {
   // O atalho é recalculado a cada visita, e o intervalo livre fica fixo.
   periodo: Atalho | Intervalo;

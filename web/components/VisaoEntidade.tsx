@@ -9,6 +9,7 @@ import { TrilhaNavegacao } from "@/components/TrilhaNavegacao";
 import { exigirCredencialEmpresa } from "@/lib/acesso";
 import {
   carregarResumoGeral,
+  carregarVisaoAnuncio,
   carregarVisaoCampanha,
   carregarVisaoConta,
 } from "@/lib/desempenho";
@@ -16,10 +17,10 @@ import { carregarTrilha, listarFilhasComEntrega } from "@/lib/entidades";
 import {
   lerSelecao,
   montarCaminho,
-  NIVEIS_FILHOS,
   nomearEntidade,
   resolverIntervalo,
   type Nivel,
+  type NivelTrilha,
   type ParametrosUrl,
   type Selecao,
 } from "@/lib/navegacao";
@@ -39,6 +40,8 @@ interface PropriedadesConteudo {
   entidadeId: string | null;
   intervalo: Intervalo;
   selecao: Selecao;
+  // Do geral até a entidade em foco.
+  trilha: NivelTrilha[];
 }
 
 // Os totais, as séries e as campanhas com as colunas da conta (§3.1).
@@ -123,54 +126,66 @@ async function ConteudoCampanha({
   );
 }
 
-type NivelEntidade = Exclude<Nivel, "conta" | "campanha">;
-
-// Os totais e as séries do Geral e a lista das filhas dos demais níveis.
-async function ConteudoEntidade({
+// As métricas e as séries do anúncio, que são as da campanha dele (§3.1;
+// ADR-0019).
+async function ConteudoAnuncio({
   credencial,
   empresaId,
-  nivel,
   entidadeId,
   intervalo,
   selecao,
-}: Readonly<PropriedadesConteudo & { nivel: NivelEntidade }>) {
-  const nivelFilho = NIVEIS_FILHOS[nivel];
-  const [filhas, resumos] = await Promise.all([
-    nivelFilho === null
-      ? []
-      : listarFilhasComEntrega(
+  trilha,
+}: Readonly<PropriedadesConteudo>) {
+  const campanha = trilha.find(({ nivel }) => nivel === "campanha");
+  const resumos =
+    campanha === undefined
+      ? null
+      : await carregarVisaoAnuncio(
           credencial,
           empresaId,
-          nivel,
           entidadeId,
-          intervalo,
-        ),
-    nivel === "geral"
-      ? carregarResumoGeral(
-          credencial,
-          empresaId,
+          campanha.entidadeId,
           intervalo,
           selecao.granularidade,
-        )
-      : null,
+        );
+  if (resumos === null) {
+    notFound();
+  }
+
+  return (
+    <ResumoDesempenho resumos={resumos} granularidade={selecao.granularidade} />
+  );
+}
+
+// Os totais e as séries do Geral e a lista das contas.
+async function ConteudoGeral({
+  credencial,
+  empresaId,
+  intervalo,
+  selecao,
+}: Readonly<PropriedadesConteudo>) {
+  const [contas, resumos] = await Promise.all([
+    listarFilhasComEntrega(credencial, empresaId, "geral", null, intervalo),
+    carregarResumoGeral(
+      credencial,
+      empresaId,
+      intervalo,
+      selecao.granularidade,
+    ),
   ]);
 
   return (
     <>
-      {resumos !== null && (
-        <ResumoDesempenho
-          resumos={resumos}
-          granularidade={selecao.granularidade}
-        />
-      )}
-      {nivelFilho !== null && (
-        <ListaEntidades
-          empresaId={empresaId}
-          nivel={nivelFilho}
-          filhas={filhas}
-          selecao={selecao}
-        />
-      )}
+      <ResumoDesempenho
+        resumos={resumos}
+        granularidade={selecao.granularidade}
+      />
+      <ListaEntidades
+        empresaId={empresaId}
+        nivel="conta"
+        filhas={contas}
+        selecao={selecao}
+      />
     </>
   );
 }
@@ -184,8 +199,10 @@ function ConteudoNivel({
       return <ConteudoConta {...conteudo} />;
     case "campanha":
       return <ConteudoCampanha {...conteudo} />;
+    case "anuncio":
+      return <ConteudoAnuncio {...conteudo} />;
     default:
-      return <ConteudoEntidade {...conteudo} nivel={nivel} />;
+      return <ConteudoGeral {...conteudo} />;
   }
 }
 
@@ -207,7 +224,14 @@ export async function VisaoEntidade({
   const selecao = lerSelecao(parametros);
   const hoje = obterHoje(new Date(), foco.fusosHorarios);
   const intervalo = resolverIntervalo(selecao.periodo, hoje);
-  const conteudo = { credencial, empresaId, entidadeId, intervalo, selecao };
+  const conteudo = {
+    credencial,
+    empresaId,
+    entidadeId,
+    intervalo,
+    selecao,
+    trilha,
+  };
 
   return (
     <main>
