@@ -145,6 +145,7 @@ FROM (
       'listar_entidades · campanha',
       format('SELECT * FROM analitico.listar_entidades(%L, %L, %L, %L)', :'token', :'empresa_id', 'campanha', :'campanha_id')
     ),
+    ('obter_campanha', format('SELECT * FROM analitico.obter_campanha(%L, %L, %L)', :'token', :'empresa_id', :'campanha_id')),
     ('listar_metricas', format('SELECT * FROM analitico.listar_metricas(%L)', :'token')),
     (
       'listar_resultados · últimos 30 dias',
