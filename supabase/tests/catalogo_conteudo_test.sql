@@ -5,7 +5,7 @@
 -- casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
 -- ADR-0007; ADR-0009 §2).
 BEGIN;
-SELECT plan(24);
+SELECT plan(25);
 
 SELECT isnt_empty('SELECT 1 FROM normalizado.metrica', 'o catálogo de métricas está carregado');
 SELECT isnt_empty('SELECT 1 FROM normalizado.resultado_objetivo', 'o catálogo de resultado por objetivo está carregado');
@@ -81,13 +81,13 @@ SELECT results_eq(
   $$,
   $$
   VALUES
-    ('CONVERSIONS', NULL, 'Conversões (objetivo antigo)', NULL, NULL, ARRAY['cadastros', 'compras', 'cliques_link']),
+    ('CONVERSIONS', NULL, 'Conversões (objetivo antigo)', NULL, NULL, ARRAY['cadastros', 'compras', 'contatos_site', 'cliques_link']),
     ('OUTCOME_APP_PROMOTION', NULL, 'Promoção de app', 'instalacoes_app', 'custo_instalacao', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_AWARENESS', NULL, 'Reconhecimento', 'alcance', 'custo_mil_alcance', ARRAY['frequencia', 'impressoes', 'cpm']),
     ('OUTCOME_ENGAGEMENT', NULL, 'Engajamento', 'interacoes_publicacao', 'custo_interacao', ARRAY['alcance', 'ctr', 'cpm']),
     ('OUTCOME_ENGAGEMENT', 'CONVERSATIONS', 'Conversas', 'conversas_iniciadas', 'custo_conversa', ARRAY['cliques_link', 'ctr', 'cpm']),
-    ('OUTCOME_ENGAGEMENT', 'OFFSITE_CONVERSIONS', 'Conversões no site', NULL, NULL, ARRAY['cliques_link', 'visualizacoes_pagina_destino', 'ctr']),
-    ('OUTCOME_ENGAGEMENT', 'THRUPLAY', 'Visualizações de vídeo', NULL, NULL, ARRAY['alcance', 'impressoes', 'cpm']),
+    ('OUTCOME_ENGAGEMENT', 'OFFSITE_CONVERSIONS', 'Conversões no site', 'contatos_site', 'custo_contato_site', ARRAY['cliques_link', 'visualizacoes_pagina_destino', 'ctr']),
+    ('OUTCOME_ENGAGEMENT', 'THRUPLAY', 'Visualizações de vídeo', 'visualizacoes_thruplay', 'custo_thruplay', ARRAY['alcance', 'impressoes', 'cpm']),
     ('OUTCOME_LEADS', NULL, 'Cadastros', 'cadastros', 'custo_cadastro', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_LEADS', 'CONVERSATIONS', 'Cadastros por conversa', 'conversas_iniciadas', 'custo_conversa', ARRAY['cadastros', 'ctr']),
     ('OUTCOME_SALES', NULL, 'Vendas', 'compras', 'custo_compra', ARRAY['valor_compras', 'roas', 'cliques_link']),
@@ -95,9 +95,9 @@ SELECT results_eq(
     ('OUTCOME_TRAFFIC', NULL, 'Tráfego', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'visualizacoes_pagina_destino']),
     ('OUTCOME_TRAFFIC', 'CONVERSATIONS', 'Tráfego para conversas', 'conversas_iniciadas', 'custo_conversa', ARRAY['cliques_link', 'ctr', 'cpm']),
     ('OUTCOME_TRAFFIC', 'LANDING_PAGE_VIEWS', 'Tráfego', 'visualizacoes_pagina_destino', 'custo_visualizacao_pagina', ARRAY['cliques_link', 'ctr', 'cpc']),
-    ('OUTCOME_TRAFFIC', 'PROFILE_VISIT', 'Visitas ao perfil', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'alcance']),
-    ('OUTCOME_TRAFFIC', 'VISIT_INSTAGRAM_PROFILE', 'Visitas ao perfil', 'cliques_link', 'cpc', ARRAY['ctr', 'cpm', 'alcance']),
-    ('VIDEO_VIEWS', NULL, 'Visualizações de vídeo (objetivo antigo)', NULL, NULL, ARRAY['alcance', 'impressoes', 'cpm']),
+    ('OUTCOME_TRAFFIC', 'PROFILE_VISIT', 'Visitas ao perfil', 'visitas_perfil', 'custo_visita_perfil', ARRAY['ctr', 'cpm', 'alcance']),
+    ('OUTCOME_TRAFFIC', 'VISIT_INSTAGRAM_PROFILE', 'Visitas ao perfil', 'visitas_perfil', 'custo_visita_perfil', ARRAY['ctr', 'cpm', 'alcance']),
+    ('VIDEO_VIEWS', NULL, 'Visualizações de vídeo (objetivo antigo)', NULL, NULL, ARRAY['visualizacoes_thruplay', 'alcance', 'impressoes', 'cpm']),
     (NULL, NULL, 'Não classificado', NULL, NULL, ARRAY['investimento', 'impressoes', 'cliques_link'])
   $$,
   'cada regra tem o nome, o resultado, o KPI e as métricas de apoio, em ordem, do REQUIREMENTS §7.2'
@@ -269,15 +269,36 @@ SELECT results_eq(
     ('ctr', 'cliques_link', 'impressoes', 1::numeric),
     ('custo_cadastro', 'investimento', 'cadastros', 1::numeric),
     ('custo_compra', 'investimento', 'compras', 1::numeric),
+    ('custo_contato_site', 'investimento', 'contatos_site', 1::numeric),
     ('custo_conversa', 'investimento', 'conversas_iniciadas', 1::numeric),
     ('custo_instalacao', 'investimento', 'instalacoes_app', 1::numeric),
     ('custo_interacao', 'investimento', 'interacoes_publicacao', 1::numeric),
     ('custo_mil_alcance', 'investimento', 'alcance', 1000::numeric),
+    ('custo_thruplay', 'investimento', 'visualizacoes_thruplay', 1::numeric),
+    ('custo_visita_perfil', 'investimento', 'visitas_perfil', 1::numeric),
     ('custo_visualizacao_pagina', 'investimento', 'visualizacoes_pagina_destino', 1::numeric),
     ('frequencia', 'impressoes', 'alcance', 1::numeric),
     ('roas', 'valor_compras', 'investimento', 1::numeric)
   $$,
   'cada métrica derivada é a razão entre as métricas da própria fórmula, com o fator de escala'
+);
+-- Os resultados que a Meta conta fora de actions são métricas de ação, com
+-- o tipo que a ETL grava na tabela longa: o indicator de results, com ponto
+-- no lugar dos dois-pontos (R-24; REQUIREMENTS §7.2).
+SELECT results_eq(
+  $$
+  SELECT codigo, tipo, tipo_acao, medida_acao, unidade, aditiva
+  FROM normalizado.metrica
+  WHERE codigo IN ('visitas_perfil', 'visualizacoes_thruplay', 'contatos_site')
+  ORDER BY codigo
+  $$,
+  $$
+  VALUES
+    ('contatos_site', 'acao', 'conversions.contact_website', 'quantidade', 'quantidade', true),
+    ('visitas_perfil', 'acao', 'profile_visit_view', 'quantidade', 'quantidade', true),
+    ('visualizacoes_thruplay', 'acao', 'video_thruplay_watched_actions', 'quantidade', 'quantidade', true)
+  $$,
+  'visitas ao perfil, ThruPlay e contato no site leem o tipo gravado a partir do indicator de results'
 );
 -- As funções de analitico calculam a derivada a partir das somas dos
 -- operandos, sem encadear uma derivada em outra.

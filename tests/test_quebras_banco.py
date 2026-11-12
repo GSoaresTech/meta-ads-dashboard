@@ -26,7 +26,7 @@ from tests.cadastro_exemplo import ID_META_CONTA
 from tests.conftest import LIMPEZA_EMPRESA, EmpresaTeste, criar_empresa
 from tests.insights_exemplo import FIM, INICIO
 from tests.quebras_exemplo import (
-    CAMPANHAS_SEM_RESULTADO,
+    CAMPANHAS_SEM_ACAO_RESULTADO,
     ID_META_CAMPANHA_AUSENTE,
     TIPOS_ACAO_RESULTADO,
     Fixtures,
@@ -199,7 +199,7 @@ def ler_quebras(conexao: psycopg.Connection, empresa_id: UUID) -> list[tuple]:
 def sobrescrever_com_interacoes(
     conexao_operador: psycopg.Connection, empresa_id: UUID
 ) -> None:
-    """Dá às campanhas de ThruPlay, sem resultado principal no catálogo, as
+    """Dá às campanhas de ThruPlay, cujo resultado as fixtures não trazem, as
     interações como resultado, que vêm em todas as quebras, inclusive na
     região (RF-49)."""
     conexao_operador.execute(
@@ -207,7 +207,7 @@ def sobrescrever_com_interacoes(
         " (empresa_id, campanha_id, metrica_resultado, metrica_kpi)"
         " SELECT empresa_id, id, 'interacoes_publicacao', 'custo_interacao'"
         " FROM normalizado.campanha WHERE empresa_id = %s AND id_meta = ANY(%s)",
-        (empresa_id, list(CAMPANHAS_SEM_RESULTADO)),
+        (empresa_id, list(CAMPANHAS_SEM_ACAO_RESULTADO)),
     )
 
 
@@ -246,8 +246,8 @@ def test_quebras_vem_como_a_api_as_devolveu_com_a_acao_do_resultado(
     com_insights: EmpresaTeste,
 ) -> None:
     # O tipo de ação de cada campanha vem da resolução do resultado
-    # principal no banco (ADR-0011), e não da resposta. As campanhas sem
-    # resultado principal ficam sem ações.
+    # principal no banco (ADR-0011), e não da resposta. As campanhas cujo
+    # resultado não veio na resposta ficam sem ações.
     status = executar_quebras(conectar_etl, com_insights.empresa_id, ler_fixtures())
 
     assert status is StatusExecucao.SUCESSO
@@ -271,7 +271,7 @@ def test_quebras_vem_como_a_api_as_devolveu_com_a_acao_do_resultado(
         (id_meta, tipo)
         for id_meta, tipo in TIPOS_ACAO_RESULTADO.items()
         if id_meta != ID_META_CAMPANHA_AUSENTE
-        and id_meta not in CAMPANHAS_SEM_RESULTADO
+        and id_meta not in CAMPANHAS_SEM_ACAO_RESULTADO
     }
 
 
@@ -287,7 +287,7 @@ def test_regiao_sem_acao_de_fora_da_meta_fica_sem_linha_e_nao_com_zero(
 
     acoes = ler_acoes(conexao_operador, com_insights.empresa_id)
     na_regiao = {id_meta for id_meta, tipo, _, _ in acoes if tipo == "regiao"}
-    assert na_regiao == CAMPANHAS_SEM_RESULTADO
+    assert na_regiao == CAMPANHAS_SEM_ACAO_RESULTADO
     assert all(quantidade > 0 for *_, quantidade in acoes)
 
 
@@ -314,6 +314,40 @@ def test_sobrescrita_do_resultado_muda_a_acao_gravada(
         if id_meta == ID_META_CAMPANHA_CADASTROS
     }
     assert tipos == {"link_click"}
+
+
+def test_thruplay_da_campanha_de_thruplay_vira_a_acao_da_quebra(
+    conectar_etl: Callable[[], psycopg.Connection],
+    conexao_operador: psycopg.Connection,
+    com_insights: EmpresaTeste,
+) -> None:
+    # O ThruPlay é o resultado das campanhas de ThruPlay e vem fora de
+    # actions; a carga grava o tipo que o catálogo lê (REQUIREMENTS §7.2;
+    # ADR-0007). As fixtures não o trazem, e o teste o acrescenta.
+    fixtures = ler_fixtures()
+    com_thruplay = [
+        linha
+        for linha in listar_linhas(fixtures, "idade_genero")
+        if linha["campaign_id"] in CAMPANHAS_SEM_ACAO_RESULTADO
+    ]
+    for linha in com_thruplay:
+        linha["video_thruplay_watched_actions"] = [
+            {"action_type": "video_view", "value": "7"}
+        ]
+
+    status = executar_quebras(conectar_etl, com_insights.empresa_id, fixtures)
+
+    assert status is StatusExecucao.SUCESSO
+    acoes = [
+        acao
+        for acao in ler_acoes(conexao_operador, com_insights.empresa_id)
+        if acao[0] in CAMPANHAS_SEM_ACAO_RESULTADO
+    ]
+    assert len(acoes) == len(com_thruplay)
+    assert set(acoes) == {
+        (id_meta, "idade_genero", "video_thruplay_watched_actions", 7)
+        for id_meta in {linha["campaign_id"] for linha in com_thruplay}
+    }
 
 
 def test_campanha_ausente_do_banco_e_lida_pelo_id_antes_das_quebras(
