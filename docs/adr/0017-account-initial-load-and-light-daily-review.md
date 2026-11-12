@@ -2,6 +2,7 @@
 
 - Status: Aceito
 - Data: 11/11/2026
+- Atualizado em: 12/11/2026, com a medição da horária
 - Substitui: a cadência do ADR-0005 e a extração diária do alcance do ADR-0006
 
 ## Contexto
@@ -71,6 +72,7 @@ Pontos decididos neste ADR:
 ## Consequências
 
 - A extração recorrente deixa de ler a conta e as arestas de anúncios, conjuntos e campanhas. Em 11/11/2026, nas quatro contas da empresa em produção, as consultas da revisão leve levaram 9,8 min, contra 20 min 51 s da extração da rotina completa no mesmo dia, pelo log do Actions. A medição foi feita só na API, sem a leitura pelo ID dos objetos novos, que depende do banco e não faz chamada quando não há objeto novo. A conta com mais campanhas levou 5 min, e três das quatro contas tiveram consultas por job assíncrono (R-39).
+- Em 12/11/2026, nas quatro contas da empresa em produção, a extração da horária levou 2 min 51 s, com 159 leituras pelo ID dos anúncios, conjuntos e campanhas com entrega em ontem e hoje, dentro dos 10 min do RNF-07. A medição foi feita só na API, sem a carga. Nenhuma campanha das quebras ficou de fora das que vêm pelos anúncios.
 - Uma entidade que muda sem ter entrega hoje nem ontem continua no banco com o nome, o status e a meta da última leitura, até voltar a ter entrega. Um exemplo é a campanha renomeada depois de encerrada.
 - O alcance de uma semana ou de um mês encerrado tem a última leitura na primeira revisão bem-sucedida que vem depois do fim dele. Se a Meta revisar esse alcance dentro dos 28 dias (R-17), o banco fica com essa leitura.
 - A conta recém-cadastrada não entra na revisão até a carga inicial gravar o fuso, o que acontece na mesma madrugada, depois da revisão, ou no disparo manual. A partir da noite seguinte, ela tem os 28 dias da revisão, mesmo que o histórico ainda não tenha terminado.
