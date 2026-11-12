@@ -2,7 +2,7 @@
 
 - Status: Aceito
 - Data: 05/11/2026
-- Atualizado em: 11/11/2026, com as regras sem resultado principal no lugar da questão em aberto
+- Atualizado em: 11/11/2026, com as regras sem resultado principal no lugar da questão em aberto, e em 12/11/2026, com os resultados fora de `actions`
 
 ## Contexto
 
@@ -37,6 +37,7 @@ Pontos decididos neste ADR:
 - **Tipos de ação**: a carga das quebras grava, para cada campanha, só o tipo de ação da métrica de resultado principal dela, com a quantidade e o valor. O valor serve às métricas de apoio do mesmo tipo, como o valor das compras.
   - O resultado principal vem de `normalizado.resolver_resultado_campanha` (ADR-0009 §4), lida na transação da carga, depois das entidades. A mesma resolução vale para todos os dias da janela carregada.
   - A carga das quebras roda depois da dos insights diários da mesma janela, porque a resolução usa os conjuntos e o investimento dos últimos 28 dias que ela carrega. Uma campanha que só as quebras trazem é lida pelo ID sem os conjuntos, e resolve pela regra de "qualquer" do objetivo até a próxima recarga desses dias.
+  - O resultado que a Meta conta fora de `actions` também é gravado: as quebras pedem os mesmos campos de resultados dos insights diários, e a transformação lê o tipo de ação dele pela regra do ADR-0007. Na região, esses resultados não vêm (R-23) e ficam sem linha: a falta deles também é "não disponível", e não zero (Q-12).
   - A campanha cujo resultado não é métrica de ação, como o alcance, ou que não tem resultado, como "Não classificado" e as regras sem resultado principal (`docs/REQUIREMENTS.md` §7.2), fica sem ações nas quebras. As métricas-base dela são gravadas normalmente.
   - Isto substitui o ponto "Ações das quebras" do ADR-0009 §2.
 - **Região**: a carga grava só os tipos de ação que a API devolve, sem completar os ausentes com zero.
