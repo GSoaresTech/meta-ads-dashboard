@@ -17,6 +17,7 @@ import {
   type Metrica,
   type ResumoMoeda,
 } from "@/lib/resumo-desempenho";
+import { montarVisaoAnuncio } from "@/lib/visao-anuncio";
 import {
   listarMetricasCampanha,
   montarVisaoCampanha,
@@ -223,4 +224,39 @@ export async function carregarVisaoCampanha(
   ]);
 
   return montarVisaoCampanha({ catalogo, campanha, totais, serie });
+}
+
+// O que a visão do anúncio mostra (REQUIREMENTS §3.1): as métricas da campanha
+// dele, com o total e a série de cada uma (ADR-0019). A campanha vem da trilha
+// do anúncio. Nulo para campanha que a credencial não lê.
+export async function carregarVisaoAnuncio(
+  credencial: string,
+  empresaId: string,
+  anuncioId: string | null,
+  campanhaId: string | null,
+  intervalo: Intervalo,
+  granularidade: Granularidade,
+): Promise<ResumoMoeda[] | null> {
+  const [catalogo, campanha] = await Promise.all([
+    carregarCatalogo(credencial),
+    obterCampanha(credencial, empresaId, campanhaId),
+  ]);
+  if (campanha === undefined) {
+    return null;
+  }
+
+  const filtro: FiltroDesempenho = {
+    credencial,
+    empresaId,
+    nivel: "anuncio",
+    entidadeId: anuncioId,
+    intervalo,
+    metricas: listarMetricasCampanha(campanha),
+  };
+  const [totais, serie] = await Promise.all([
+    carregarDesempenho(filtro, "periodo", ["anuncio"]),
+    carregarDesempenho(filtro, granularidade, ["anuncio"]),
+  ]);
+
+  return montarVisaoAnuncio({ catalogo, campanha, totais, serie });
 }
