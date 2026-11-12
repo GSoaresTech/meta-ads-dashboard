@@ -69,10 +69,10 @@ function escolherMetricas(
   ];
 }
 
-function resumirMetrica(
+export function resumirMetrica(
   metrica: Metrica,
   moeda: string,
-  { totais, serie }: LeiturasResumo,
+  { totais, serie }: Pick<LeiturasResumo, "totais" | "serie">,
 ): MetricaResumida {
   const pertence = (linha: LinhaDesempenho) =>
     linha.moeda === moeda && linha.metrica === metrica.codigo;
