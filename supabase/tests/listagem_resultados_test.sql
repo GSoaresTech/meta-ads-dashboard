@@ -36,9 +36,10 @@ SELECT ok(
 
 -- A empresa A tem uma conta em BRL e outra em USD. Em BRL: vendas com entrega
 -- em setembro e em outubro, cadastros só em setembro, duas campanhas de
--- conversas em outubro, uma de vídeo sem resultado principal no catálogo e um
--- tráfego sobrescrito para cadastros, em outubro. Em USD: vendas em outubro. A
--- empresa B tem tráfego em outubro, que nunca pode aparecer para A.
+-- conversas em outubro, uma de vídeo com objetivo antigo, sem resultado
+-- principal no catálogo, e um tráfego sobrescrito para cadastros, em outubro.
+-- Em USD: vendas em outubro. A empresa B tem tráfego em outubro, que nunca
+-- pode aparecer para A.
 INSERT INTO normalizado.empresa (nome) VALUES ('Empresa Teste A'), ('Empresa Teste B');
 INSERT INTO normalizado.execucao_carga (empresa_id, tipo)
 SELECT id, 'diaria' FROM normalizado.empresa WHERE nome IN ('Empresa Teste A', 'Empresa Teste B');
@@ -62,7 +63,7 @@ FROM (
     ('611111111111111', '620000000000000002', 'Campanha Teste Cadastros', 'OUTCOME_LEADS'),
     ('611111111111111', '620000000000000003', 'Campanha Teste Conversas Um', 'OUTCOME_ENGAGEMENT'),
     ('611111111111111', '620000000000000004', 'Campanha Teste Conversas Dois', 'OUTCOME_ENGAGEMENT'),
-    ('611111111111111', '620000000000000005', 'Campanha Teste Vídeo', 'OUTCOME_ENGAGEMENT'),
+    ('611111111111111', '620000000000000005', 'Campanha Teste Vídeo', 'VIDEO_VIEWS'),
     ('611111111111111', '620000000000000006', 'Campanha Teste Sobrescrita', 'OUTCOME_TRAFFIC'),
     ('611111111111112', '620000000000000007', 'Campanha Teste Vendas Dólar', 'OUTCOME_SALES'),
     ('622222222222221', '620000000000000008', 'Campanha Teste B', 'OUTCOME_TRAFFIC')

@@ -49,9 +49,10 @@ TIPOS_ACAO_RESULTADO = {
     "995000000000000005": "omni_purchase",
     ID_META_CAMPANHA_AUSENTE: "omni_purchase",
 }
-# As campanhas de ThruPlay não têm resultado principal no catálogo
-# (REQUIREMENTS §7.2): a resolução no banco não lhes dá tipo de ação.
-CAMPANHAS_SEM_RESULTADO = frozenset({"995000000000000002", "995000000000000004"})
+# As campanhas de ThruPlay têm o ThruPlay como resultado principal no
+# catálogo (REQUIREMENTS §7.2), que as respostas das fixtures não trazem: a
+# carga não lhes grava ação.
+CAMPANHAS_SEM_ACAO_RESULTADO = frozenset({"995000000000000002", "995000000000000004"})
 type Fixtures = dict[str, dict]
 
 

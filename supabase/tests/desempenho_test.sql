@@ -423,7 +423,8 @@ SELECT is(
 );
 -- Cada razão do geral em BRL sai das somas do intervalo: 75,50 investidos,
 -- 1.450 impressões, 27 cliques, 4 conversas, 2 compras de 150,00 e nenhum
--- cadastro, interação ou visita ao site, cuja razão fica nula.
+-- cadastro, contato pelo site, interação, ThruPlay, visita ao perfil ou
+-- visita ao site, cuja razão fica nula.
 SELECT results_eq(
   $$
   SELECT metrica, round(valor, 12)
@@ -439,9 +440,12 @@ SELECT results_eq(
     ('ctr', round(27 / 1450::numeric, 12)),
     ('custo_cadastro', NULL),
     ('custo_compra', round(75.50 / 2, 12)),
+    ('custo_contato_site', NULL),
     ('custo_conversa', round(75.50 / 4, 12)),
     ('custo_instalacao', NULL),
     ('custo_interacao', NULL),
+    ('custo_thruplay', NULL),
+    ('custo_visita_perfil', NULL),
     ('custo_visualizacao_pagina', NULL),
     ('roas', round(150.00 / 75.50, 12))
   $$,

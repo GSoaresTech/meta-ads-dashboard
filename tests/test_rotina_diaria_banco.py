@@ -619,8 +619,8 @@ def test_quebras_resolvem_o_resultado_pelo_investimento_carregado_na_execucao(
     # A campanha tem dois conjuntos com resultados diferentes, e o de maior
     # investimento nos últimos 28 dias decide (ADR-0007). O investimento vem
     # dos insights da mesma execução: com as quebras antes deles, o empate
-    # sem investimento escolheria o conjunto de menor ID, de ThruPlay, sem
-    # resultado principal, e nenhuma ação seria gravada (ADR-0011). A
+    # sem investimento escolheria o conjunto de menor ID, de ThruPlay, cujo
+    # resultado a quebra não traz, e nenhuma ação seria gravada (ADR-0011). A
     # resolução usa o hoje do banco, então os dias são os de agora.
     carregar_cadastro(conectar_etl, empresa.empresa_id, montar_cadastro_com_conversas())
     instante = agora_utc()
