@@ -6,7 +6,7 @@ import {
   montarCampanhas,
   type CampanhaListada,
 } from "@/lib/campanhas";
-import { listarCampanhas } from "@/lib/entidades";
+import { listarCampanhas, obterCampanha } from "@/lib/entidades";
 import type { Nivel } from "@/lib/navegacao";
 import type { Granularidade, Intervalo } from "@/lib/periodo";
 import {
@@ -17,6 +17,11 @@ import {
   type Metrica,
   type ResumoMoeda,
 } from "@/lib/resumo-desempenho";
+import {
+  listarMetricasCampanha,
+  montarVisaoCampanha,
+  type VisaoCampanha,
+} from "@/lib/visao-campanha";
 
 // O numeric chega como texto, para não perder casas, e a data vira texto na
 // consulta: como Date, ela seria a meia-noite no fuso do servidor.
@@ -183,4 +188,39 @@ export async function carregarVisaoConta(
       serie,
     }),
   };
+}
+
+// O que a visão da campanha mostra (REQUIREMENTS §3.1): o resultado principal
+// e o KPI em destaque e as métricas de apoio, com o total e a série de cada
+// um. Quais são vem da obter_campanha, e só elas vão ao filtro. Nula para
+// campanha que a credencial não lê.
+export async function carregarVisaoCampanha(
+  credencial: string,
+  empresaId: string,
+  campanhaId: string | null,
+  intervalo: Intervalo,
+  granularidade: Granularidade,
+): Promise<VisaoCampanha | null> {
+  const [catalogo, campanha] = await Promise.all([
+    carregarCatalogo(credencial),
+    obterCampanha(credencial, empresaId, campanhaId),
+  ]);
+  if (campanha === undefined) {
+    return null;
+  }
+
+  const filtro: FiltroDesempenho = {
+    credencial,
+    empresaId,
+    nivel: "campanha",
+    entidadeId: campanhaId,
+    intervalo,
+    metricas: listarMetricasCampanha(campanha),
+  };
+  const [totais, serie] = await Promise.all([
+    carregarDesempenho(filtro, "periodo", ["campanha"]),
+    carregarDesempenho(filtro, granularidade, ["campanha"]),
+  ]);
+
+  return montarVisaoCampanha({ catalogo, campanha, totais, serie });
 }

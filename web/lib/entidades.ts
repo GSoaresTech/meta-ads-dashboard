@@ -4,6 +4,7 @@ import { consultar } from "@/lib/banco";
 import type { LinhaCampanha } from "@/lib/campanhas";
 import type { EntidadeFilha, Nivel, NivelTrilha } from "@/lib/navegacao";
 import type { Intervalo } from "@/lib/periodo";
+import type { LeituraCampanha } from "@/lib/visao-campanha";
 
 // Um valor fora do formato não é de nenhuma entidade e nem vai ao banco, que
 // recusaria o texto como uuid com erro, em vez de devolver zero linhas.
@@ -21,6 +22,14 @@ interface LinhaCampanhaBanco extends LinhaEntidade {
   status: string;
   metrica_resultado: string | null;
   metrica_kpi: string | null;
+}
+
+interface LinhaLeituraCampanha {
+  objetivo: string;
+  status: string;
+  metrica_resultado: string | null;
+  metrica_kpi: string | null;
+  metricas_apoio: string[];
 }
 
 interface LinhaTrilha extends Omit<LinhaEntidade, "entidade_id"> {
@@ -111,4 +120,28 @@ export async function listarCampanhas(
     metricaResultado: linha.metrica_resultado,
     metricaKpi: linha.metrica_kpi,
   }));
+}
+
+// A campanha em foco, com o resultado, o KPI e o apoio resolvidos no banco
+// (ADR-0007). Indefinida para campanha que a credencial não lê, como na
+// trilha (RF-46).
+export async function obterCampanha(
+  credencial: string,
+  empresaId: string,
+  campanhaId: string | null,
+): Promise<LeituraCampanha | undefined> {
+  const [linha] = await consultar<LinhaLeituraCampanha>(
+    `SELECT objetivo, status, metrica_resultado, metrica_kpi, metricas_apoio
+     FROM analitico.obter_campanha($1, $2, $3)`,
+    [credencial, empresaId, campanhaId],
+  );
+  return linha === undefined
+    ? undefined
+    : {
+        objetivo: linha.objetivo,
+        status: linha.status,
+        metricaResultado: linha.metrica_resultado,
+        metricaKpi: linha.metrica_kpi,
+        metricasApoio: linha.metricas_apoio,
+      };
 }

@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
 
+import { DestaqueCampanha } from "@/components/DestaqueCampanha";
 import { ListaEntidades } from "@/components/ListaEntidades";
 import { ResumoDesempenho } from "@/components/ResumoDesempenho";
 import { SeletorPeriodo } from "@/components/SeletorPeriodo";
 import { TabelaCampanhas } from "@/components/TabelaCampanhas";
 import { TrilhaNavegacao } from "@/components/TrilhaNavegacao";
 import { exigirCredencialEmpresa } from "@/lib/acesso";
-import { carregarResumoGeral, carregarVisaoConta } from "@/lib/desempenho";
+import {
+  carregarResumoGeral,
+  carregarVisaoCampanha,
+  carregarVisaoConta,
+} from "@/lib/desempenho";
 import { carregarTrilha, listarFilhasComEntrega } from "@/lib/entidades";
 import {
   lerSelecao,
@@ -67,6 +72,59 @@ async function ConteudoConta({
   );
 }
 
+// O destaque, o apoio e os anúncios com entrega da campanha (§3.1). O
+// destaque só aparece com dados, que dão a moeda e os valores dele.
+async function ConteudoCampanha({
+  credencial,
+  empresaId,
+  entidadeId,
+  intervalo,
+  selecao,
+}: Readonly<PropriedadesConteudo>) {
+  const [visao, anuncios] = await Promise.all([
+    carregarVisaoCampanha(
+      credencial,
+      empresaId,
+      entidadeId,
+      intervalo,
+      selecao.granularidade,
+    ),
+    listarFilhasComEntrega(
+      credencial,
+      empresaId,
+      "campanha",
+      entidadeId,
+      intervalo,
+    ),
+  ]);
+  if (visao === null) {
+    notFound();
+  }
+
+  return (
+    <>
+      {visao.destaque !== null && (
+        <DestaqueCampanha
+          destaque={visao.destaque}
+          granularidade={selecao.granularidade}
+        />
+      )}
+      <ResumoDesempenho
+        resumos={visao.resumos}
+        granularidade={selecao.granularidade}
+      />
+      <ListaEntidades
+        empresaId={empresaId}
+        nivel="anuncio"
+        filhas={anuncios}
+        selecao={selecao}
+      />
+    </>
+  );
+}
+
+type NivelEntidade = Exclude<Nivel, "conta" | "campanha">;
+
 // Os totais e as séries do Geral e a lista das filhas dos demais níveis.
 async function ConteudoEntidade({
   credencial,
@@ -75,7 +133,7 @@ async function ConteudoEntidade({
   entidadeId,
   intervalo,
   selecao,
-}: Readonly<PropriedadesConteudo & { nivel: Exclude<Nivel, "conta"> }>) {
+}: Readonly<PropriedadesConteudo & { nivel: NivelEntidade }>) {
   const nivelFilho = NIVEIS_FILHOS[nivel];
   const [filhas, resumos] = await Promise.all([
     nivelFilho === null
@@ -117,6 +175,20 @@ async function ConteudoEntidade({
   );
 }
 
+function ConteudoNivel({
+  nivel,
+  ...conteudo
+}: Readonly<PropriedadesConteudo & { nivel: Nivel }>) {
+  switch (nivel) {
+    case "conta":
+      return <ConteudoConta {...conteudo} />;
+    case "campanha":
+      return <ConteudoCampanha {...conteudo} />;
+    default:
+      return <ConteudoEntidade {...conteudo} nivel={nivel} />;
+  }
+}
+
 // A página de um nível: a trilha, o seletor e o conteúdo dele. O relógio lido
 // aqui é o que os atalhos usam, no fuso da entidade em foco (RF-26).
 export async function VisaoEntidade({
@@ -150,11 +222,7 @@ export async function VisaoEntidade({
         selecao={selecao}
         intervalo={intervalo}
       />
-      {nivel === "conta" ? (
-        <ConteudoConta {...conteudo} />
-      ) : (
-        <ConteudoEntidade {...conteudo} nivel={nivel} />
-      )}
+      <ConteudoNivel {...conteudo} nivel={nivel} />
     </main>
   );
 }
