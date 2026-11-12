@@ -1,0 +1,50 @@
+# Rotina horária da ETL: hoje e ontem de cada conta, com os insights, as
+# quebras e os objetos com entrega relidos pelo ID (RF-06; ADR-0017). Uma
+# falha em qualquer empresa faz o job terminar com código diferente de zero,
+# o que dispara a notificação do GitHub (RF-50). Os logs são públicos, e a
+# rotina só escreve os campos da lista permitida (RNF-17).
+name: Carga horária
+
+on:
+  schedule:
+    # Em minuto quebrado, longe do pico do início da hora, em que o GitHub
+    # mais atrasa ou descarta execuções agendadas (R-08).
+    - cron: "17 * * * *"
+  # Para atualizar hoje sem esperar a hora seguinte, como depois de uma falha.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Uma execução que passa da hora espera a anterior, em vez de ler os mesmos
+# dias ao mesmo tempo; o GitHub guarda só a última pendente. O lock por
+# empresa (RF-19) segue valendo contra a carga diária e a histórica.
+concurrency:
+  group: carga-horaria
+  cancel-in-progress: false
+
+jobs:
+  carga-horaria:
+    name: carga-horaria
+    runs-on: ubuntu-24.04
+    # A extração leva poucos minutos (RNF-07), mas a espera pelo lock da
+    # carga diária ou da histórica chega a 15 min (RF-19), e um job
+    # assíncrono da Meta pode demorar mais. Sem limite, uma execução travada
+    # seguraria a fila por até 6 h; com ele, a seguinte começa antes de a
+    # defasagem passar de 2 h (RNF-08). O registro da execução cancelada fica
+    # em_andamento, e a área do operador o mostra como carga parada (RNF-13).
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Instalar a ETL
+        run: python -m pip install .
+      - name: Rodar a rotina horária
+        env:
+          TOKEN_SISTEMA_META: ${{ secrets.TOKEN_SISTEMA_META }}
+          URL_BANCO: ${{ secrets.URL_BANCO }}
+        run: python -m etl.rotina_horaria
