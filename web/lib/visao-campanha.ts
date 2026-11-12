@@ -72,7 +72,7 @@ export function listarMetricasCampanha(campanha: LeituraCampanha): string[] {
   ];
 }
 
-function resumirCodigos(
+export function resumirCodigos(
   codigos: string[],
   moeda: string,
   leituras: LeiturasCampanha,
