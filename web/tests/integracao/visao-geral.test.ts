@@ -20,8 +20,10 @@ import {
   lerCartoes,
   lerSerie,
   lerValorMoeda,
+  lerTextoRenderizado,
   listarMetricasExibidas,
 } from "./leitura-pagina";
+import { acharTermosApi, listarTermosApi } from "./termos-api";
 
 // Prova a visão Geral por HTTP: os totais e as séries por moeda, os tipos de
 // resultado e o catálogo (REQUIREMENTS §3.1 e §3.3; RF-25, RF-30, RF-34;
@@ -31,27 +33,6 @@ const FUSO = "America/Sao_Paulo";
 const TITULO_REAL = "Real brasileiro (BRL)";
 const TITULO_DOLAR = "Dólar americano (USD)";
 const INVESTIMENTO_DIARIO = 10;
-
-// Os campos e enums da API que a tela nunca mostra (RNF-02), inclusive os
-// tipos de ação gravados nesta massa.
-const CAMPOS_API = [
-  "spend",
-  "impressions",
-  "reach",
-  "frequency",
-  "clicks",
-  "cpc",
-  "cpm",
-  "ctr",
-  "actions",
-  "action_values",
-  "cost_per_action_type",
-  "omni_purchase",
-  "lead",
-  "link_click",
-  "OUTCOME_",
-  "ACTIVE",
-];
 
 const DIAS_REAL = ["2026-09-07", "2026-09-08", "2026-09-14"];
 const DIAS_DOLAR = ["2026-09-07", "2026-09-14"];
@@ -344,17 +325,38 @@ describe("visão Geral", () => {
     expect(html).not.toContain(massa.tokenA);
   });
 
-  test("RNF-02: a tela não mostra código de métrica nem nome de campo ou enum da API", async () => {
-    const { texto } = await abrirSetembro();
-    const { rows } = await cliente.query<{ codigo: string }>(
-      // Os códigos de uma palavra só, como "compras", são palavras do texto.
-      "SELECT codigo FROM normalizado.metrica WHERE codigo LIKE '%\\_%'",
+  test("RNF-02: o texto renderizado, com as ajudas das métricas, não tem nome de campo, tipo de ação, código de métrica nem valor de enum da API", async () => {
+    const { documento } = await abrirSetembro();
+
+    const texto = lerTextoRenderizado(documento);
+
+    expect(texto).toContain("O que é isso?");
+    expect(acharTermosApi(texto, await listarTermosApi(cliente))).toEqual([]);
+  });
+
+  test("RNF-02: a verificação acha o campo da API que chegar à explicação de uma métrica, mesmo com a ajuda fechada", async () => {
+    const { rows } = await cliente.query<{ explicacao: string }>(
+      "SELECT explicacao FROM normalizado.metrica WHERE codigo = 'investimento'",
     );
 
-    const termos = [...CAMPOS_API, ...rows.map(({ codigo }) => codigo)];
-    expect(rows.length).toBeGreaterThan(0);
-    for (const termo of termos) {
-      expect(texto).not.toMatch(new RegExp(`\\b${termo}`));
+    try {
+      await cliente.query(
+        "UPDATE normalizado.metrica SET explicacao = $1 WHERE codigo = 'investimento'",
+        ["Soma do spend no período."],
+      );
+      const { documento } = await abrirSetembro();
+
+      expect(
+        acharTermosApi(
+          lerTextoRenderizado(documento),
+          await listarTermosApi(cliente),
+        ),
+      ).toEqual(["spend"]);
+    } finally {
+      await cliente.query(
+        "UPDATE normalizado.metrica SET explicacao = $1 WHERE codigo = 'investimento'",
+        [rows[0].explicacao],
+      );
     }
   });
 });

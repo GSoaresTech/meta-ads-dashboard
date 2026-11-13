@@ -22,8 +22,10 @@ import {
   lerSerie,
   lerTextoSemAjuda,
   lerValorMoeda,
+  lerTextoRenderizado,
   listarMetricasExibidas,
 } from "./leitura-pagina";
+import { acharTermosApi, listarTermosApi } from "./termos-api";
 
 // Prova a visão da conta por HTTP: os totais, a série e a lista de campanhas
 // com o objetivo e o status em linguagem de negócio, o resultado principal e
@@ -432,6 +434,15 @@ describe("§3.1 e RF-37: lista de campanhas", () => {
       expect(texto).not.toMatch(new RegExp(`\\b${termo}`));
       expect(html).not.toMatch(new RegExp(`\\b${termo}`));
     }
+  });
+
+  test("RNF-02: o texto renderizado, com as ajudas das métricas, não tem nome de campo, tipo de ação, código de métrica nem valor de enum da API", async () => {
+    const { documento } = await abrirConta();
+
+    const texto = lerTextoRenderizado(documento);
+
+    expect(texto).toContain("O que é isso?");
+    expect(acharTermosApi(texto, await listarTermosApi(cliente))).toEqual([]);
   });
 
   test("mudar o nome do objetivo e o rótulo do status no catálogo muda a tela (ADR-0007)", async () => {
