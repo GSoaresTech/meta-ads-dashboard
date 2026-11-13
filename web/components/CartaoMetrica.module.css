@@ -16,3 +16,20 @@
   letter-spacing: var(--tracking-titulo);
   line-height: var(--altura-linha-titulo);
 }
+
+/* Texto secundário, sem cor de status (ADR-0015). */
+.variacao {
+  margin: var(--espaco-4) 0 0;
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+}
+
+/* Fora da tela, mas lido pelo leitor de tela. */
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

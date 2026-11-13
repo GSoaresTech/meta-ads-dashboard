@@ -26,7 +26,12 @@ import {
   type ParametrosUrl,
   type Selecao,
 } from "@/lib/navegacao";
-import { obterFusoReferencia, obterHoje, type Intervalo } from "@/lib/periodo";
+import {
+  calcularPeriodoAnterior,
+  obterFusoReferencia,
+  obterHoje,
+  type Intervalo,
+} from "@/lib/periodo";
 import { carregarUltimaCarga } from "@/lib/situacao-carga";
 
 interface Propriedades {
@@ -42,6 +47,8 @@ interface PropriedadesConteudo {
   empresaId: string;
   entidadeId: string | null;
   intervalo: Intervalo;
+  // O período anterior equivalente, com que as métricas se comparam (RF-27).
+  intervaloAnterior: Intervalo;
   selecao: Selecao;
   // Do geral até a entidade em foco.
   trilha: NivelTrilha[];
@@ -53,6 +60,7 @@ async function ConteudoConta({
   empresaId,
   entidadeId,
   intervalo,
+  intervaloAnterior,
   selecao,
 }: Readonly<PropriedadesConteudo>) {
   const { resumos, campanhas } = await carregarVisaoConta(
@@ -60,6 +68,7 @@ async function ConteudoConta({
     empresaId,
     entidadeId,
     intervalo,
+    intervaloAnterior,
     selecao.granularidade,
   );
 
@@ -85,6 +94,7 @@ async function ConteudoCampanha({
   empresaId,
   entidadeId,
   intervalo,
+  intervaloAnterior,
   selecao,
 }: Readonly<PropriedadesConteudo>) {
   const [visao, anuncios] = await Promise.all([
@@ -93,6 +103,7 @@ async function ConteudoCampanha({
       empresaId,
       entidadeId,
       intervalo,
+      intervaloAnterior,
       selecao.granularidade,
     ),
     listarFilhasComEntrega(
@@ -136,6 +147,7 @@ async function ConteudoAnuncio({
   empresaId,
   entidadeId,
   intervalo,
+  intervaloAnterior,
   selecao,
   trilha,
 }: Readonly<PropriedadesConteudo>) {
@@ -149,6 +161,7 @@ async function ConteudoAnuncio({
           entidadeId,
           campanha.entidadeId,
           intervalo,
+          intervaloAnterior,
           selecao.granularidade,
         );
   if (resumos === null) {
@@ -165,6 +178,7 @@ async function ConteudoGeral({
   credencial,
   empresaId,
   intervalo,
+  intervaloAnterior,
   selecao,
 }: Readonly<PropriedadesConteudo>) {
   const [contas, resumos] = await Promise.all([
@@ -173,6 +187,7 @@ async function ConteudoGeral({
       credencial,
       empresaId,
       intervalo,
+      intervaloAnterior,
       selecao.granularidade,
     ),
   ]);
@@ -232,11 +247,13 @@ export async function VisaoEntidade({
   const agora = new Date();
   const hoje = obterHoje(agora, foco.fusosHorarios);
   const intervalo = resolverIntervalo(selecao.periodo, hoje);
+  const intervaloAnterior = calcularPeriodoAnterior(selecao.periodo, intervalo);
   const conteudo = {
     credencial,
     empresaId,
     entidadeId,
     intervalo,
+    intervaloAnterior,
     selecao,
     trilha,
   };
@@ -253,6 +270,7 @@ export async function VisaoEntidade({
         caminho={montarCaminho(empresaId, nivel, entidadeId)}
         selecao={selecao}
         intervalo={intervalo}
+        intervaloAnterior={intervaloAnterior}
       />
       <IndicadorAtualizacao
         ultimaCargaEm={ultimaCargaEm}

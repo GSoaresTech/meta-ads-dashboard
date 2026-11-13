@@ -40,6 +40,8 @@ interface Propriedades {
   selecao: Selecao;
   // O intervalo já resolvido no fuso da entidade em foco.
   intervalo: Intervalo;
+  // O período anterior equivalente, com que as métricas se comparam (RF-27).
+  intervaloAnterior: Intervalo;
 }
 
 // Links e um formulário GET, sem estado no cliente: a URL é o estado, e
@@ -48,6 +50,7 @@ export function SeletorPeriodo({
   caminho,
   selecao,
   intervalo,
+  intervaloAnterior,
 }: Readonly<Propriedades>) {
   return (
     <section aria-label="Período e granularidade" className={estilos.seletor}>
@@ -56,6 +59,16 @@ export function SeletorPeriodo({
           {formatarData(intervalo.inicio)}
         </time>{" "}
         a <time dateTime={intervalo.fim}>{formatarData(intervalo.fim)}</time>
+      </p>
+      <p className={estilos.comparacao}>
+        Comparado com{" "}
+        <time dateTime={intervaloAnterior.inicio}>
+          {formatarData(intervaloAnterior.inicio)}
+        </time>{" "}
+        a{" "}
+        <time dateTime={intervaloAnterior.fim}>
+          {formatarData(intervaloAnterior.fim)}
+        </time>
       </p>
 
       <nav aria-label="Atalhos de período">

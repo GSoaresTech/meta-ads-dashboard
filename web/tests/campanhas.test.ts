@@ -14,24 +14,28 @@ const CATALOGO: Metrica[] = [
     rotulo: "Compras",
     explicacao: "Explicação das compras.",
     unidade: "quantidade",
+    sentidoMelhora: "alta",
   },
   {
     codigo: "custo_compra",
     rotulo: "Custo por compra",
     explicacao: "Explicação do custo por compra.",
     unidade: "moeda",
+    sentidoMelhora: "queda",
   },
   {
     codigo: "alcance",
     rotulo: "Pessoas alcançadas",
     explicacao: "Explicação do alcance.",
     unidade: "quantidade",
+    sentidoMelhora: "alta",
   },
   {
     codigo: "custo_mil_alcance",
     rotulo: "Custo por mil pessoas alcançadas",
     explicacao: "Explicação do custo por mil.",
     unidade: "moeda",
+    sentidoMelhora: "queda",
   },
 ];
 

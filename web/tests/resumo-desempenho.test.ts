@@ -13,24 +13,28 @@ const CATALOGO: Metrica[] = [
     rotulo: "Cadastros",
     explicacao: "Explicação dos cadastros.",
     unidade: "quantidade",
+    sentidoMelhora: "alta",
   },
   {
     codigo: "compras",
     rotulo: "Compras",
     explicacao: "Explicação das compras.",
     unidade: "quantidade",
+    sentidoMelhora: "alta",
   },
   {
     codigo: "investimento",
     rotulo: "Investimento",
     explicacao: "Explicação do investimento.",
     unidade: "moeda",
+    sentidoMelhora: "indiferente",
   },
   {
     codigo: "alcance",
     rotulo: "Pessoas alcançadas",
     explicacao: "Explicação do alcance.",
     unidade: "quantidade",
+    sentidoMelhora: "alta",
   },
 ];
 
@@ -68,8 +72,15 @@ function montar(
   resultados: LinhaResultado[] = RESULTADOS,
   totais: LinhaDesempenho[] = TOTAIS,
   serie: LinhaDesempenho[] = SERIE,
+  anteriores: LinhaDesempenho[] = [],
 ) {
-  return montarResumos({ catalogo: CATALOGO, resultados, totais, serie });
+  return montarResumos({
+    catalogo: CATALOGO,
+    resultados,
+    totais,
+    serie,
+    anteriores,
+  });
 }
 
 describe("montarResumos", () => {
@@ -125,6 +136,7 @@ describe("montarResumos", () => {
     expect(resumo.metricas[1]).toEqual({
       metrica: CATALOGO[3],
       total: undefined,
+      anterior: undefined,
       serie: [],
     });
   });
@@ -139,6 +151,31 @@ describe("montarResumos", () => {
     );
 
     expect(resumo.metricas[1].total).toBeNull();
+  });
+
+  test("RF-27: cada métrica leva o total do período anterior na mesma moeda", () => {
+    const [brl, usd] = montar(RESULTADOS, TOTAIS, SERIE, [
+      montarLinha("BRL", "investimento", 25, "2026-09-01"),
+      montarLinha("BRL", "compras", null, "2026-09-01"),
+      montarLinha("USD", "investimento", 15, "2026-09-01"),
+    ]);
+
+    expect(brl.metricas.map(({ anterior }) => anterior)).toEqual([25, null]);
+    expect(usd.metricas.map(({ anterior }) => anterior)).toEqual([
+      15,
+      undefined,
+    ]);
+  });
+
+  test("a moeda sem dados no período anterior fica sem total anterior, e não sem resumo", () => {
+    const resumos = montar(RESULTADOS, TOTAIS, SERIE, []);
+
+    expect(resumos.map(({ moeda }) => moeda)).toEqual(["BRL", "USD"]);
+    expect(
+      resumos.flatMap(({ metricas }) =>
+        metricas.map(({ anterior }) => anterior),
+      ),
+    ).toEqual([undefined, undefined, undefined, undefined]);
   });
 
   test("sem dados no intervalo, não há resumo", () => {

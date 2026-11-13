@@ -64,3 +64,9 @@ main > section.seletor {
     border-radius: var(--raio-cartao-dados);
   }
 }
+
+.comparacao {
+  margin: 0;
+  color: var(--cor-aco);
+  font-size: var(--texto-legenda);
+}
