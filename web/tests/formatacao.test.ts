@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   formatarData,
   formatarEixoMetrica,
+  formatarInstante,
   formatarLeituraMetrica,
   formatarMetrica,
   formatarMoeda,
@@ -155,6 +156,31 @@ describe("formatarData", () => {
 
       expect(modulo.formatarData(data)).toBe(esperado);
     });
+  });
+});
+
+describe("formatarInstante", () => {
+  const INSTANTE = new Date("2026-11-13T17:17:00Z");
+
+  test("sai no fuso pedido, com a sigla dele", () => {
+    expect(formatarInstante(INSTANTE, "America/Sao_Paulo")).toBe(
+      "13/11/2026, 14:17 BRT",
+    );
+    expect(formatarInstante(INSTANTE, "UTC")).toBe("13/11/2026, 17:17 UTC");
+  });
+
+  test("o dia acompanha o fuso, e não o de UTC", () => {
+    expect(formatarInstante(INSTANTE, "Pacific/Kiritimati")).toBe(
+      "14/11/2026, 07:17 GMT+14",
+    );
+  });
+
+  test.each(FUSOS)("não depende do fuso do processo, aqui %s", async (fuso) => {
+    const modulo = await carregarModuloNoFuso(fuso);
+
+    expect(modulo.formatarInstante(INSTANTE, "America/Sao_Paulo")).toBe(
+      "13/11/2026, 14:17 BRT",
+    );
   });
 });
 
