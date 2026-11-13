@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { AjudaMetrica } from "@/components/AjudaMetrica";
 import { formatarLeituraMetrica } from "@/lib/formatacao";
 import type { MetricaResumida } from "@/lib/resumo-desempenho";
 
@@ -12,7 +13,8 @@ interface Propriedades {
 }
 
 // O rótulo e a explicação vêm do catálogo, e a formatação segue a unidade
-// dele: mudar um texto no banco muda a tela (RF-30; ADR-0007).
+// dele: mudar um texto no banco muda a tela (RF-30; ADR-0007). A explicação
+// fica na ajuda, como em toda métrica exibida (ADR-0020).
 export function CartaoMetrica({
   metrica,
   moeda,
@@ -28,7 +30,7 @@ export function CartaoMetrica({
       <p className={estilos.valor}>
         {formatarLeituraMetrica(valor, metrica.unidade, moeda)}
       </p>
-      <p className={estilos.explicacao}>{metrica.explicacao}</p>
+      <AjudaMetrica metrica={metrica} />
     </article>
   );
 }

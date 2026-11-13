@@ -51,6 +51,27 @@ test("RF-25: a tabela de dados tem um ponto por período, com o valor na unidade
   ]);
 });
 
+test("RF-30: a série tem a ajuda com a explicação do catálogo, fora da legenda", () => {
+  render(
+    <SerieTemporal
+      metrica={INVESTIMENTO}
+      moeda="BRL"
+      granularidade="semana"
+      pontos={PONTOS}
+    />,
+  );
+
+  const legenda = screen.getByText("Investimento", { selector: "figcaption" });
+  // O outro details da figura é o "Ver os dados", com a tabela.
+  const ajuda = [
+    ...(legenda.parentElement?.querySelectorAll("details") ?? []),
+  ].find((elemento) => elemento.querySelector("table") === null);
+  expect(ajuda?.querySelector("summary")?.textContent).toBe(
+    "O que é isso? (Investimento)",
+  );
+  expect(ajuda?.querySelector("p")?.textContent).toBe(INVESTIMENTO.explicacao);
+});
+
 test("com um ponto só, não há linha para desenhar, e a tabela continua", () => {
   render(
     <SerieTemporal

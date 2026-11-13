@@ -1,3 +1,4 @@
+import { AjudaMetrica } from "@/components/AjudaMetrica";
 import { GraficoSerie } from "@/components/GraficoSerie";
 import { formatarMetrica, formatarPeriodo } from "@/lib/formatacao";
 import type { Granularidade } from "@/lib/periodo";
@@ -10,7 +11,8 @@ interface Propriedades {
   pontos: PontoSerie[];
 }
 
-// O gráfico e os dados dele. A tabela vem do servidor e deixa todo valor
+// O gráfico e os dados dele, com a ajuda da métrica fora da legenda, que é
+// o nome da figura (RF-30; ADR-0020). A tabela vem do servidor e deixa todo valor
 // acessível sem o cursor e sem o JavaScript do gráfico. Um ponto só não
 // desenha linha, e o número dele já está na tabela e no cartão.
 export function SerieTemporal({
@@ -22,6 +24,7 @@ export function SerieTemporal({
   return (
     <figure>
       <figcaption>{metrica.rotulo}</figcaption>
+      <AjudaMetrica metrica={metrica} />
       {pontos.length > 1 && (
         <GraficoSerie
           rotulo={metrica.rotulo}

@@ -18,12 +18,21 @@ const CADASTROS: Metrica = {
   unidade: "quantidade",
 };
 
-test("RF-30: mostra o rótulo e a explicação do catálogo, com o valor na unidade dele", () => {
+test("RF-30: mostra o rótulo do catálogo, com o valor na unidade dele", () => {
   render(<CartaoMetrica metrica={INVESTIMENTO} moeda="BRL" valor={1234.56} />);
 
   const cartao = screen.getByRole("article", { name: "Investimento" });
   expect(cartao.textContent).toContain("R$ 1.234,56");
-  expect(cartao.textContent).toContain(INVESTIMENTO.explicacao);
+});
+
+test("RF-30: a explicação do catálogo fica na ajuda do cartão", () => {
+  render(<CartaoMetrica metrica={INVESTIMENTO} moeda="BRL" valor={1234.56} />);
+
+  const ajuda = screen.getByRole("article").querySelector("details");
+  expect(ajuda?.querySelector("summary")?.textContent).toBe(
+    "O que é isso? (Investimento)",
+  );
+  expect(ajuda?.querySelector("p")?.textContent).toBe(INVESTIMENTO.explicacao);
 });
 
 test("o zero aparece como valor", () => {

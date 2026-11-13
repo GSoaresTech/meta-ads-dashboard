@@ -10,6 +10,7 @@ import {
   conectarBancoLocal,
   criarMassaAcesso,
   removerEntidades,
+  lerExplicacoesCatalogo,
   removerMassaAcesso,
   type MassaAcesso,
 } from "./banco-local";
@@ -19,6 +20,7 @@ import {
   lerCartoes,
   lerSerie,
   lerValorMoeda,
+  listarMetricasExibidas,
 } from "./leitura-pagina";
 
 // Prova a visão Geral por HTTP: os totais e as séries por moeda, os tipos de
@@ -248,29 +250,25 @@ describe("§3.1: totais de cada tipo de resultado", () => {
 });
 
 describe("RF-30: rótulos e explicações vêm do catálogo", () => {
-  test("cada cartão exibido tem o rótulo e a explicação de uma métrica do catálogo", async () => {
+  test("cada cartão e cada série têm o rótulo de uma métrica do catálogo e a ajuda com a explicação dela", async () => {
     const { documento } = await abrirSetembro();
-    const { rows } = await cliente.query<{
-      rotulo: string;
-      explicacao: string;
-    }>("SELECT rotulo, explicacao FROM normalizado.metrica");
-    const explicacoes = new Map(
-      rows.map(({ rotulo, explicacao }) => [rotulo, explicacao]),
-    );
+    const explicacoes = await lerExplicacoesCatalogo(cliente);
 
-    const cartoes = Object.entries({
-      ...lerCartoes(acharSecao(documento, TITULO_REAL)),
-      ...lerCartoes(acharSecao(documento, TITULO_DOLAR)),
-    });
+    const metricas = listarMetricasExibidas(documento);
 
-    expect(cartoes.length).toBeGreaterThan(0);
-    for (const [rotulo, paragrafos] of cartoes) {
+    // Investimento e Compras em real, Investimento e Cadastros em dólar, cada
+    // um com o cartão e a série.
+    expect(metricas).toHaveLength(8);
+    for (const { rotulo, ajuda } of metricas) {
       expect(explicacoes.has(rotulo), rotulo).toBe(true);
-      expect(paragrafos, rotulo).toContain(explicacoes.get(rotulo));
+      expect(ajuda, rotulo).toEqual({
+        controle: `O que é isso? (${rotulo})`,
+        explicacao: explicacoes.get(rotulo),
+      });
     }
   });
 
-  test("mudar uma explicação no catálogo muda a tela", async () => {
+  test("mudar uma explicação no catálogo muda a ajuda dos cartões e das séries", async () => {
     const explicacaoTeste = "Explicação alterada só no catálogo.";
     const { rows } = await cliente.query<{ explicacao: string }>(
       "SELECT explicacao FROM normalizado.metrica WHERE codigo = 'investimento'",
@@ -282,10 +280,14 @@ describe("RF-30: rótulos e explicações vêm do catálogo", () => {
         [explicacaoTeste],
       );
       const { documento } = await abrirSetembro();
+      const investimento = listarMetricasExibidas(documento).filter(
+        ({ rotulo }) => rotulo === "Investimento",
+      );
 
-      expect(
-        lerCartoes(acharSecao(documento, TITULO_REAL))["Investimento"],
-      ).toContain(explicacaoTeste);
+      expect(investimento).toHaveLength(4);
+      for (const { ajuda } of investimento) {
+        expect(ajuda?.explicacao).toBe(explicacaoTeste);
+      }
     } finally {
       await cliente.query(
         "UPDATE normalizado.metrica SET explicacao = $1 WHERE codigo = 'investimento'",
