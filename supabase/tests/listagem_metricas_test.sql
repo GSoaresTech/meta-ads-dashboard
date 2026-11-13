@@ -1,8 +1,8 @@
 -- Prova a leitura do catálogo de métricas pelo painel: os parâmetros, o acesso
--- e o conteúdo de que a tela precisa para rotular e formatar cada métrica
--- (RF-30; RNF-14; ADR-0007; ADR-0009 §4).
+-- e o conteúdo de que a tela precisa para rotular e formatar cada métrica e
+-- avaliar a variação dela (RF-27; RF-30; RNF-14; ADR-0007; ADR-0009 §4).
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 -- Atributos: o painel_leitor só executa, e a função roda com os privilégios
 -- do postgres, com search_path vazio (ADR-0009 §3 e §4).
@@ -21,8 +21,8 @@ SELECT results_eq(
 );
 SELECT is(
   pg_get_function_result('analitico.listar_metricas(text)'::regprocedure),
-  'TABLE(codigo text, rotulo text, explicacao text, unidade text)',
-  'uma linha por métrica, com o rótulo, a explicação e a unidade'
+  'TABLE(codigo text, rotulo text, explicacao text, unidade text, sentido_melhora text)',
+  'uma linha por métrica, com o rótulo, a explicação, a unidade e o sentido de melhora'
 );
 SELECT ok(
   has_function_privilege('painel_leitor', 'analitico.listar_metricas(text)', 'EXECUTE'),
@@ -54,7 +54,7 @@ SET revogado_em = now()
 WHERE hash = (SELECT sha256(convert_to(token, 'UTF8')) FROM credencial_teste WHERE caso = 'empresa_a_revogada');
 
 CREATE FUNCTION pg_temp.metricas(p_caso text)
-RETURNS TABLE (codigo text, rotulo text, explicacao text, unidade text)
+RETURNS TABLE (codigo text, rotulo text, explicacao text, unidade text, sentido_melhora text)
 LANGUAGE sql STABLE AS $$
   SELECT * FROM analitico.listar_metricas((SELECT token FROM credencial_teste WHERE caso = p_caso))
 $$;
@@ -63,18 +63,24 @@ $$;
 -- conteúdo, e a tela lê o que estiver na tabela.
 SELECT set_eq(
   $$ SELECT * FROM pg_temp.metricas('empresa_a') $$,
-  $$ SELECT codigo, rotulo, explicacao, unidade FROM normalizado.metrica $$,
+  $$ SELECT codigo, rotulo, explicacao, unidade, sentido_melhora FROM normalizado.metrica $$,
   'a credencial da empresa lê todo o catálogo'
 );
 SELECT set_eq(
   $$ SELECT * FROM pg_temp.metricas('operador') $$,
-  $$ SELECT codigo, rotulo, explicacao, unidade FROM normalizado.metrica $$,
+  $$ SELECT codigo, rotulo, explicacao, unidade, sentido_melhora FROM normalizado.metrica $$,
   'a credencial do operador lê todo o catálogo'
 );
 SELECT results_eq(
   $$ SELECT rotulo, explicacao, unidade FROM pg_temp.metricas('empresa_a') WHERE codigo = 'investimento' $$,
   $$ VALUES ('Investimento', 'Quanto foi gasto em anúncios no período.', 'moeda') $$,
   'o investimento sai com o rótulo de negócio, a explicação e a unidade'
+);
+-- RF-27: a tela avalia a variação pelo sentido do catálogo.
+SELECT results_eq(
+  $$ SELECT codigo, sentido_melhora FROM pg_temp.metricas('empresa_a') WHERE codigo IN ('compras', 'custo_compra') ORDER BY codigo $$,
+  $$ VALUES ('compras', 'alta'), ('custo_compra', 'queda') $$,
+  'RF-27: o custo sai com a queda como melhora, e o resultado, com a alta'
 );
 
 -- A ordem é a do rótulo, a mesma em toda chamada, para que os cartões da tela

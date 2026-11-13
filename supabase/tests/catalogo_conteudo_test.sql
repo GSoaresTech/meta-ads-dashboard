@@ -5,7 +5,7 @@
 -- casos dos critérios do RF-14 e do RF-31 resolvem como descrito (RNF-01;
 -- ADR-0007; ADR-0009 §2).
 BEGIN;
-SELECT plan(25);
+SELECT plan(27);
 
 SELECT isnt_empty('SELECT 1 FROM normalizado.metrica', 'o catálogo de métricas está carregado');
 SELECT isnt_empty('SELECT 1 FROM normalizado.resultado_objetivo', 'o catálogo de resultado por objetivo está carregado');
@@ -299,6 +299,55 @@ SELECT results_eq(
     ('visualizacoes_thruplay', 'acao', 'video_thruplay_watched_actions', 'quantidade', 'quantidade', true)
   $$,
   'visitas ao perfil, ThruPlay e contato no site leem o tipo gravado a partir do indicator de results'
+);
+-- Se a alta de uma métrica é melhora ou piora vem do catálogo, e não da tela
+-- (RF-27; ADR-0007). Todo custo, que é o investimento dividido por outra
+-- métrica, melhora na queda.
+SELECT is_empty(
+  $$
+  SELECT codigo
+  FROM normalizado.metrica
+  WHERE tipo = 'derivada' AND numerador = 'investimento' AND sentido_melhora <> 'queda'
+  $$,
+  'RF-27: todo custo melhora na queda'
+);
+-- O investimento e a frequência não são bons nem ruins por si: gastar mais ou
+-- repetir mais o anúncio depende do plano da campanha.
+SELECT results_eq(
+  $$ SELECT codigo, sentido_melhora FROM normalizado.metrica ORDER BY codigo $$,
+  $$
+  VALUES
+    ('alcance', 'alta'),
+    ('cadastros', 'alta'),
+    ('cliques_link', 'alta'),
+    ('compras', 'alta'),
+    ('contatos_site', 'alta'),
+    ('conversas_iniciadas', 'alta'),
+    ('cpc', 'queda'),
+    ('cpm', 'queda'),
+    ('ctr', 'alta'),
+    ('custo_cadastro', 'queda'),
+    ('custo_compra', 'queda'),
+    ('custo_contato_site', 'queda'),
+    ('custo_conversa', 'queda'),
+    ('custo_instalacao', 'queda'),
+    ('custo_interacao', 'queda'),
+    ('custo_mil_alcance', 'queda'),
+    ('custo_thruplay', 'queda'),
+    ('custo_visita_perfil', 'queda'),
+    ('custo_visualizacao_pagina', 'queda'),
+    ('frequencia', 'indiferente'),
+    ('impressoes', 'alta'),
+    ('instalacoes_app', 'alta'),
+    ('interacoes_publicacao', 'alta'),
+    ('investimento', 'indiferente'),
+    ('roas', 'alta'),
+    ('valor_compras', 'alta'),
+    ('visitas_perfil', 'alta'),
+    ('visualizacoes_pagina_destino', 'alta'),
+    ('visualizacoes_thruplay', 'alta')
+  $$,
+  'cada métrica do catálogo tem o sentido de melhora do negócio'
 );
 -- As funções de analitico calculam a derivada a partir das somas dos
 -- operandos, sem encadear uma derivada em outra.
