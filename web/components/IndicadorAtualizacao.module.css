@@ -1,0 +1,29 @@
+.indicador {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--espaco-8);
+}
+
+main > section.indicador {
+  margin-top: var(--espaco-20);
+}
+
+.indicador p {
+  margin: 0;
+}
+
+.horario {
+  color: var(--cor-aco);
+}
+
+/* A etiqueta é a mesma da tabela de campanhas: a marca vem da superfície, e
+   não de cor de status (ADR-0015). */
+.etiqueta {
+  display: inline-block;
+  padding: 0 var(--espaco-12);
+  border-radius: var(--raio-etiqueta);
+  background: var(--cor-marfim);
+  font-size: var(--texto-legenda);
+  white-space: nowrap;
+}
