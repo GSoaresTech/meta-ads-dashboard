@@ -135,9 +135,11 @@ function lerVisao(documento: Document): Visao {
   return {
     trilha: [...trilha].map(lerLigacao),
     titulo: lerTexto(documento.querySelector("h1")) ?? "",
+    // O primeiro parágrafo do seletor é o intervalo escolhido, e o seguinte,
+    // o período anterior com que ele se compara (RF-27).
     intervalo: [
       ...documento.querySelectorAll(
-        'section[aria-label="Período e granularidade"] time',
+        'section[aria-label="Período e granularidade"] > p:first-child time',
       ),
     ].map((elemento) => elemento.getAttribute("datetime") ?? ""),
     atalho: lerTexto(

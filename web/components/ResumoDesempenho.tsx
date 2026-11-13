@@ -34,12 +34,13 @@ export function ResumoDesempenho({
           {formatarNomeMoeda(moeda)} ({moeda})
         </h2>
         <div className={estilos.grade}>
-          {metricas.map(({ metrica, total }) => (
+          {metricas.map(({ metrica, total, anterior }) => (
             <CartaoMetrica
               key={metrica.codigo}
               metrica={metrica}
               moeda={moeda}
               valor={total}
+              anterior={anterior}
             />
           ))}
         </div>

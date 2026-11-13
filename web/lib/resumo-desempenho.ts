@@ -1,4 +1,5 @@
 import type { UnidadeMetrica } from "@/lib/formatacao";
+import type { SentidoMelhora } from "@/lib/variacao";
 
 // O resumo da entidade em foco, montado a partir das leituras de analitico:
 // um por moeda, porque valores de moedas diferentes nunca se somam (RF-34).
@@ -10,6 +11,7 @@ export interface Metrica {
   rotulo: string;
   explicacao: string;
   unidade: UnidadeMetrica;
+  sentidoMelhora: SentidoMelhora;
 }
 
 export interface LinhaResultado {
@@ -32,6 +34,10 @@ export interface MetricaResumida {
   // Nulo é a razão sem denominador. Indefinido é a métrica que a leitura de
   // desempenho não traz, como o alcance (ADR-0013).
   total: number | null | undefined;
+  // O total do período anterior equivalente, com o mesmo significado de nulo
+  // e indefinido. Indefinido também quando o período anterior não teve dados
+  // na moeda (RF-27).
+  anterior: number | null | undefined;
   serie: PontoSerie[];
 }
 
@@ -48,6 +54,8 @@ export interface LeiturasResumo {
   totais: LinhaDesempenho[];
   // Em ordem de período.
   serie: LinhaDesempenho[];
+  // Uma linha por moeda e métrica, com o período anterior inteiro (RF-27).
+  anteriores: LinhaDesempenho[];
 }
 
 function escolherMetricas(
@@ -72,7 +80,11 @@ function escolherMetricas(
 export function resumirMetrica(
   metrica: Metrica,
   moeda: string,
-  { totais, serie }: Pick<LeiturasResumo, "totais" | "serie">,
+  {
+    totais,
+    serie,
+    anteriores,
+  }: Pick<LeiturasResumo, "totais" | "serie" | "anteriores">,
 ): MetricaResumida {
   const pertence = (linha: LinhaDesempenho) =>
     linha.moeda === moeda && linha.metrica === metrica.codigo;
@@ -80,6 +92,7 @@ export function resumirMetrica(
   return {
     metrica,
     total: totais.find(pertence)?.valor,
+    anterior: anteriores.find(pertence)?.valor,
     serie: serie
       .filter(pertence)
       .map(({ inicio, fim, valor }) => ({ inicio, fim, valor })),
@@ -87,6 +100,7 @@ export function resumirMetrica(
 }
 
 // As moedas são as que têm dados no intervalo: sem nenhum dado, não há resumo.
+// A moeda que só tem dados no período anterior não tem o que comparar.
 export function montarResumos(leituras: LeiturasResumo): ResumoMoeda[] {
   const moedas = [...new Set(leituras.totais.map(({ moeda }) => moeda))].sort();
 

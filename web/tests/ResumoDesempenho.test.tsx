@@ -13,6 +13,7 @@ const INVESTIMENTO: Metrica = {
   rotulo: "Investimento",
   explicacao: "Quanto foi gasto em anúncios no período.",
   unidade: "moeda",
+  sentidoMelhora: "indiferente",
 };
 
 const ALCANCE: Metrica = {
@@ -20,6 +21,7 @@ const ALCANCE: Metrica = {
   rotulo: "Pessoas alcançadas",
   explicacao: "Quantas pessoas diferentes viram os anúncios.",
   unidade: "quantidade",
+  sentidoMelhora: "alta",
 };
 
 const SERIE = [
@@ -31,13 +33,15 @@ const RESUMOS: ResumoMoeda[] = [
   {
     moeda: "BRL",
     metricas: [
-      { metrica: INVESTIMENTO, total: 30, serie: SERIE },
-      { metrica: ALCANCE, total: undefined, serie: [] },
+      { metrica: INVESTIMENTO, total: 30, anterior: 20, serie: SERIE },
+      { metrica: ALCANCE, total: undefined, anterior: undefined, serie: [] },
     ],
   },
   {
     moeda: "USD",
-    metricas: [{ metrica: INVESTIMENTO, total: 20, serie: SERIE }],
+    metricas: [
+      { metrica: INVESTIMENTO, total: 20, anterior: undefined, serie: SERIE },
+    ],
   },
 ];
 
@@ -53,6 +57,20 @@ test("RF-34: cada moeda tem a própria seção com o próprio total", () => {
   expect(
     within(dolar).getByRole("article", { name: "Investimento" }).textContent,
   ).toContain("US$ 20,00");
+});
+
+test("RF-27: cada cartão mostra a variação do total da própria moeda", () => {
+  render(<ResumoDesempenho resumos={RESUMOS} granularidade="dia" />);
+
+  const real = screen.getByRole("region", { name: "Real brasileiro (BRL)" });
+  const dolar = screen.getByRole("region", { name: "Dólar americano (USD)" });
+
+  expect(
+    within(real).getByRole("article", { name: "Investimento" }).textContent,
+  ).toContain("+50%");
+  expect(
+    within(dolar).getByRole("article", { name: "Investimento" }).textContent,
+  ).toContain("— em relação ao período anterior");
 });
 
 test("a métrica sem valor tem cartão, mas não tem série", () => {

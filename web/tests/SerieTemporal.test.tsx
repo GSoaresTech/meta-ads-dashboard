@@ -15,6 +15,7 @@ const INVESTIMENTO: Metrica = {
   rotulo: "Investimento",
   explicacao: "Quanto foi gasto em anúncios no período.",
   unidade: "moeda",
+  sentidoMelhora: "indiferente",
 };
 
 const PONTOS: PontoSerie[] = [

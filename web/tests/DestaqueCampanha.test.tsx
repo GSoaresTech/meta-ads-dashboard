@@ -15,6 +15,7 @@ const COMPRAS: Metrica = {
   rotulo: "Compras",
   explicacao: "Quantas compras foram registradas e atribuídas aos anúncios.",
   unidade: "quantidade",
+  sentidoMelhora: "alta",
 };
 
 const CUSTO_COMPRA: Metrica = {
@@ -22,6 +23,7 @@ const CUSTO_COMPRA: Metrica = {
   rotulo: "Custo por compra",
   explicacao: "Quanto custou, em média, cada compra.",
   unidade: "moeda",
+  sentidoMelhora: "queda",
 };
 
 const SERIE = [
@@ -34,8 +36,8 @@ const VENDAS: Destaque = {
   status: "Ativa",
   moeda: "BRL",
   metricas: [
-    { metrica: COMPRAS, total: 4, serie: SERIE },
-    { metrica: CUSTO_COMPRA, total: 25, serie: SERIE },
+    { metrica: COMPRAS, total: 4, anterior: 2, serie: SERIE },
+    { metrica: CUSTO_COMPRA, total: 25, anterior: 50, serie: SERIE },
   ],
 };
 
@@ -54,6 +56,15 @@ test("RF-31: o resultado principal e o KPI aparecem em destaque, nessa ordem, na
   expect(cartoes[0].textContent).toContain("4");
   expect(cartoes[1].textContent).toContain(formatarMoeda(25, "BRL"));
   expect(cartoes[1].textContent).toContain(CUSTO_COMPRA.explicacao);
+});
+
+test("RF-27: o resultado e o KPI mostram a variação, e a queda do custo é melhora", () => {
+  render(<DestaqueCampanha destaque={VENDAS} granularidade="dia" />);
+
+  const cartoes = within(acharDestaque()).getAllByRole("article");
+
+  expect(cartoes[0].textContent).toContain("+100% · melhora");
+  expect(cartoes[1].textContent).toContain("-50% · melhora");
 });
 
 test("o destaque diz o objetivo e o status da campanha, como chegam do banco", () => {
@@ -87,7 +98,9 @@ test("a métrica sem valor no desempenho tem cartão, mas não tem série (ADR-0
     <DestaqueCampanha
       destaque={{
         ...VENDAS,
-        metricas: [{ metrica: COMPRAS, total: undefined, serie: [] }],
+        metricas: [
+          { metrica: COMPRAS, total: undefined, anterior: 2, serie: [] },
+        ],
       }}
       granularidade="dia"
     />,

@@ -20,6 +20,7 @@ const COMPRAS: Metrica = {
   rotulo: "Compras",
   explicacao: "Explicação das compras.",
   unidade: "quantidade",
+  sentidoMelhora: "alta",
 };
 
 const CUSTO_COMPRA: Metrica = {
@@ -27,6 +28,7 @@ const CUSTO_COMPRA: Metrica = {
   rotulo: "Custo por compra",
   explicacao: "Explicação do custo por compra.",
   unidade: "moeda",
+  sentidoMelhora: "queda",
 };
 
 const CAMPANHA_VENDAS: CampanhaListada = {

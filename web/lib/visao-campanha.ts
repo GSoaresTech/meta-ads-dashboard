@@ -40,7 +40,7 @@ export interface VisaoCampanha {
 
 export interface LeiturasCampanha extends Pick<
   LeiturasResumo,
-  "catalogo" | "totais" | "serie"
+  "catalogo" | "totais" | "serie" | "anteriores"
 > {
   campanha: LeituraCampanha;
 }

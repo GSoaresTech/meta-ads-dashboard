@@ -51,7 +51,9 @@ export interface VisaoConta {
 
 function carregarCatalogo(credencial: string): Promise<Metrica[]> {
   return consultar<Metrica & Record<string, unknown>>(
-    "SELECT codigo, rotulo, explicacao, unidade FROM analitico.listar_metricas($1)",
+    `SELECT codigo, rotulo, explicacao, unidade,
+       sentido_melhora AS "sentidoMelhora"
+     FROM analitico.listar_metricas($1)`,
     [credencial],
   );
 }
@@ -105,12 +107,26 @@ async function carregarDesempenho(
   }));
 }
 
+// O total de cada métrica no período anterior equivalente, só da entidade em
+// foco, que é a comparada (RF-27; ADR-0021).
+function carregarAnteriores(
+  filtro: FiltroDesempenho,
+  intervaloAnterior: Intervalo,
+): Promise<LinhaDesempenhoEntidade[]> {
+  return carregarDesempenho(
+    { ...filtro, intervalo: intervaloAnterior },
+    "periodo",
+    [filtro.nivel],
+  );
+}
+
 // O que a visão Geral mostra (REQUIREMENTS §3.1): os totais do intervalo e a
 // série na granularidade escolhida, por moeda.
 export async function carregarResumoGeral(
   credencial: string,
   empresaId: string,
   intervalo: Intervalo,
+  intervaloAnterior: Intervalo,
   granularidade: Granularidade,
 ): Promise<ResumoMoeda[]> {
   const [catalogo, resultados] = await Promise.all([
@@ -129,12 +145,13 @@ export async function carregarResumoGeral(
       ...resultados.map(({ metrica }) => metrica),
     ],
   };
-  const [totais, serie] = await Promise.all([
+  const [totais, serie, anteriores] = await Promise.all([
     carregarDesempenho(filtro, "periodo", ["geral"]),
     carregarDesempenho(filtro, granularidade, ["geral"]),
+    carregarAnteriores(filtro, intervaloAnterior),
   ]);
 
-  return montarResumos({ catalogo, resultados, totais, serie });
+  return montarResumos({ catalogo, resultados, totais, serie, anteriores });
 }
 
 // O que a visão da conta mostra (REQUIREMENTS §3.1): os totais e a série, como
@@ -147,6 +164,7 @@ export async function carregarVisaoConta(
   empresaId: string,
   contaId: string | null,
   intervalo: Intervalo,
+  intervaloAnterior: Intervalo,
   granularidade: Granularidade,
 ): Promise<VisaoConta> {
   const [catalogo, linhasCampanhas] = await Promise.all([
@@ -170,9 +188,10 @@ export async function carregarVisaoConta(
         .filter((metrica) => metrica !== null),
     ],
   };
-  const [periodo, serie] = await Promise.all([
+  const [periodo, serie, anteriores] = await Promise.all([
     carregarDesempenho(filtro, "periodo", ["conta", "campanha"]),
     carregarDesempenho(filtro, granularidade, ["conta"]),
+    carregarAnteriores(filtro, intervaloAnterior),
   ]);
 
   const campanhas = montarCampanhas(
@@ -187,6 +206,7 @@ export async function carregarVisaoConta(
       resultados: listarTiposResultado(campanhas),
       totais: periodo.filter(({ nivel }) => nivel === "conta"),
       serie,
+      anteriores,
     }),
   };
 }
@@ -200,6 +220,7 @@ export async function carregarVisaoCampanha(
   empresaId: string,
   campanhaId: string | null,
   intervalo: Intervalo,
+  intervaloAnterior: Intervalo,
   granularidade: Granularidade,
 ): Promise<VisaoCampanha | null> {
   const [catalogo, campanha] = await Promise.all([
@@ -218,12 +239,19 @@ export async function carregarVisaoCampanha(
     intervalo,
     metricas: listarMetricasCampanha(campanha),
   };
-  const [totais, serie] = await Promise.all([
+  const [totais, serie, anteriores] = await Promise.all([
     carregarDesempenho(filtro, "periodo", ["campanha"]),
     carregarDesempenho(filtro, granularidade, ["campanha"]),
+    carregarAnteriores(filtro, intervaloAnterior),
   ]);
 
-  return montarVisaoCampanha({ catalogo, campanha, totais, serie });
+  return montarVisaoCampanha({
+    catalogo,
+    campanha,
+    totais,
+    serie,
+    anteriores,
+  });
 }
 
 // O que a visão do anúncio mostra (REQUIREMENTS §3.1): as métricas da campanha
@@ -235,6 +263,7 @@ export async function carregarVisaoAnuncio(
   anuncioId: string | null,
   campanhaId: string | null,
   intervalo: Intervalo,
+  intervaloAnterior: Intervalo,
   granularidade: Granularidade,
 ): Promise<ResumoMoeda[] | null> {
   const [catalogo, campanha] = await Promise.all([
@@ -253,10 +282,17 @@ export async function carregarVisaoAnuncio(
     intervalo,
     metricas: listarMetricasCampanha(campanha),
   };
-  const [totais, serie] = await Promise.all([
+  const [totais, serie, anteriores] = await Promise.all([
     carregarDesempenho(filtro, "periodo", ["anuncio"]),
     carregarDesempenho(filtro, granularidade, ["anuncio"]),
+    carregarAnteriores(filtro, intervaloAnterior),
   ]);
 
-  return montarVisaoAnuncio({ catalogo, campanha, totais, serie });
+  return montarVisaoAnuncio({
+    catalogo,
+    campanha,
+    totais,
+    serie,
+    anteriores,
+  });
 }

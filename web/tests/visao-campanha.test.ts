@@ -16,6 +16,7 @@ function criarMetrica(
     rotulo: `Rótulo ${codigo}`,
     explicacao: `Explicação ${codigo}`,
     unidade,
+    sentidoMelhora: "alta",
   };
 }
 
@@ -103,6 +104,7 @@ describe("montarVisaoCampanha", () => {
       campanha: VENDAS,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(destaque).toMatchObject({
@@ -122,12 +124,40 @@ describe("montarVisaoCampanha", () => {
     ]);
   });
 
+  test("RF-27: o destaque e o apoio levam o total do período anterior de cada métrica", () => {
+    const { destaque, resumos } = montarVisaoCampanha({
+      catalogo: CATALOGO,
+      campanha: VENDAS,
+      totais: TOTAIS,
+      serie: SERIE,
+      anteriores: [
+        criarLinha("investimento", 80, "2026-08-01", "2026-08-31"),
+        criarLinha("compras", 2, "2026-08-01", "2026-08-31"),
+        criarLinha("custo_compra", 40, "2026-08-01", "2026-08-31"),
+      ],
+    });
+
+    expect(destaque?.metricas.map(({ anterior }) => anterior)).toEqual([2, 40]);
+    expect(
+      resumos[0].metricas.map(({ metrica, anterior }) => [
+        metrica.codigo,
+        anterior,
+      ]),
+    ).toEqual([
+      ["investimento", 80],
+      ["valor_compras", undefined],
+      ["roas", undefined],
+      ["cliques_link", undefined],
+    ]);
+  });
+
   test("o apoio começa pelo investimento e segue a ordem da regra, e não a do rótulo", () => {
     const { resumos } = montarVisaoCampanha({
       catalogo: CATALOGO,
       campanha: VENDAS,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(resumos).toHaveLength(1);
@@ -153,6 +183,7 @@ describe("montarVisaoCampanha", () => {
       campanha: sobrescrita,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(lerCodigos(destaque?.metricas ?? [])).toEqual([
@@ -168,6 +199,7 @@ describe("montarVisaoCampanha", () => {
       campanha: NAO_CLASSIFICADA,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(destaque).toEqual({
@@ -194,11 +226,13 @@ describe("montarVisaoCampanha", () => {
       campanha: reconhecimento,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(destaque?.metricas[0]).toEqual({
       metrica: criarMetrica("alcance"),
       total: undefined,
+      anterior: undefined,
       serie: [],
     });
   });
@@ -209,6 +243,7 @@ describe("montarVisaoCampanha", () => {
       campanha: VENDAS,
       totais: [criarLinha("investimento", 0), criarLinha("custo_compra", null)],
       serie: [],
+      anteriores: [],
     });
 
     expect(destaque?.metricas.map(({ total }) => total)).toEqual([
@@ -224,6 +259,7 @@ describe("montarVisaoCampanha", () => {
         campanha: VENDAS,
         totais: [],
         serie: [],
+        anteriores: [],
       }),
     ).toEqual({ destaque: null, resumos: [] });
   });

@@ -6,6 +6,7 @@ import type { Selecao } from "@/lib/navegacao";
 
 const CAMINHO = "/empresas/6f1c2d3e-0000-4000-8000-000000000001";
 const INTERVALO = { inicio: "2026-10-01", fim: "2026-10-31" };
+const INTERVALO_ANTERIOR = { inicio: "2026-09-01", fim: "2026-09-30" };
 
 function montar(selecao: Selecao) {
   render(
@@ -13,6 +14,7 @@ function montar(selecao: Selecao) {
       caminho={CAMINHO}
       selecao={selecao}
       intervalo={INTERVALO}
+      intervaloAnterior={INTERVALO_ANTERIOR}
     />,
   );
   return {
@@ -118,4 +120,13 @@ test("o formulário do intervalo livre volta à mesma página, com as datas do i
   expect(screen.getByLabelText<HTMLInputElement>("Fim").value).toBe(
     "2026-10-31",
   );
+});
+
+test("RF-27: mostra o período anterior com que as métricas se comparam", () => {
+  montar({ periodo: "mes-passado", granularidade: "dia" });
+
+  const regiao = screen.getByRole("region", {
+    name: "Período e granularidade",
+  });
+  expect(regiao.textContent).toContain("Comparado com 01/09/2026 a 30/09/2026");
 });

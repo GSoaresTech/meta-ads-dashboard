@@ -13,6 +13,7 @@ function criarMetrica(
     rotulo: `Rótulo ${codigo}`,
     explicacao: `Explicação ${codigo}`,
     unidade,
+    sentidoMelhora: "alta",
   };
 }
 
@@ -78,6 +79,7 @@ describe("montarVisaoAnuncio", () => {
       campanha: VENDAS,
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(resumos.map(({ moeda }) => moeda)).toEqual(["BRL"]);
@@ -107,6 +109,7 @@ describe("montarVisaoAnuncio", () => {
       },
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(lerCodigos(resumos)).toEqual([
@@ -126,6 +129,7 @@ describe("montarVisaoAnuncio", () => {
       },
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(lerCodigos(resumos)).toEqual([
@@ -139,11 +143,13 @@ describe("montarVisaoAnuncio", () => {
       campanha: { ...VENDAS, metricaResultado: "alcance", metricaKpi: null },
       totais: TOTAIS,
       serie: SERIE,
+      anteriores: [],
     });
 
     expect(resumos[0].metricas[1]).toEqual({
       metrica: criarMetrica("alcance"),
       total: undefined,
+      anterior: undefined,
       serie: [],
     });
   });
@@ -155,6 +161,7 @@ describe("montarVisaoAnuncio", () => {
         campanha: VENDAS,
         totais: [],
         serie: [],
+        anteriores: [],
       }),
     ).toEqual([]);
   });
