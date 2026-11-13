@@ -332,7 +332,7 @@ O catálogo é dado no banco (ADR-0007), nas tabelas `metrica`, `resultado_objet
 
 ### 7.1 Métricas
 
-Cada métrica tem código, rótulo no painel, explicação curta (RNF-01), fórmula, unidade e aditividade. A origem depende do tipo:
+Cada métrica tem código, rótulo no painel, explicação curta (RNF-01), fórmula, unidade, aditividade e sentido de melhora. A origem depende do tipo:
 - **base**: uma coluna das métricas diárias, como investimento e impressões;
 - **ação**: a quantidade ou o valor de um tipo de ação da API (R-21), ou a quantidade de um resultado que a Meta conta fora de `actions`, gravado com o `indicator` dele como tipo (§7.2; R-24);
 - **derivada**: a razão entre duas métricas base ou de ação, multiplicada por um fator de escala, como o 1000 do custo por mil impressões.
@@ -342,6 +342,11 @@ Regras de agregação:
 - Razões são sempre recalculadas a partir das somas do recorte exibido.
 - Alcance e frequência seguem a §3.3.
 - Derivadas com denominador zero ou `NULL` são exibidas como "—", nunca como 0 ou infinito.
+
+Sentido de melhora (RF-27; ADR-0021):
+- **alta**: a variação positiva é melhora, como nos resultados, nas impressões, no CTR e no retorno sobre o investimento;
+- **queda**: a variação negativa é melhora, como em todo custo;
+- **indiferente**: a variação aparece sem ser avaliada, como no investimento e na frequência, que dependem do plano da campanha.
 
 ### 7.2 Resultado principal por objetivo
 

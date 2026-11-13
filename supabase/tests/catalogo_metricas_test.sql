@@ -3,7 +3,7 @@
 -- e as referências das regras de resultado às métricas (RNF-01; ADR-0007;
 -- ADR-0009 §2 e §3).
 BEGIN;
-SELECT plan(75);
+SELECT plan(77);
 
 -- Estrutura
 SELECT col_is_pk('normalizado', 'metrica', 'codigo', 'codigo é a PK de metrica');
@@ -65,6 +65,7 @@ FROM (
     ('metrica', 'unidade'),
     ('metrica', 'aditiva'),
     ('metrica', 'tipo'),
+    ('metrica', 'sentido_melhora'),
     ('resultado_objetivo', 'nome_objetivo'),
     ('metrica_apoio_resultado', 'ordem'),
     ('objetivo_equivalente', 'objetivo')
@@ -78,13 +79,15 @@ FROM unnest(ARRAY['objetivo', 'meta_otimizacao', 'metrica_resultado', 'metrica_k
 SELECT lives_ok(
   $$
   INSERT INTO normalizado.metrica
-    (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator)
+    (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator,
+     sentido_melhora)
   VALUES
-    ('teste_base', 'Base de teste', 'Explicação de teste.', 'soma', 'moeda', true, 'base', 'investimento', NULL, NULL, NULL, NULL, NULL),
+    ('teste_base', 'Base de teste', 'Explicação de teste.', 'soma', 'moeda', true, 'base', 'investimento', NULL, NULL, NULL, NULL, NULL,
+     'indiferente'),
     ('teste_acao', 'Ação de teste', 'Explicação de teste.', 'soma', 'quantidade', true, 'acao', NULL,
-     'offsite_conversion.fb_pixel_lead', 'quantidade', NULL, NULL, NULL),
+     'offsite_conversion.fb_pixel_lead', 'quantidade', NULL, NULL, NULL, 'alta'),
     ('teste_derivada', 'Derivada de teste', 'Explicação de teste.', 'base ÷ ação', 'moeda', false, 'derivada', NULL, NULL, NULL,
-     'teste_base', 'teste_acao', 1)
+     'teste_base', 'teste_acao', 1, 'queda')
   $$,
   'métricas base, de ação e derivada com a origem do próprio tipo são aceitas'
 );
@@ -93,8 +96,9 @@ SELECT lives_ok(
 SELECT lives_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
-    VALUES ('teste_200', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1)
+    INSERT INTO normalizado.metrica
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator, sentido_melhora)
+    VALUES ('teste_200', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1, 'alta')
     $$,
     repeat('á', 199) || '.'
   ),
@@ -103,8 +107,9 @@ SELECT lives_ok(
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
-    VALUES ('teste_201', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1)
+    INSERT INTO normalizado.metrica
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator, sentido_melhora)
+    VALUES ('teste_201', 'Teste', %L, 'soma', 'quantidade', false, 'derivada', 'teste_base', 'teste_acao', 1, 'alta')
     $$,
     repeat('á', 200) || '.'
   ),
@@ -122,10 +127,11 @@ SELECT is_empty(
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
-    VALUES (%L, %L, %L, %L, %L, false, %L, 'teste_base', 'teste_acao', 1)
+    INSERT INTO normalizado.metrica
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator, sentido_melhora)
+    VALUES (%L, %L, %L, %L, %L, false, %L, 'teste_base', 'teste_acao', 1, %L)
     $$,
-    codigo, rotulo, explicacao, formula, unidade, tipo
+    codigo, rotulo, explicacao, formula, unidade, tipo, sentido_melhora
   ),
   '23514',
   NULL,
@@ -133,14 +139,15 @@ SELECT throws_ok(
 )
 FROM (
   VALUES
-    ('Teste_Maiusculas', 'Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'código fora do formato snake_case é recusado'),
-    ('teste_rotulo', ' Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'rótulo não aparado é recusado'),
-    ('teste_rotulo', '', 'Explicação.', 'soma', 'moeda', 'derivada', 'rótulo vazio é recusado'),
-    ('teste_explicacao', 'Teste', '', 'soma', 'moeda', 'derivada', 'explicação vazia é recusada'),
-    ('teste_formula', 'Teste', 'Explicação.', 'soma ', 'moeda', 'derivada', 'fórmula não aparada é recusada'),
-    ('teste_unidade', 'Teste', 'Explicação.', 'soma', 'reais', 'derivada', 'unidade fora do domínio é recusada'),
-    ('teste_tipo', 'Teste', 'Explicação.', 'soma', 'moeda', 'calculada', 'tipo fora do domínio é recusado')
-) AS caso (codigo, rotulo, explicacao, formula, unidade, tipo, descricao);
+    ('Teste_Maiusculas', 'Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'queda', 'código fora do formato snake_case é recusado'),
+    ('teste_rotulo', ' Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'queda', 'rótulo não aparado é recusado'),
+    ('teste_rotulo', '', 'Explicação.', 'soma', 'moeda', 'derivada', 'queda', 'rótulo vazio é recusado'),
+    ('teste_explicacao', 'Teste', '', 'soma', 'moeda', 'derivada', 'queda', 'explicação vazia é recusada'),
+    ('teste_formula', 'Teste', 'Explicação.', 'soma ', 'moeda', 'derivada', 'queda', 'fórmula não aparada é recusada'),
+    ('teste_unidade', 'Teste', 'Explicação.', 'soma', 'reais', 'derivada', 'queda', 'unidade fora do domínio é recusada'),
+    ('teste_tipo', 'Teste', 'Explicação.', 'soma', 'moeda', 'calculada', 'queda', 'tipo fora do domínio é recusado'),
+    ('teste_sentido', 'Teste', 'Explicação.', 'soma', 'moeda', 'derivada', 'menor', 'sentido de melhora fora do domínio é recusado')
+) AS caso (codigo, rotulo, explicacao, formula, unidade, tipo, sentido_melhora, descricao);
 
 -- O tipo amarra a origem: base lê uma coluna, ação lê um tipo de ação e uma
 -- medida, e derivada lê só a razão entre duas métricas, com o fator de escala
@@ -149,8 +156,9 @@ SELECT throws_ok(
   format(
     $$
     INSERT INTO normalizado.metrica
-      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator)
-    VALUES ('teste_origem', 'Teste', 'Explicação.', 'soma', 'quantidade', true, %L, %L, %L, %L, %L, %L, %L)
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator,
+       sentido_melhora)
+    VALUES ('teste_origem', 'Teste', 'Explicação.', 'soma', 'quantidade', true, %L, %L, %L, %L, %L, %L, %L, 'alta')
     $$,
     tipo, campo_base, tipo_acao, medida_acao, numerador, denominador, fator
   ),
@@ -180,8 +188,9 @@ FROM (
 SELECT throws_ok(
   format(
     $$
-    INSERT INTO normalizado.metrica (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator)
-    VALUES ('teste_operando', 'Teste', 'Explicação.', 'soma', 'moeda', false, 'derivada', %L, %L, 1)
+    INSERT INTO normalizado.metrica
+      (codigo, rotulo, explicacao, formula, unidade, aditiva, tipo, numerador, denominador, fator, sentido_melhora)
+    VALUES ('teste_operando', 'Teste', 'Explicação.', 'soma', 'moeda', false, 'derivada', %L, %L, 1, 'queda')
     $$,
     numerador, denominador
   ),
