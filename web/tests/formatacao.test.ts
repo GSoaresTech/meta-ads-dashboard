@@ -12,6 +12,7 @@ import {
   formatarPercentual,
   formatarPeriodo,
   formatarRotuloEixo,
+  formatarVariacao,
 } from "@/lib/formatacao";
 
 // O Intl separa o símbolo do valor com espaço não separável (U+00A0): na tela
@@ -113,6 +114,25 @@ describe("formatarPercentual", () => {
 
   test.each(VALORES_AUSENTES)("%s aparece como travessão", (valor) => {
     expect(formatarPercentual(valor)).toBe(TRAVESSAO);
+  });
+});
+
+describe("formatarVariacao", () => {
+  test.each([
+    [0.25, "+25%"],
+    [-0.125, "-12,5%"],
+    [0.1234, "+12,3%"],
+    [2, "+200%"],
+  ])("RF-27: %d vira %s, com o sinal", (valor, esperado) => {
+    expect(formatarVariacao(valor)).toBe(esperado);
+  });
+
+  test("a variação zero sai sem sinal", () => {
+    expect(formatarVariacao(0)).toBe("0%");
+  });
+
+  test("RF-27: sem variação, aparece o travessão", () => {
+    expect(formatarVariacao(null)).toBe(TRAVESSAO);
   });
 });
 
