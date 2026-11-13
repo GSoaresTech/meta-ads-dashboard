@@ -110,3 +110,23 @@ export function listarMetricasExibidas(documento: Document): MetricaExibida[] {
     ...tabelas.flatMap(lerCelulasMetrica),
   ];
 }
+
+// Os atributos que o navegador mostra ou o leitor de tela lê como texto.
+const ATRIBUTOS_TEXTO = ["aria-label", "title", "alt", "placeholder"];
+
+// O texto que a pessoa lê ou ouve: o título da aba e o corpo da página,
+// inclusive as ajudas fechadas, o que fica oculto só para o leitor de tela e
+// os atributos lidos como texto. Os scripts que levam os dados do React ficam
+// de fora, porque não são exibidos (RNF-02).
+export function lerTextoRenderizado(documento: Document): string {
+  const corpo = documento.body.cloneNode(true) as Element;
+  corpo
+    .querySelectorAll("script, style, template")
+    .forEach((elemento) => elemento.remove());
+  const atributos = [...corpo.querySelectorAll("*")].flatMap((elemento) =>
+    ATRIBUTOS_TEXTO.flatMap(
+      (atributo) => elemento.getAttribute(atributo) ?? [],
+    ),
+  );
+  return [documento.title, corpo.textContent ?? "", ...atributos].join("\n");
+}

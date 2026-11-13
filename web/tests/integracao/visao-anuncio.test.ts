@@ -21,8 +21,10 @@ import {
   lerCartoes,
   lerSerie,
   lerValorMoeda,
+  lerTextoRenderizado,
   listarMetricasExibidas,
 } from "./leitura-pagina";
+import { acharTermosApi, listarTermosApi } from "./termos-api";
 
 // Prova a visão do anúncio por HTTP: as métricas da campanha dele, com o
 // total e a série, e a soma dos anúncios igual à campanha (REQUIREMENTS §3.1;
@@ -313,6 +315,15 @@ describe("visão do anúncio", () => {
       expect(texto).not.toMatch(new RegExp(`\\b${termo}`));
       expect(html).not.toMatch(new RegExp(`\\b${termo}`));
     }
+  });
+
+  test("RNF-02: o texto renderizado, com as ajudas das métricas, não tem nome de campo, tipo de ação, código de métrica nem valor de enum da API", async () => {
+    const { documento } = await abrirAnuncio();
+
+    const texto = lerTextoRenderizado(documento);
+
+    expect(texto).toContain("O que é isso?");
+    expect(acharTermosApi(texto, await listarTermosApi(cliente))).toEqual([]);
   });
 
   test("o operador vê o anúncio de qualquer empresa", async () => {
