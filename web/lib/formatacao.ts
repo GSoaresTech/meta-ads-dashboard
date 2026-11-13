@@ -33,6 +33,17 @@ const FORMATO_DATA = new Intl.DateTimeFormat(LOCALIDADE, {
   timeZone: "UTC",
 });
 
+// O instante da carga sai com a sigla do fuso, porque a página pode somar
+// contas em fusos diferentes, e o horário sem ela seria ambíguo.
+const OPCOES_INSTANTE: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZoneName: "short",
+};
+
 // O eixo do gráfico mostra o período sem o ano quando o dia importa, e a
 // data inteira fica na dica e na tabela.
 const FORMATO_DIA_MES = new Intl.DateTimeFormat(LOCALIDADE, {
@@ -93,6 +104,14 @@ export function formatarPercentual(valor: ValorNumerico): string {
 // função não serve para ele.
 export function formatarData(data: string | null | undefined): string {
   return data ? FORMATO_DATA.format(new Date(data)) : VALOR_AUSENTE;
+}
+
+// O instante, como o da última carga, no fuso em que a página conta o dia.
+export function formatarInstante(instante: Date, fuso: string): string {
+  return new Intl.DateTimeFormat(LOCALIDADE, {
+    ...OPCOES_INSTANTE,
+    timeZone: fuso,
+  }).format(instante);
 }
 
 // A unidade vem do catálogo, e a moeda, da conta (ADR-0007).
