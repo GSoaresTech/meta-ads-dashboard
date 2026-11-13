@@ -75,17 +75,26 @@ function obterDiaNoFuso(agora: Date, fuso: string): string {
   return `${lerParte("year")}-${lerParte("month")}-${lerParte("day")}`;
 }
 
-// O dia corrente no fuso da conta (RF-26). Com contas em fusos diferentes,
-// vale o da mais atrasada, para que ontem já esteja encerrado em todas
+// O fuso do dia corrente (RF-26): o da conta ou, com contas em fusos
+// diferentes, o da mais atrasada, para que ontem já esteja encerrado em todas
 // (REQUIREMENTS §3.3). Em AAAA-MM-DD, a ordem do texto é a das datas.
-export function obterHoje(
+export function obterFusoReferencia(
   agora: Date,
   fusosHorarios: readonly string[],
 ): string {
   const fusos = fusosHorarios.length > 0 ? fusosHorarios : [FUSO_SEM_CONTA];
-  return fusos
-    .map((fuso) => obterDiaNoFuso(agora, fuso))
-    .reduce((maisAtrasado, dia) => (dia < maisAtrasado ? dia : maisAtrasado));
+  return fusos.reduce((maisAtrasado, fuso) =>
+    obterDiaNoFuso(agora, fuso) < obterDiaNoFuso(agora, maisAtrasado)
+      ? fuso
+      : maisAtrasado,
+  );
+}
+
+export function obterHoje(
+  agora: Date,
+  fusosHorarios: readonly string[],
+): string {
+  return obterDiaNoFuso(agora, obterFusoReferencia(agora, fusosHorarios));
 }
 
 // Os últimos 7 e 30 dias terminam ontem, sem o dia parcial de hoje; este mês
