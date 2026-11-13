@@ -24,6 +24,17 @@ const FORMATO_PERCENTUAL = new Intl.NumberFormat(LOCALIDADE, {
   maximumFractionDigits: MAXIMO_CASAS_DECIMAIS,
 });
 
+// Uma casa basta para comparar com o período anterior. O cálculo da variação
+// arredonda na mesma casa.
+export const CASAS_DECIMAIS_VARIACAO = 1;
+
+// A variação leva o sinal, para que a alta e a queda se leiam sem a seta.
+const FORMATO_VARIACAO = new Intl.NumberFormat(LOCALIDADE, {
+  style: "percent",
+  maximumFractionDigits: CASAS_DECIMAIS_VARIACAO,
+  signDisplay: "exceptZero",
+});
+
 // O dia em AAAA-MM-DD é lido como meia-noite UTC. Exibi-lo também em UTC
 // devolve o mesmo dia em qualquer fuso; no fuso local, UTC−3 recuaria um dia.
 const FORMATO_DATA = new Intl.DateTimeFormat(LOCALIDADE, {
@@ -98,6 +109,11 @@ export function formatarNumero(valor: ValorNumerico): string {
 // Recebe a fração, como o catálogo guarda o percentual (ADR-0009): 0.125 é 12,5%.
 export function formatarPercentual(valor: ValorNumerico): string {
   return possuiValor(valor) ? FORMATO_PERCENTUAL.format(valor) : VALOR_AUSENTE;
+}
+
+// Recebe a fração da mudança em relação ao período anterior (RF-27).
+export function formatarVariacao(valor: ValorNumerico): string {
+  return possuiValor(valor) ? FORMATO_VARIACAO.format(valor) : VALOR_AUSENTE;
 }
 
 // Recebe o dia em AAAA-MM-DD. Um instante precisa do fuso da conta, e esta
