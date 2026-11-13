@@ -32,10 +32,14 @@ const FUSO_SEM_CONTA = "UTC";
 
 const DIAS_ULTIMA_SEMANA = 7;
 const DIAS_ULTIMO_MES = 30;
+const MESES_ANO = 12;
+const MILISSEGUNDOS_DIA = 24 * 60 * 60 * 1000;
 
 // O ano 0000 existe no Date, mas o Postgres recusa o texto com erro, em vez de
-// devolver zero linhas.
-const FORMATO_DIA = /^(?!0000)\d{4}-\d{2}-\d{2}$/;
+// devolver zero linhas. Os anos de 0001 a 0999 ficam de fora também: o período
+// anterior de um intervalo neles pode cair no ano 0000, e o Date.UTC lê os
+// anos de 0 a 99 como 1900 a 1999 (RF-27).
+const FORMATO_DIA = /^(?!0)\d{4}-\d{2}-\d{2}$/;
 
 // O dia civil vira meia-noite UTC, em que somar dias e voltar ao início do
 // mês não esbarram em horário de verão.
@@ -59,6 +63,42 @@ function iniciarMes(data: Date): Date {
 
 function iniciarAno(data: Date): Date {
   return new Date(Date.UTC(data.getUTCFullYear(), 0, 1));
+}
+
+// O dia zero de um mês é o último dia do mês anterior.
+function encerrarMes(data: Date): Date {
+  return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth() + 1, 0));
+}
+
+// O mesmo dia, alguns meses antes, sem passar do fim do mês de chegada: 31 de
+// março, um mês antes, é 28 de fevereiro, e não 3 de março.
+function recuarMeses(data: Date, meses: number): Date {
+  const mesChegada = new Date(
+    Date.UTC(data.getUTCFullYear(), data.getUTCMonth() - meses, 1),
+  );
+  const dia = Math.min(data.getUTCDate(), encerrarMes(mesChegada).getUTCDate());
+  return new Date(
+    Date.UTC(mesChegada.getUTCFullYear(), mesChegada.getUTCMonth(), dia),
+  );
+}
+
+function contarDias(inicio: Date, fim: Date): number {
+  return Math.round((fim.getTime() - inicio.getTime()) / MILISSEGUNDOS_DIA) + 1;
+}
+
+function contarMeses(inicio: Date, fim: Date): number {
+  return (
+    (fim.getUTCFullYear() - inicio.getUTCFullYear()) * MESES_ANO +
+    fim.getUTCMonth() -
+    inicio.getUTCMonth() +
+    1
+  );
+}
+
+function cobreMesesInteiros(inicio: Date, fim: Date): boolean {
+  return (
+    inicio.getUTCDate() === 1 && fim.getTime() === encerrarMes(fim).getTime()
+  );
 }
 
 // As partes numéricas, e não o texto formatado, para que o resultado não
@@ -99,6 +139,16 @@ export function obterHoje(
 
 // Os últimos 7 e 30 dias terminam ontem, sem o dia parcial de hoje; este mês
 // e este ano vão até hoje (REQUIREMENTS §3.2).
+// Os atalhos que andam com o dia de hoje comparam sempre pelos dias, mesmo
+// quando cobrem um mês inteiro, como os últimos 30 dias em 1º de maio
+// (ADR-0021).
+const ATALHOS_POR_DIAS: ReadonlySet<Atalho> = new Set([
+  "hoje",
+  "ontem",
+  "ultimos-7-dias",
+  "ultimos-30-dias",
+]);
+
 const CALCULOS_ATALHO: Record<Atalho, (hoje: Date) => [Date, Date]> = {
   hoje: (hoje) => [hoje, hoje],
   ontem: (hoje) => [somarDias(hoje, -1), somarDias(hoje, -1)],
@@ -120,6 +170,44 @@ const CALCULOS_ATALHO: Record<Atalho, (hoje: Date) => [Date, Date]> = {
 
 export function calcularIntervalo(atalho: Atalho, hoje: string): Intervalo {
   const [inicio, fim] = CALCULOS_ATALHO[atalho](lerDia(hoje));
+  return { inicio: escreverDia(inicio), fim: escreverDia(fim) };
+}
+
+// "Este mês" e "este ano" comparam com o mesmo trecho do mês e do ano
+// anteriores, e por isso a regra precisa do atalho: 01 a 13/01 é os dois. Os
+// meses inteiros comparam com os meses inteiros antes deles, e o restante,
+// com os mesmos dias imediatamente antes (ADR-0021).
+function recuarIntervalo(
+  periodo: Atalho | Intervalo,
+  inicio: Date,
+  fim: Date,
+): [Date, Date] {
+  if (periodo === "este-mes") {
+    return [recuarMeses(inicio, 1), recuarMeses(fim, 1)];
+  }
+  if (periodo === "este-ano") {
+    return [recuarMeses(inicio, MESES_ANO), recuarMeses(fim, MESES_ANO)];
+  }
+  const porDias = typeof periodo === "string" && ATALHOS_POR_DIAS.has(periodo);
+  if (!porDias && cobreMesesInteiros(inicio, fim)) {
+    const meses = contarMeses(inicio, fim);
+    return [recuarMeses(inicio, meses), encerrarMes(recuarMeses(fim, meses))];
+  }
+  const dias = contarDias(inicio, fim);
+  return [somarDias(inicio, -dias), somarDias(fim, -dias)];
+}
+
+// O período anterior equivalente, com que cada métrica se compara (RF-27).
+// Recebe o atalho ou o intervalo livre escolhido e o intervalo já resolvido.
+export function calcularPeriodoAnterior(
+  periodo: Atalho | Intervalo,
+  intervalo: Intervalo,
+): Intervalo {
+  const [inicio, fim] = recuarIntervalo(
+    periodo,
+    lerDia(intervalo.inicio),
+    lerDia(intervalo.fim),
+  );
   return { inicio: escreverDia(inicio), fim: escreverDia(fim) };
 }
 
