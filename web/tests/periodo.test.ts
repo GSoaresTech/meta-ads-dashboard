@@ -4,6 +4,7 @@ import {
   ATALHOS,
   calcularIntervalo,
   lerIntervalo,
+  obterFusoReferencia,
   obterHoje,
   type Atalho,
   type Intervalo,
@@ -15,6 +16,21 @@ import {
 const MADRUGADA_BRASILIA = new Date("2026-11-06T06:43:00Z");
 const SAO_PAULO = "America/Sao_Paulo";
 const LOS_ANGELES = "America/Los_Angeles";
+
+describe("obterFusoReferencia", () => {
+  test("com contas em fusos diferentes, é o fuso da conta mais atrasada, em qualquer ordem", () => {
+    expect(
+      obterFusoReferencia(MADRUGADA_BRASILIA, [SAO_PAULO, LOS_ANGELES]),
+    ).toBe(LOS_ANGELES);
+    expect(
+      obterFusoReferencia(MADRUGADA_BRASILIA, [LOS_ANGELES, SAO_PAULO]),
+    ).toBe(LOS_ANGELES);
+  });
+
+  test("sem conta com fuso, é UTC, como na rotina diária", () => {
+    expect(obterFusoReferencia(MADRUGADA_BRASILIA, [])).toBe("UTC");
+  });
+});
 
 describe("obterHoje", () => {
   test("o dia corrente sai no fuso da conta, e não no do servidor", () => {
