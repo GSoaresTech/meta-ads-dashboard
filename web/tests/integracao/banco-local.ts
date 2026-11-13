@@ -344,3 +344,14 @@ export async function removerEntidades(
     );
   }
 }
+
+// A explicação de cada métrica do catálogo, pelo rótulo que a tela mostra.
+export async function lerExplicacoesCatalogo(
+  cliente: Client,
+): Promise<Map<string, string>> {
+  const { rows } = await cliente.query<{
+    rotulo: string;
+    explicacao: string;
+  }>("SELECT rotulo, explicacao FROM normalizado.metrica");
+  return new Map(rows.map(({ rotulo, explicacao }) => [rotulo, explicacao]));
+}

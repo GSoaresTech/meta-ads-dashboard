@@ -10,6 +10,7 @@ import {
   conectarBancoLocal,
   criarMassaAcesso,
   removerEntidades,
+  lerExplicacoesCatalogo,
   removerMassaAcesso,
   type IdsEntidades,
   type MassaAcesso,
@@ -19,7 +20,9 @@ import {
   acharSecao,
   lerCartoes,
   lerSerie,
+  lerTextoSemAjuda,
   lerValorMoeda,
+  listarMetricasExibidas,
 } from "./leitura-pagina";
 
 // Prova a visão da conta por HTTP: os totais, a série e a lista de campanhas
@@ -186,9 +189,7 @@ function lerCampanhas(documento: Document): string[][] {
   const linhas = documento.querySelectorAll(
     'section[aria-labelledby="titulo-filhas"] tbody tr',
   );
-  return [...linhas].map((linha) =>
-    [...linha.children].map((celula) => celula.textContent ?? ""),
-  );
+  return [...linhas].map((linha) => [...linha.children].map(lerTextoSemAjuda));
 }
 
 describe("§3.1: totais da conta", () => {
@@ -280,24 +281,54 @@ describe("§3.1: totais da conta", () => {
     ).toBe(formatarMoeda(10, "USD"));
   });
 
-  test("cada cartão exibido tem o rótulo e a explicação de uma métrica do catálogo (RF-30)", async () => {
+  test("RF-30: cada cartão, série e célula da lista de campanhas tem o rótulo de uma métrica do catálogo e a ajuda com a explicação dela", async () => {
     const { documento } = await abrirConta();
-    const { rows } = await cliente.query<{
-      rotulo: string;
-      explicacao: string;
-    }>("SELECT rotulo, explicacao FROM normalizado.metrica");
-    const explicacoes = new Map(
-      rows.map(({ rotulo, explicacao }) => [rotulo, explicacao]),
-    );
+    const explicacoes = await lerExplicacoesCatalogo(cliente);
 
-    const cartoes = Object.entries(
-      lerCartoes(acharSecao(documento, TITULO_REAL)),
-    );
+    const metricas = listarMetricasExibidas(documento);
 
-    expect(cartoes.length).toBeGreaterThan(0);
-    for (const [rotulo, paragrafos] of cartoes) {
+    expect(metricas.map(({ rotulo }) => rotulo)).toEqual(
+      expect.arrayContaining([
+        "Investimento",
+        "Compras",
+        "Custo por compra",
+        "Custo por mil pessoas alcançadas",
+      ]),
+    );
+    for (const { rotulo, ajuda } of metricas) {
       expect(explicacoes.has(rotulo), rotulo).toBe(true);
-      expect(paragrafos, rotulo).toContain(explicacoes.get(rotulo));
+      expect(ajuda, rotulo).toEqual({
+        controle: `O que é isso? (${rotulo})`,
+        explicacao: explicacoes.get(rotulo),
+      });
+    }
+  });
+
+  test("RF-30: mudar uma explicação no catálogo muda a ajuda do cartão, da série e da lista de campanhas", async () => {
+    const explicacaoTeste = "Explicação alterada só no catálogo.";
+    const { rows } = await cliente.query<{ explicacao: string }>(
+      "SELECT explicacao FROM normalizado.metrica WHERE codigo = 'compras'",
+    );
+
+    try {
+      await cliente.query(
+        "UPDATE normalizado.metrica SET explicacao = $1 WHERE codigo = 'compras'",
+        [explicacaoTeste],
+      );
+      const { documento } = await abrirConta();
+      const compras = listarMetricasExibidas(documento).filter(
+        ({ rotulo }) => rotulo === "Compras",
+      );
+
+      expect(compras).toHaveLength(3);
+      for (const { ajuda } of compras) {
+        expect(ajuda?.explicacao).toBe(explicacaoTeste);
+      }
+    } finally {
+      await cliente.query(
+        "UPDATE normalizado.metrica SET explicacao = $1 WHERE codigo = 'compras'",
+        [rows[0].explicacao],
+      );
     }
   });
 });

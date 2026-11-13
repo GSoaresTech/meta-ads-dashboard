@@ -49,7 +49,22 @@ function lerColunas(campanha: CampanhaListada): string[] {
     />,
   );
   const [, linha] = screen.getAllByRole("row");
-  return [...linha.children].map((celula) => celula.textContent ?? "");
+  return [...linha.children].map(lerTextoSemAjuda);
+}
+
+// O valor que a célula mostra, sem o texto da ajuda que vai junto.
+function lerTextoSemAjuda(celula: Element): string {
+  const copia = celula.cloneNode(true) as Element;
+  copia.querySelectorAll("details").forEach((ajuda) => ajuda.remove());
+  return copia.textContent ?? "";
+}
+
+function lerAjudas(): [string, string][] {
+  const [, linha] = screen.getAllByRole("row");
+  return [...linha.querySelectorAll("details")].map((ajuda) => [
+    ajuda.querySelector("summary")?.textContent ?? "",
+    ajuda.querySelector("p")?.textContent ?? "",
+  ]);
 }
 
 test("RF-23: cada campanha é um link para a página dela, que mantém a seleção", () => {
@@ -79,6 +94,15 @@ test("§3.1 e RF-37: cada linha traz o objetivo, o status, o resultado e o custo
   ]);
 });
 
+test("RF-30: o resultado e o custo têm a ajuda com a explicação do catálogo", () => {
+  lerColunas(CAMPANHA_VENDAS);
+
+  expect(lerAjudas()).toEqual([
+    ["O que é isso? (Compras)", COMPRAS.explicacao],
+    ["O que é isso? (Custo por compra)", CUSTO_COMPRA.explicacao],
+  ]);
+});
+
 test("o custo sem denominador é '—', e a métrica que a leitura não traz é 'Não disponível' (§7.1; ADR-0013)", () => {
   const colunas = lerColunas({
     ...CAMPANHA_VENDAS,
@@ -101,6 +125,7 @@ test("a campanha sem resultado no catálogo fica sem o resultado e sem o custo (
   });
 
   expect(colunas.slice(1)).toEqual(["Não classificado", "Pausada", "—", "—"]);
+  expect(lerAjudas()).toEqual([]);
 });
 
 test("a campanha ainda sem nome aparece pelo nível", () => {

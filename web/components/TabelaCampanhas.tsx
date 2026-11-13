@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AjudaMetrica } from "@/components/AjudaMetrica";
 import type { CampanhaListada, MetricaMedida } from "@/lib/campanhas";
 import { formatarLeituraMetrica, VALOR_AUSENTE } from "@/lib/formatacao";
 import {
@@ -18,7 +19,8 @@ interface Propriedades {
 }
 
 // O resultado muda de uma campanha para outra, e por isso cada célula leva o
-// rótulo do catálogo junto com o valor (RF-30; ADR-0007).
+// rótulo do catálogo junto com o valor e a ajuda dele (RF-30; ADR-0007;
+// ADR-0020).
 function CelulaMetrica({
   medida,
   moeda,
@@ -31,6 +33,7 @@ function CelulaMetrica({
   return (
     <td>
       {metrica.rotulo}: {formatarLeituraMetrica(valor, metrica.unidade, moeda)}
+      <AjudaMetrica metrica={metrica} />
     </td>
   );
 }

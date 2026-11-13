@@ -31,7 +31,8 @@
   letter-spacing: var(--tracking-titulo);
 }
 
-.grade summary {
+/* O "Ver os dados" da série. A ajuda da métrica tem o estilo próprio. */
+.grade details:has(table) > summary {
   margin-top: var(--espaco-12);
   color: var(--cor-aco);
   font-size: var(--texto-legenda);

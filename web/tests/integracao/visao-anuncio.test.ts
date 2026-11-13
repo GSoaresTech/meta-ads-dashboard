@@ -10,6 +10,7 @@ import {
   conectarBancoLocal,
   criarMassaAcesso,
   removerEntidades,
+  lerExplicacoesCatalogo,
   removerMassaAcesso,
   type IdsEntidades,
   type MassaAcesso,
@@ -20,6 +21,7 @@ import {
   lerCartoes,
   lerSerie,
   lerValorMoeda,
+  listarMetricasExibidas,
 } from "./leitura-pagina";
 
 // Prova a visão do anúncio por HTTP: as métricas da campanha dele, com o
@@ -237,22 +239,20 @@ describe("§3.1: métricas e série temporal do anúncio", () => {
     expect(metricas["Cliques no link"][0]).toBe("3");
   });
 
-  test("RF-30: cada cartão tem o rótulo e a explicação de uma métrica do catálogo", async () => {
+  test("RF-30: cada cartão e cada série têm o rótulo de uma métrica do catálogo e a ajuda com a explicação dela", async () => {
     const { documento } = await abrirAnuncio();
-    const { rows } = await cliente.query<{
-      rotulo: string;
-      explicacao: string;
-    }>("SELECT rotulo, explicacao FROM normalizado.metrica");
-    const explicacoes = new Map(
-      rows.map(({ rotulo, explicacao }) => [rotulo, explicacao]),
-    );
+    const explicacoes = await lerExplicacoesCatalogo(cliente);
 
-    const cartoes = Object.entries(lerMetricas(documento));
+    const metricas = listarMetricasExibidas(documento);
 
-    expect(cartoes).toHaveLength(METRICAS_VENDAS.length);
-    for (const [rotulo, paragrafos] of cartoes) {
+    // Cada métrica com o cartão e a série.
+    expect(metricas).toHaveLength(METRICAS_VENDAS.length * 2);
+    for (const { rotulo, ajuda } of metricas) {
       expect(explicacoes.has(rotulo), rotulo).toBe(true);
-      expect(paragrafos, rotulo).toContain(explicacoes.get(rotulo));
+      expect(ajuda, rotulo).toEqual({
+        controle: `O que é isso? (${rotulo})`,
+        explicacao: explicacoes.get(rotulo),
+      });
     }
   });
 });

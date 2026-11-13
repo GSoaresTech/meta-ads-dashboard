@@ -10,15 +10,9 @@
 }
 
 .valor {
-  margin: var(--espaco-8) 0;
+  margin: var(--espaco-8) 0 0;
   font-family: var(--fonte-titulo);
   font-size: var(--texto-titulo);
   letter-spacing: var(--tracking-titulo);
   line-height: var(--altura-linha-titulo);
-}
-
-.explicacao {
-  margin: 0;
-  color: var(--cor-aco);
-  font-size: var(--texto-legenda);
 }
