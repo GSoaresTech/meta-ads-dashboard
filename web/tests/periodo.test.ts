@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   ATALHOS,
   calcularIntervalo,
+  calcularPeriodoAnterior,
   lerIntervalo,
   obterFusoReferencia,
   obterHoje,
@@ -185,6 +186,179 @@ describe("calcularIntervalo", () => {
   });
 });
 
+// RF-27; ADR-0021. O período anterior do atalho parte do intervalo que o
+// próprio atalho resolve no dia fixo.
+describe("calcularPeriodoAnterior", () => {
+  function compararAtalho(atalho: Atalho, hoje: string): Intervalo {
+    return calcularPeriodoAnterior(atalho, calcularIntervalo(atalho, hoje));
+  }
+
+  function compararLivre(inicio: string, fim: string): Intervalo {
+    return calcularPeriodoAnterior({ inicio, fim }, { inicio, fim });
+  }
+
+  test("RF-27: com mês passado (setembro), compara com agosto inteiro", () => {
+    expect(compararAtalho("mes-passado", "2026-10-15")).toEqual({
+      inicio: "2026-08-01",
+      fim: "2026-08-31",
+    });
+  });
+
+  test("RF-27: um intervalo livre de 10 dias compara com os 10 dias imediatamente anteriores", () => {
+    expect(compararLivre("2026-10-11", "2026-10-20")).toEqual({
+      inicio: "2026-10-01",
+      fim: "2026-10-10",
+    });
+  });
+
+  const casosAtalho: [string, Atalho, string, Intervalo][] = [
+    [
+      "hoje compara com ontem",
+      "hoje",
+      "2026-11-13",
+      { inicio: "2026-11-12", fim: "2026-11-12" },
+    ],
+    [
+      "ontem compara com anteontem",
+      "ontem",
+      "2026-11-13",
+      { inicio: "2026-11-11", fim: "2026-11-11" },
+    ],
+    [
+      "os últimos 7 dias comparam com os 7 dias antes deles",
+      "ultimos-7-dias",
+      "2026-11-13",
+      { inicio: "2026-10-30", fim: "2026-11-05" },
+    ],
+    [
+      "os últimos 30 dias comparam com os 30 dias antes deles",
+      "ultimos-30-dias",
+      "2026-11-13",
+      { inicio: "2026-09-14", fim: "2026-10-13" },
+    ],
+    [
+      "este mês compara com o mesmo trecho do mês anterior",
+      "este-mes",
+      "2026-11-13",
+      { inicio: "2026-10-01", fim: "2026-10-13" },
+    ],
+    [
+      "este mês no dia 31 para no fim do mês anterior, mais curto",
+      "este-mes",
+      "2026-03-31",
+      { inicio: "2026-02-01", fim: "2026-02-28" },
+    ],
+    [
+      "este mês em janeiro compara com dezembro",
+      "este-mes",
+      "2026-01-13",
+      { inicio: "2025-12-01", fim: "2025-12-13" },
+    ],
+    [
+      "este ano compara com o mesmo trecho do ano anterior",
+      "este-ano",
+      "2026-11-13",
+      { inicio: "2025-01-01", fim: "2025-11-13" },
+    ],
+    [
+      "este ano em janeiro compara com janeiro do ano anterior",
+      "este-ano",
+      "2026-01-13",
+      { inicio: "2025-01-01", fim: "2025-01-13" },
+    ],
+    [
+      "este ano em 29/02 para em 28/02 do ano anterior",
+      "este-ano",
+      "2028-02-29",
+      { inicio: "2027-01-01", fim: "2027-02-28" },
+    ],
+    [
+      "mês passado em janeiro compara com novembro",
+      "mes-passado",
+      "2026-01-13",
+      { inicio: "2025-11-01", fim: "2025-11-30" },
+    ],
+    [
+      "mês passado de março compara com fevereiro bissexto inteiro",
+      "mes-passado",
+      "2028-04-02",
+      { inicio: "2028-02-01", fim: "2028-02-29" },
+    ],
+  ];
+
+  test.each(casosAtalho)("%s", (_descricao, atalho, hoje, esperado) => {
+    expect(compararAtalho(atalho, hoje)).toEqual(esperado);
+  });
+
+  test("os últimos 30 dias que cobrem um mês inteiro comparam pelos dias, e não com o mês anterior", () => {
+    expect(compararAtalho("ultimos-30-dias", "2026-05-01")).toEqual({
+      inicio: "2026-03-02",
+      fim: "2026-03-31",
+    });
+  });
+
+  test("cada atalho tem um caso acima", () => {
+    expect(new Set(casosAtalho.map(([, atalho]) => atalho))).toEqual(
+      new Set(ATALHOS),
+    );
+  });
+
+  const casosLivre: [string, Intervalo, Intervalo][] = [
+    [
+      "um dia compara com o dia anterior",
+      { inicio: "2026-03-01", fim: "2026-03-01" },
+      { inicio: "2026-02-28", fim: "2026-02-28" },
+    ],
+    [
+      "um mês inteiro compara com o mês inteiro anterior",
+      { inicio: "2026-03-01", fim: "2026-03-31" },
+      { inicio: "2026-02-01", fim: "2026-02-28" },
+    ],
+    [
+      "meses inteiros comparam com o mesmo número de meses inteiros antes",
+      { inicio: "2026-09-01", fim: "2026-10-31" },
+      { inicio: "2026-07-01", fim: "2026-08-31" },
+    ],
+    [
+      "um ano inteiro compara com o ano inteiro anterior",
+      { inicio: "2025-01-01", fim: "2025-12-31" },
+      { inicio: "2024-01-01", fim: "2024-12-31" },
+    ],
+    [
+      "o trecho de um mês que não chega ao fim dele compara pelos dias",
+      { inicio: "2026-11-01", fim: "2026-11-13" },
+      { inicio: "2026-10-19", fim: "2026-10-31" },
+    ],
+    [
+      "o intervalo que atravessa a virada do ano compara pelos dias",
+      { inicio: "2026-01-01", fim: "2026-01-10" },
+      { inicio: "2025-12-22", fim: "2025-12-31" },
+    ],
+  ];
+
+  test.each(casosLivre)(
+    "intervalo livre: %s",
+    (_descricao, intervalo, esperado) => {
+      expect(compararLivre(intervalo.inicio, intervalo.fim)).toEqual(esperado);
+    },
+  );
+
+  test("o período anterior termina na véspera do intervalo, salvo no trecho de este mês e este ano", () => {
+    const casos: [Atalho, string][] = [
+      ["hoje", "2026-11-13"],
+      ["ultimos-30-dias", "2026-03-01"],
+      ["mes-passado", "2026-03-15"],
+    ];
+    for (const [atalho, hoje] of casos) {
+      const intervalo = calcularIntervalo(atalho, hoje);
+      const anterior = calcularPeriodoAnterior(atalho, intervalo);
+      const vespera = new Date(`${intervalo.inicio}T00:00:00Z`);
+      vespera.setUTCDate(vespera.getUTCDate() - 1);
+      expect(anterior.fim).toBe(vespera.toISOString().slice(0, 10));
+    }
+  });
+});
+
 describe("lerIntervalo", () => {
   test("aceita dois dias em AAAA-MM-DD, com o início até o fim", () => {
     expect(lerIntervalo("2026-10-01", "2026-10-10")).toEqual({
@@ -202,6 +376,11 @@ describe("lerIntervalo", () => {
     ["dia que não existe", "2026-02-30", "2026-03-01"],
     ["mês que não existe", "2026-13-01", "2026-12-31"],
     ["ano que o banco não aceita", "0000-01-01", "2026-01-01"],
+    [
+      "ano cujo período anterior o banco não aceitaria",
+      "0001-01-01",
+      "0001-01-10",
+    ],
     ["outro formato", "01/10/2026", "2026-10-10"],
     ["texto com dia no meio", "x2026-10-01", "2026-10-10"],
     ["início ausente", undefined, "2026-10-10"],
