@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 
 import { DestaqueCampanha } from "@/components/DestaqueCampanha";
+import { IndicadorAtualizacao } from "@/components/IndicadorAtualizacao";
 import { ListaEntidades } from "@/components/ListaEntidades";
 import { ResumoDesempenho } from "@/components/ResumoDesempenho";
 import { SeletorPeriodo } from "@/components/SeletorPeriodo";
 import { TabelaCampanhas } from "@/components/TabelaCampanhas";
 import { TrilhaNavegacao } from "@/components/TrilhaNavegacao";
 import { exigirCredencialEmpresa } from "@/lib/acesso";
+import { alcancaHoje, estaDesatualizada } from "@/lib/atualizacao";
 import {
   carregarResumoGeral,
   carregarVisaoAnuncio,
@@ -24,7 +26,8 @@ import {
   type ParametrosUrl,
   type Selecao,
 } from "@/lib/navegacao";
-import { obterHoje, type Intervalo } from "@/lib/periodo";
+import { obterFusoReferencia, obterHoje, type Intervalo } from "@/lib/periodo";
+import { carregarUltimaCarga } from "@/lib/situacao-carga";
 
 interface Propriedades {
   empresaId: string;
@@ -206,8 +209,9 @@ function ConteudoNivel({
   }
 }
 
-// A página de um nível: a trilha, o seletor e o conteúdo dele. O relógio lido
-// aqui é o que os atalhos usam, no fuso da entidade em foco (RF-26).
+// A página de um nível: a trilha, o seletor, a atualização dos dados e o
+// conteúdo dele. O relógio lido aqui é o que os atalhos usam, no fuso da
+// entidade em foco (RF-26), e o que mede o atraso da carga (RF-28).
 export async function VisaoEntidade({
   empresaId,
   nivel,
@@ -220,9 +224,13 @@ export async function VisaoEntidade({
   if (foco === undefined) {
     notFound();
   }
+  // Depois da trilha, que já recusou a empresa fora do formato de UUID: o
+  // banco a recusaria com erro, e não com zero linhas.
+  const ultimaCargaEm = await carregarUltimaCarga(credencial, empresaId);
 
   const selecao = lerSelecao(parametros);
-  const hoje = obterHoje(new Date(), foco.fusosHorarios);
+  const agora = new Date();
+  const hoje = obterHoje(agora, foco.fusosHorarios);
   const intervalo = resolverIntervalo(selecao.periodo, hoje);
   const conteudo = {
     credencial,
@@ -245,6 +253,12 @@ export async function VisaoEntidade({
         caminho={montarCaminho(empresaId, nivel, entidadeId)}
         selecao={selecao}
         intervalo={intervalo}
+      />
+      <IndicadorAtualizacao
+        ultimaCargaEm={ultimaCargaEm}
+        fuso={obterFusoReferencia(agora, foco.fusosHorarios)}
+        desatualizada={estaDesatualizada(ultimaCargaEm, agora)}
+        parcial={alcancaHoje(intervalo, hoje)}
       />
       <ConteudoNivel {...conteudo} nivel={nivel} />
     </main>
